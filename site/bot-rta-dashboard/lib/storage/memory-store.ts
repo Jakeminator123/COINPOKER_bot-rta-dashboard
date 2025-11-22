@@ -1291,6 +1291,7 @@ export class MemoryStore implements StorageAdapter {
     devices: Array<{
       device_id: string;
       device_name: string;
+      device_hostname?: string;
       last_seen: number;
       signal_count: number;
       unique_detection_count: number;
@@ -1298,6 +1299,9 @@ export class MemoryStore implements StorageAdapter {
       historical_threat_levels: number[];
       session_start: number;
       session_duration: number;
+      player_nickname?: string;
+      player_nickname_confidence?: number;
+      score_per_hour?: number;
       threat_trend: "up" | "down" | "stable";
       is_online: boolean;
       status_message?: string; // Detailed status message for UI
