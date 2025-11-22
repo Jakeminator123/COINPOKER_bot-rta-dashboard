@@ -1,0 +1,12 @@
+# Core dependencies for bot detection system
+# Pinned versions for production stability
+pywin32>=306,<308
+psutil>=5.9.0,<6.0.0
+requests>=2.31.0,<3.0.0
+pillow>=10.0.0,<11.0.0
+pytesseract>=0.3.10,<1.0.0
+cryptography>=41.0.0,<44.0.0
+numpy>=1.24.0,<2.0.0  # Required for nickname detection image processing
+
+# Build dependencies (optional - only needed for .exe builds)
+pyinstaller>=6.0.0  # Uncomment if building .exe files

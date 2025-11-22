@@ -1,0 +1,80 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+node_modules/
+.node_modules
+node_modules
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+# Explicitly ignore trace files (Next.js debug files)
+.next/dev/trace
+.next/dev/*.trace
+*.trace
+# production
+/build
+/dist
+
+# misc
+.DS_Store
+*.pem
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.code-workspace
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# local env files
+.env
+.env*.local
+.env.development
+.env.production
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# cache
+.cache/
+.turbo/
+__pycache__/
+scripts/__pycache__/
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Archive files (if you have any)
+*.zip
+*.tar.gz
+*.rar
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Plan files (optional - remove if you want to keep them)
+*.plan.md
+
+.old
+old
+
+.next

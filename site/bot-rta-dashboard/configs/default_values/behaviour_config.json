@@ -1,0 +1,62 @@
+{
+  "_points_mapping": {
+    "15": {"status": "CRITICAL", "description": "Perfect bot patterns, score 70+"},
+    "10": {"status": "ALERT", "description": "Likely bot patterns, score 45-69"},
+    "5": {"status": "WARN", "description": "Suspicious input, score 25-44"},
+    "0": {"status": "INFO", "description": "Unusual but not threatening, score 15-24"}
+  },
+  "polling": {
+    "frequency_hz": 200,
+    "window_seconds": 20,
+    "min_move_px": 6,
+    "jitter_px_threshold": 1.5,
+    "jitter_window": 0.3
+  },
+  "thresholds": {
+    "iki_cv_alert": 0.08,
+    "iki_cv_warn": 0.12,
+    "ici_cv_alert": 0.08,
+    "ici_cv_warn": 0.12,
+    "const_velocity_alert": 0.8,
+    "const_velocity_warn": 0.6,
+    "const_velocity_tolerance": 0.1,
+    "dir_variability_alert": 0.05,
+    "dir_variability_warn": 0.1,
+    "min_reaction_ms": 120,
+    "jitter_rms_alert": 0.3,
+    "repeated_pixel_threshold": 5,
+    "repeated_pixel_fraction": 0.5
+  },
+  "scoring_weights": {
+    "iki_very_low_variance": 12,
+    "iki_low_variance": 6,
+    "ici_very_low_variance": 12,
+    "ici_low_variance": 6,
+    "constant_velocity_high": 20,
+    "constant_velocity_medium": 10,
+    "direction_very_straight": 12,
+    "direction_straight": 6,
+    "repeated_pixels": 12,
+    "low_jitter": 0,
+    "too_fast_reactions": 10
+  },
+  "reporting": {
+    "report_cooldown_s": 60,
+    "interval_s": 20,
+    "min_events_threshold": 30
+  },
+  "suspicious_tools": [
+    "autohotkey",
+    "autoit",
+    "python",
+    "pythonw",
+    "powershell",
+    "wscript",
+    "cscript",
+    "sikuli",
+    "selenium",
+    "macro",
+    "clicker",
+    "bot"
+  ]
+}

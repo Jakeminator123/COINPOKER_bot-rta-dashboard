@@ -1,0 +1,286 @@
+{
+  "_points_mapping": {
+    "15": {"status": "CRITICAL", "description": "Bot tokens, custom Telegram clients during CoinPoker"},
+    "10": {"status": "ALERT", "description": "RTA sites, suspicious network activity"},
+    "5": {"status": "WARN", "description": "Communication apps, minor network concerns"},
+    "0": {"status": "INFO", "description": "Informational network activity"}
+  },
+  "telegram_detection": {
+    "cidr_fetch_interval": 3600,
+    "alert_cooldown": 120,
+    "poker_fg_window": 15,
+    "token_scan_interval": 300,
+    "scan_paths": [],
+    "scan_patterns": [
+      "*.py",
+      "*.ahk",
+      "*.txt",
+      "*.log",
+      "*.json",
+      "*.cfg",
+      "*.ini",
+      "*.bat",
+      "*.ps1"
+    ],
+    "max_file_size": 2000000,
+    "max_depth": 3,
+    "skip_dirs": [
+      "node_modules",
+      ".git",
+      ".venv",
+      "venv",
+      "__pycache__",
+      ".cache",
+      "cache",
+      "temp",
+      "tmp",
+      "AppData",
+      "Library",
+      ".npm",
+      ".yarn",
+      "dist",
+      "build",
+      "target"
+    ],
+    "protected_poker": {
+      "process": "game.exe",
+      "path_hint": "CoinPoker",
+      "class": "Qt673QWindowIcon"
+    },
+    "other_poker_processes": [
+      "pokerstars",
+      "ggpoker",
+      "888poker",
+      "partypoker",
+      "winamax",
+      "wsop",
+      "pokerbros",
+      "party",
+      "titan"
+    ],
+    "browser_names": [
+      "chrome.exe",
+      "msedge.exe",
+      "firefox.exe",
+      "brave.exe",
+      "opera.exe"
+    ],
+    "official_telegram": [
+      "telegram.exe",
+      "telegramdesktop.exe"
+    ],
+    "tdlib_hints": [
+      "tdjson.dll",
+      "tdlib",
+      "libtdjson"
+    ]
+  },
+  "web_monitoring": {
+    "browser_min_repeat": 60,
+    "dns_alert_cooldown": 120,
+    "interval_s": 12,
+    "protected_poker_process": "game.exe",
+    "other_poker_processes": [
+      "pokerstars",
+      "ggpoker",
+      "888poker",
+      "partypoker",
+      "winamax",
+      "pokerbros",
+      "wsop"
+    ],
+    "network_keywords": [
+      "gto wizard",
+      "gtowizard",
+      "gto-wizard",
+      "gtowizard.com",
+      "app.gtowizard",
+      "odin",
+      "simple gto",
+      "simplegto",
+      "vision gto",
+      "visiongto",
+      "rta.poker",
+      "pokerbotai",
+      "warbot",
+      "holdembot",
+      "simplegto.com",
+      "visiongto.com",
+      "piosolver",
+      "monkersolver"
+    ],
+    "suspicious_patterns": {
+      "rta.poker": [
+        "RTA.poker Service",
+        "ALERT"
+      ],
+      "rtapoker.com": [
+        "RTA Poker",
+        "ALERT"
+      ],
+      "warbotpoker": [
+        "WarBot",
+        "ALERT"
+      ],
+      "holdembot": [
+        "HoldemBot",
+        "ALERT"
+      ],
+      "pokerbotai": [
+        "PokerBotAI",
+        "ALERT"
+      ],
+      "gtowizard": [
+        "GTO Wizard",
+        "ALERT"
+      ],
+      "simplegto": [
+        "Simple GTO",
+        "WARN"
+      ],
+      "visiongto": [
+        "Vision GTO",
+        "WARN"
+      ],
+      "odinpoker": [
+        "Odin Poker",
+        "WARN"
+      ],
+      "gtohero": [
+        "GTO Hero",
+        "WARN"
+      ],
+      "piosolver": [
+        "PioSolver",
+        "WARN"
+      ],
+      "monkersolver": [
+        "MonkerSolver",
+        "WARN"
+      ],
+      "telegram.org": [
+        "Telegram",
+        "WARN"
+      ],
+      "t.me": [
+        "Telegram Link",
+        "WARN"
+      ],
+      "discord.com": [
+        "Discord",
+        "INFO"
+      ],
+      "teamviewer": [
+        "TeamViewer",
+        "WARN"
+      ],
+      "anydesk": [
+        "AnyDesk",
+        "WARN"
+      ],
+      "parsec.app": [
+        "Parsec",
+        "WARN"
+      ],
+      "remotedesktop": [
+        "Remote Desktop",
+        "WARN"
+      ],
+      "ngrok.io": [
+        "Ngrok Tunnel",
+        "ALERT"
+      ],
+      "serveo.net": [
+        "Serveo Tunnel",
+        "ALERT"
+      ],
+      "tor2web": [
+        "Tor Gateway",
+        "ALERT"
+      ],
+      ".onion": [
+        "Tor Hidden Service",
+        "ALERT"
+      ],
+      ".ru": [
+        "Russian Domain",
+        "INFO"
+      ],
+      ".cn": [
+        "Chinese Domain",
+        "INFO"
+      ],
+      ".tk": [
+        "Free Domain",
+        "INFO"
+      ],
+      ".ml": [
+        "Free Domain",
+        "INFO"
+      ]
+    }
+  },
+  "traffic_monitoring": {
+    "interval_s": 10,
+    "alert_cooldown": 30,
+    "connections_cache_ttl": 3,
+    "protected_poker_process": "game.exe",
+    "other_poker_processes": [
+      "pokerstars",
+      "ggpoker",
+      "888poker",
+      "partypoker",
+      "winamax",
+      "pokerbros",
+      "wsop"
+    ],
+    "suspicious_ports": {
+      "1935": "RTMP (Streaming)",
+      "3389": "RDP (Remote Desktop)",
+      "3478": "STUN/WebRTC",
+      "5900": "VNC",
+      "5960": "NDI (Video)",
+      "5961": "NDI (Video)",
+      "7070": "AnyDesk",
+      "8291": "TeamViewer",
+      "19302": "Google STUN",
+      "25565": "Minecraft (bot hosting)",
+      "27015": "Source Engine"
+    },
+    "suspicious_domains": {
+      "telegram": "Telegram API",
+      "discord": "Discord API",
+      "teamviewer": "TeamViewer",
+      "anydesk": "AnyDesk",
+      "api.openai": "AI Service",
+      "googleapis": "Google API",
+      ".ru": "Russian Domain",
+      ".cn": "Chinese Domain",
+      "tor2web": "Tor Gateway",
+      "ngrok": "Tunnel Service",
+      "serveo": "Tunnel Service"
+    },
+    "communication_apps": {
+      "telegram.exe": {
+        "name": "Telegram",
+        "status": "WARN",
+        "points": 5,
+        "desc": "Bot control channel?"
+      },
+      "discord.exe": {
+        "name": "Discord",
+        "status": "INFO",
+        "points": 0,
+        "desc": "Communication app"
+      }
+    }
+  },
+  "kind_categories": {
+    "communication": "Communication channels",
+    "automation": "Automation frameworks",
+    "bot_framework": "Bot development tools",
+    "rta": "Real-Time Assistance tools",
+    "remote_access": "Remote access tools",
+    "tunnel": "Tunneling/proxy services"
+  }
+}

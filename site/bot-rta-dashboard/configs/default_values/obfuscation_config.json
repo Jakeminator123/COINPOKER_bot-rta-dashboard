@@ -1,0 +1,72 @@
+{
+  "_points_mapping": {
+    "15": {"status": "CRITICAL", "description": "Heavy obfuscation, score 80+"},
+    "10": {"status": "ALERT", "description": "Likely obfuscated, score 60-79"},
+    "5": {"status": "WARN", "description": "Suspicious code, score 40-59"},
+    "0": {"status": "INFO", "description": "Possibly obfuscated, score 30-39"}
+  },
+  "obfuscation_patterns": {
+    "exec_eval": [
+      "\\bexec\\s*\\(",
+      "\\beval\\s*\\(",
+      "\\bcompile\\s*\\(",
+      "\\b__import__\\s*\\("
+    ],
+    "base64": [
+      "\\bbase64\\.b64decode",
+      "\\bbase64\\.b32decode",
+      "\\bbase64\\.b85decode",
+      "\\bcodecs\\.decode.*base64"
+    ],
+    "encoding": [
+      "\\.decode\\s*\\(\\s*['\"]hex['\"]",
+      "\\.decode\\s*\\(\\s*['\"]rot13['\"]",
+      "\\bcodecs\\.decode",
+      "\\bbinascii\\.unhexlify"
+    ],
+    "lambda_functions": [
+      "lambda\\s+[^:]+:\\s*lambda",
+      "lambda\\s+[^:]+:\\s*exec",
+      "lambda\\s+[^:]+:\\s*eval"
+    ],
+    "string_manipulation": [
+      "\\[::-1\\]",
+      "\\.join\\(\\[chr\\(",
+      "chr\\(\\d+\\)\\s*\\+\\s*chr\\(\\d+\\)"
+    ],
+    "dangerous_imports": [
+      "from\\s+ctypes\\s+import",
+      "import\\s+ctypes",
+      "from\\s+subprocess\\s+import",
+      "import\\s+subprocess",
+      "from\\s+os\\s+import\\s+system",
+      "import\\s+marshal",
+      "import\\s+pickle"
+    ]
+  },
+  "complexity_thresholds": {
+    "min_lambda_count": 3,
+    "min_exec_eval_count": 2,
+    "min_encoding_count": 3,
+    "suspicious_line_length": 500,
+    "min_obfuscation_score": 5
+  },
+  "file_scan_settings": {
+    "max_file_size": 5242880,
+    "scan_extensions": [
+      ".py",
+      ".pyw"
+    ],
+    "skip_paths": [
+      "__pycache__",
+      ".git",
+      "node_modules",
+      "venv",
+      ".venv"
+    ]
+  },
+  "reporting": {
+    "report_cooldown": 60,
+    "min_confidence": 0.6
+  }
+}

@@ -1,0 +1,844 @@
+{
+  "_meta": {
+    "version": "2.0.0",
+    "schema": "unified_programs_registry",
+    "description": "Central registry for all programs - eliminates duplication"
+  },
+  "_points_mapping": {
+    "15": {"status": "CRITICAL", "description": "Known bots, high-risk automation"},
+    "10": {"status": "ALERT", "description": "RTA tools, macro frameworks"},
+    "5": {"status": "WARN", "description": "General scripting, suspicious tools"},
+    "0": {"status": "INFO", "description": "Informational only, no threat"}
+  },
+  "programs": {
+    "warbot.exe": {
+      "label": "WarBot",
+      "points": 15,
+      "type": "bot",
+      "categories": ["bots"],
+      "description": "Known poker bot"
+    },
+    "holdembot.exe": {
+      "label": "HoldemBot",
+      "points": 15,
+      "type": "bot",
+      "categories": ["bots"],
+      "description": "Known poker bot"
+    },
+    "shankybot.exe": {
+      "label": "ShankyBot BonusBot",
+      "points": 15,
+      "type": "bot",
+      "categories": ["bots"],
+      "description": "Known poker bot"
+    },
+    "bonusbot.exe": {
+      "label": "ShankyBot BonusBot",
+      "points": 15,
+      "type": "bot",
+      "categories": ["bots"],
+      "description": "Known poker bot"
+    },
+    "openholdem.exe": {
+      "label": "OpenHoldem",
+      "points": 15,
+      "type": "bot",
+      "categories": ["bots"],
+      "description": "OpenHoldem poker bot"
+    },
+    "oh.exe": {
+      "label": "OpenHoldem",
+      "points": 15,
+      "type": "bot",
+      "categories": ["bots"],
+      "description": "OpenHoldem poker bot"
+    },
+    "pokerbotai.exe": {
+      "label": "PokerBotAI",
+      "points": 15,
+      "type": "bot",
+      "categories": ["bots"],
+      "description": "AI poker bot"
+    },
+    "pokerbot.exe": {
+      "label": "Generic PokerBot",
+      "points": 15,
+      "type": "bot",
+      "categories": ["bots"],
+      "description": "Generic poker bot"
+    },
+    "inhuman.exe": {
+      "label": "InHuman Poker Bot",
+      "points": 15,
+      "type": "bot",
+      "categories": ["bots"],
+      "description": "InHuman poker bot"
+    },
+    "deepermind.exe": {
+      "label": "DeeperMind Bot",
+      "points": 15,
+      "type": "bot",
+      "categories": ["bots"],
+      "description": "DeeperMind poker bot"
+    },
+    "rta.poker.exe": {
+      "label": "RTA.poker (Nefton)",
+      "points": 10,
+      "type": "rta",
+      "categories": ["rta_tools"],
+      "description": "RTA poker tool"
+    },
+    "rtapoker.exe": {
+      "label": "RTA Poker",
+      "points": 10,
+      "type": "rta",
+      "categories": ["rta_tools"],
+      "description": "RTA poker tool"
+    },
+    "gtohero.exe": {
+      "label": "GTO Hero",
+      "points": 10,
+      "type": "rta",
+      "categories": ["rta_tools"],
+      "description": "GTO analysis tool"
+    },
+    "piosolver.exe": {
+      "label": "PioSolver",
+      "points": 10,
+      "type": "solver",
+      "categories": ["rta_tools"],
+      "description": "GTO solver"
+    },
+    "piosolver-edge.exe": {
+      "label": "PioSolver Edge",
+      "points": 10,
+      "type": "solver",
+      "categories": ["rta_tools"],
+      "description": "PioSolver Edge"
+    },
+    "pioviewer.exe": {
+      "label": "PioViewer",
+      "points": 10,
+      "type": "solver",
+      "categories": ["rta_tools"],
+      "description": "PioSolver viewer"
+    },
+    "monkersolver.exe": {
+      "label": "MonkerSolver",
+      "points": 10,
+      "type": "solver",
+      "categories": ["rta_tools"],
+      "description": "MonkerSolver"
+    },
+    "monkerviewer.exe": {
+      "label": "MonkerViewer",
+      "points": 10,
+      "type": "solver",
+      "categories": ["rta_tools"],
+      "description": "MonkerSolver viewer"
+    },
+    "gto+.exe": {
+      "label": "GTO+",
+      "points": 10,
+      "type": "solver",
+      "categories": ["rta_tools"],
+      "description": "GTO+ solver"
+    },
+    "simple postflop.exe": {
+      "label": "Simple Postflop",
+      "points": 10,
+      "type": "solver",
+      "categories": ["rta_tools"],
+      "description": "Simple Postflop solver"
+    },
+    "simple gto.exe": {
+      "label": "Simple GTO Trainer",
+      "points": 10,
+      "type": "solver",
+      "categories": ["rta_tools"],
+      "description": "Simple GTO trainer"
+    },
+    "icmizer.exe": {
+      "label": "ICMizer",
+      "points": 10,
+      "type": "solver",
+      "categories": ["rta_tools"],
+      "description": "ICM calculator"
+    },
+    "icmizer3.exe": {
+      "label": "ICMizer 3",
+      "points": 10,
+      "type": "solver",
+      "categories": ["rta_tools"],
+      "description": "ICMizer 3"
+    },
+    "autohotkey.exe": {
+      "label": "AutoHotkey",
+      "points": 10,
+      "type": "macro",
+      "categories": ["automation", "macros"],
+      "description": "Automation scripting language"
+    },
+    "autohotkeyu32.exe": {
+      "label": "AutoHotkey U32",
+      "points": 10,
+      "type": "macro",
+      "categories": ["automation", "macros"],
+      "description": "AutoHotkey Unicode 32-bit"
+    },
+    "autohotkeyu64.exe": {
+      "label": "AutoHotkey U64",
+      "points": 10,
+      "type": "macro",
+      "categories": ["automation", "macros"],
+      "description": "AutoHotkey Unicode 64-bit"
+    },
+    "autohotkeya32.exe": {
+      "label": "AutoHotkey A32",
+      "points": 10,
+      "type": "macro",
+      "categories": ["automation", "macros"],
+      "description": "AutoHotkey ANSI 32-bit"
+    },
+    "ahk.exe": {
+      "label": "AutoHotkey",
+      "points": 10,
+      "type": "macro",
+      "categories": ["automation", "macros"],
+      "description": "AutoHotkey executable"
+    },
+    "autoit3.exe": {
+      "label": "AutoIt",
+      "points": 10,
+      "type": "macro",
+      "categories": ["automation", "macros"],
+      "description": "Automation scripting language"
+    },
+    "aut2exe.exe": {
+      "label": "AutoIt Compiler",
+      "points": 10,
+      "type": "macro",
+      "categories": ["automation", "macros"],
+      "description": "AutoIt script compiler"
+    },
+    "autoit3_x64.exe": {
+      "label": "AutoIt x64",
+      "points": 10,
+      "type": "macro",
+      "categories": ["automation", "macros"],
+      "description": "AutoIt 64-bit version"
+    },
+    "python.exe": {
+      "label": "Python",
+      "points": 10,
+      "type": "script",
+      "categories": ["automation"],
+      "description": "Python interpreter"
+    },
+    "pythonw.exe": {
+      "label": "Python (no window)",
+      "points": 10,
+      "type": "script",
+      "categories": ["automation"],
+      "description": "Python interpreter without console"
+    },
+    "python3.exe": {
+      "label": "Python 3",
+      "points": 10,
+      "type": "script",
+      "categories": ["automation"],
+      "description": "Python 3 interpreter"
+    },
+    "py.exe": {
+      "label": "Python Launcher",
+      "points": 10,
+      "type": "script",
+      "categories": ["automation"],
+      "description": "Python launcher utility"
+    },
+    "powershell.exe": {
+      "label": "PowerShell",
+      "points": 10,
+      "type": "script",
+      "categories": ["automation"],
+      "description": "PowerShell scripting engine"
+    },
+    "pwsh.exe": {
+      "label": "PowerShell Core",
+      "points": 5,
+      "type": "script",
+      "categories": ["automation"],
+      "description": "PowerShell Core (cross-platform)"
+    },
+    "cscript.exe": {
+      "label": "Windows Script Host",
+      "points": 10,
+      "type": "script",
+      "categories": ["automation"],
+      "description": "Command-line script host"
+    },
+    "wscript.exe": {
+      "label": "Windows Script Host GUI",
+      "points": 10,
+      "type": "script",
+      "categories": ["automation"],
+      "description": "GUI script host"
+    },
+    "java.exe": {
+      "label": "Java",
+      "points": 5,
+      "type": "script",
+      "categories": ["automation"],
+      "description": "Java runtime"
+    },
+    "javaw.exe": {
+      "label": "Java (no window)",
+      "points": 5,
+      "type": "script",
+      "categories": ["automation"],
+      "description": "Java runtime without console"
+    },
+    "node.exe": {
+      "label": "Node.js",
+      "points": 5,
+      "type": "script",
+      "categories": ["automation"],
+      "description": "Node.js runtime"
+    },
+    "sikuli.exe": {
+      "label": "Sikuli",
+      "points": 10,
+      "type": "bot_framework",
+      "categories": ["automation"],
+      "description": "Visual automation framework"
+    },
+    "sikulix.exe": {
+      "label": "SikuliX",
+      "points": 10,
+      "type": "bot_framework",
+      "categories": ["automation"],
+      "description": "Visual automation framework (extended)"
+    },
+    "robot.exe": {
+      "label": "Robot Framework",
+      "points": 10,
+      "type": "bot_framework",
+      "categories": ["automation"],
+      "description": "Test automation framework"
+    },
+    "selenium.exe": {
+      "label": "Selenium",
+      "points": 10,
+      "type": "bot_framework",
+      "categories": ["automation"],
+      "description": "Web automation framework"
+    },
+    "uipath.exe": {
+      "label": "UiPath",
+      "points": 10,
+      "type": "rpa",
+      "categories": ["automation"],
+      "description": "Robotic Process Automation"
+    },
+    "blueprism.exe": {
+      "label": "Blue Prism",
+      "points": 10,
+      "type": "rpa",
+      "categories": ["automation"],
+      "description": "Robotic Process Automation"
+    },
+    "automation anywhere.exe": {
+      "label": "Automation Anywhere",
+      "points": 10,
+      "type": "rpa",
+      "categories": ["automation"],
+      "description": "Robotic Process Automation"
+    },
+    "clickermann.exe": {
+      "label": "Clickermann",
+      "points": 10,
+      "type": "clicker",
+      "categories": ["macros"],
+      "description": "Automated clicking tool"
+    },
+    "fastclicker.exe": {
+      "label": "Fast Clicker",
+      "points": 10,
+      "type": "clicker",
+      "categories": ["macros"],
+      "description": "Fast automated clicking"
+    },
+    "autoclicker.exe": {
+      "label": "Auto Clicker",
+      "points": 10,
+      "type": "clicker",
+      "categories": ["macros"],
+      "description": "Automated clicking tool"
+    },
+    "gsautoclicker.exe": {
+      "label": "GS Auto Clicker",
+      "points": 10,
+      "type": "clicker",
+      "categories": ["macros"],
+      "description": "GS Auto Clicker tool"
+    },
+    "opautoclicker.exe": {
+      "label": "OP Auto Clicker",
+      "points": 10,
+      "type": "clicker",
+      "categories": ["macros"],
+      "description": "OP Auto Clicker tool"
+    },
+    "tinytask.exe": {
+      "label": "TinyTask",
+      "points": 10,
+      "type": "macro",
+      "categories": ["macros"],
+      "description": "Macro recording tool"
+    },
+    "macro recorder.exe": {
+      "label": "Macro Recorder",
+      "points": 10,
+      "type": "macro",
+      "categories": ["macros"],
+      "description": "Macro recording software"
+    },
+    "jitbit.exe": {
+      "label": "JitBit Macro",
+      "points": 10,
+      "type": "macro",
+      "categories": ["macros"],
+      "description": "JitBit macro recorder"
+    },
+    "pulover.exe": {
+      "label": "Pulover's Macro",
+      "points": 10,
+      "type": "macro",
+      "categories": ["macros"],
+      "description": "Pulover's macro recorder"
+    },
+    "macromaker.exe": {
+      "label": "Macro Maker",
+      "points": 10,
+      "type": "macro",
+      "categories": ["macros"],
+      "description": "Macro creation tool"
+    },
+    "quickmacro.exe": {
+      "label": "Quick Macro",
+      "points": 10,
+      "type": "macro",
+      "categories": ["macros"],
+      "description": "Quick macro tool"
+    },
+    "ghostmouse.exe": {
+      "label": "Ghost Mouse",
+      "points": 10,
+      "type": "macro",
+      "categories": ["macros"],
+      "description": "Mouse automation tool"
+    },
+    "automator.exe": {
+      "label": "Automator",
+      "points": 10,
+      "type": "macro",
+      "categories": ["automation", "macros"],
+      "description": "General automation tool"
+    },
+    "holdemmanager.exe": {
+      "label": "Holdem Manager",
+      "points": 10,
+      "type": "hud",
+      "categories": ["hud_tracking"],
+      "description": "Holdem Manager HUD"
+    },
+    "hm3.exe": {
+      "label": "Holdem Manager 3",
+      "points": 10,
+      "type": "hud",
+      "categories": ["hud_tracking"],
+      "description": "Holdem Manager 3 HUD"
+    },
+    "pokertracker.exe": {
+      "label": "PokerTracker",
+      "points": 10,
+      "type": "hud",
+      "categories": ["hud_tracking"],
+      "description": "PokerTracker HUD"
+    },
+    "pt4.exe": {
+      "label": "PokerTracker 4",
+      "points": 10,
+      "type": "hud",
+      "categories": ["hud_tracking"],
+      "description": "PokerTracker 4 HUD"
+    },
+    "drivehud.exe": {
+      "label": "DriveHUD",
+      "points": 10,
+      "type": "hud",
+      "categories": ["hud_tracking"],
+      "description": "DriveHUD tracking"
+    },
+    "h2n.exe": {
+      "label": "Hand2Note",
+      "points": 10,
+      "type": "hud",
+      "categories": ["hud_tracking"],
+      "description": "Hand2Note HUD"
+    },
+    "hand2note.exe": {
+      "label": "Hand2Note",
+      "points": 10,
+      "type": "hud",
+      "categories": ["hud_tracking"],
+      "description": "Hand2Note HUD"
+    },
+    "telegram.exe": {
+      "label": "Telegram",
+      "points": 10,
+      "type": "messenger",
+      "categories": ["communication"],
+      "description": "Telegram messenger"
+    },
+    "discord.exe": {
+      "label": "Discord",
+      "points": 5,
+      "type": "messenger",
+      "categories": ["communication"],
+      "description": "Discord communication app"
+    },
+    "plo4bot.exe": {
+      "label": "PLO4 Bot",
+      "points": 15,
+      "type": "bot",
+      "categories": ["bots"],
+      "description": "PLO4 poker bot"
+    },
+    "plo5bot.exe": {
+      "label": "PLO5 Bot",
+      "points": 15,
+      "type": "bot",
+      "categories": ["bots"],
+      "description": "PLO5 poker bot"
+    },
+    "hilobot.exe": {
+      "label": "Hi-Lo Bot",
+      "points": 15,
+      "type": "bot",
+      "categories": ["bots"],
+      "description": "Hi-Lo poker bot"
+    },
+    "pokerbotpro.exe": {
+      "label": "PokerBotPro",
+      "points": 15,
+      "type": "bot",
+      "categories": ["bots"],
+      "description": "PokerBotPro automation bot"
+    },
+    "grinderschool.exe": {
+      "label": "GrinderSchool Bot",
+      "points": 15,
+      "type": "bot",
+      "categories": ["bots"],
+      "description": "GrinderSchool poker bot"
+    },
+    "ipokerbot.exe": {
+      "label": "iPokerBot",
+      "points": 15,
+      "type": "bot",
+      "categories": ["bots"],
+      "description": "iPoker bot variant"
+    },
+    "partybot.exe": {
+      "label": "PartyPoker Bot",
+      "points": 15,
+      "type": "bot",
+      "categories": ["bots"],
+      "description": "PartyPoker bot variant"
+    },
+    "pokerstarsbot.exe": {
+      "label": "PokerStars Bot",
+      "points": 15,
+      "type": "bot",
+      "categories": ["bots"],
+      "description": "PokerStars bot variant"
+    },
+    "gtowizard.exe": {
+      "label": "GTO Wizard",
+      "points": 10,
+      "type": "rta",
+      "categories": ["rta_tools"],
+      "description": "GTO Wizard live mode / browser overlay"
+    },
+    "odinpoker.exe": {
+      "label": "Odin Poker Solver",
+      "points": 10,
+      "type": "solver",
+      "categories": ["rta_tools"],
+      "description": "Odin Poker Solver"
+    },
+    "pokersnowie.exe": {
+      "label": "PokerSnowie",
+      "points": 10,
+      "type": "rta",
+      "categories": ["rta_tools"],
+      "description": "PokerSnowie live advice"
+    },
+    "pokeranger.exe": {
+      "label": "PokerRanger",
+      "points": 10,
+      "type": "rta",
+      "categories": ["rta_tools"],
+      "description": "PokerRanger during play"
+    },
+    "wpa wizard.exe": {
+      "label": "WPA Wizard",
+      "points": 10,
+      "type": "rta",
+      "categories": ["rta_tools"],
+      "description": "WPA Wizard calculator"
+    },
+    "equilab.exe": {
+      "label": "Equilab",
+      "points": 10,
+      "type": "rta",
+      "categories": ["rta_tools"],
+      "description": "Equilab with live data input"
+    },
+    "simple preflop.exe": {
+      "label": "Simple Preflop Holdem",
+      "points": 10,
+      "type": "rta",
+      "categories": ["rta_tools"],
+      "description": "Simple Preflop Holdem RTA version"
+    },
+    "simple omaha.exe": {
+      "label": "Simple Omaha",
+      "points": 10,
+      "type": "rta",
+      "categories": ["rta_tools"],
+      "description": "Simple Omaha RTA version"
+    },
+    "novasolver.exe": {
+      "label": "NovaSolver",
+      "points": 10,
+      "type": "solver",
+      "categories": ["rta_tools"],
+      "description": "NovaSolver GTO tool"
+    },
+    "deepsolver.exe": {
+      "label": "DeepSolver",
+      "points": 10,
+      "type": "solver",
+      "categories": ["rta_tools"],
+      "description": "DeepSolver GTO tool"
+    },
+    "plo genius.exe": {
+      "label": "PLO Genius",
+      "points": 10,
+      "type": "solver",
+      "categories": ["rta_tools"],
+      "description": "PLO Genius solver"
+    },
+    "plomastermind.exe": {
+      "label": "PLO Mastermind",
+      "points": 10,
+      "type": "solver",
+      "categories": ["rta_tools"],
+      "description": "PLO Mastermind solver"
+    },
+    "plomatrix.exe": {
+      "label": "PLO Matrix",
+      "points": 10,
+      "type": "solver",
+      "categories": ["rta_tools"],
+      "description": "PLO Matrix solver"
+    },
+    "prometheuspoker.exe": {
+      "label": "Prometheus Poker",
+      "points": 10,
+      "type": "solver",
+      "categories": ["rta_tools"],
+      "description": "Prometheus Poker solver"
+    },
+    "octopipoker.exe": {
+      "label": "Octopi Poker",
+      "points": 10,
+      "type": "solver",
+      "categories": ["rta_tools"],
+      "description": "Octopi Poker solver"
+    },
+    "vision-gto-trainer.exe": {
+      "label": "Vision GTO Trainer",
+      "points": 10,
+      "type": "rta",
+      "categories": ["rta_tools"],
+      "description": "Vision GTO Trainer"
+    },
+    "rocketsolver.exe": {
+      "label": "RocketSolver",
+      "points": 10,
+      "type": "solver",
+      "categories": ["rta_tools"],
+      "description": "RocketSolver GTO tool"
+    },
+    "gto.exe": {
+      "label": "GTO",
+      "points": 10,
+      "type": "solver",
+      "categories": ["rta_tools"],
+      "description": "Generic GTO solver"
+    },
+    "bbzpoker.exe": {
+      "label": "BBZPoker",
+      "points": 10,
+      "type": "rta",
+      "categories": ["rta_tools"],
+      "description": "BBZPoker training tool"
+    },
+    "runitonce.exe": {
+      "label": "Run It Once",
+      "points": 10,
+      "type": "rta",
+      "categories": ["rta_tools"],
+      "description": "Run It Once training platform"
+    },
+    "poker edge.exe": {
+      "label": "Poker Edge",
+      "points": 10,
+      "type": "hud",
+      "categories": ["hud_tracking"],
+      "description": "Poker Edge dynamic HUD"
+    },
+    "holdem indicator.exe": {
+      "label": "Holdem Indicator",
+      "points": 10,
+      "type": "hud",
+      "categories": ["hud_tracking"],
+      "description": "Holdem Indicator HUD"
+    },
+    "tournament shark.exe": {
+      "label": "Tournament Shark",
+      "points": 10,
+      "type": "hud",
+      "categories": ["hud_tracking"],
+      "description": "Tournament Shark HUD"
+    },
+    "smartbuddy.exe": {
+      "label": "SmartBuddy",
+      "points": 10,
+      "type": "hud",
+      "categories": ["hud_tracking"],
+      "description": "SmartBuddy HUD"
+    },
+    "poker crusher.exe": {
+      "label": "Poker Crusher",
+      "points": 10,
+      "type": "hud",
+      "categories": ["hud_tracking"],
+      "description": "Poker Crusher HUD"
+    },
+    "poker office.exe": {
+      "label": "Poker Office",
+      "points": 10,
+      "type": "hud",
+      "categories": ["hud_tracking"],
+      "description": "Poker Office tracking"
+    },
+    "zyngahud.exe": {
+      "label": "ZyngaHUD",
+      "points": 10,
+      "type": "hud",
+      "categories": ["hud_tracking"],
+      "description": "ZyngaHUD OCR-based HUD"
+    },
+    "seatmojo.exe": {
+      "label": "SeatMojo",
+      "points": 10,
+      "type": "script",
+      "categories": ["automation"],
+      "description": "Auto-seating / table selection script"
+    },
+    "starscaption.exe": {
+      "label": "StarsCaption",
+      "points": 10,
+      "type": "script",
+      "categories": ["automation"],
+      "description": "StarsCaption seat scripting"
+    },
+    "partycaption.exe": {
+      "label": "PartyCaption",
+      "points": 10,
+      "type": "script",
+      "categories": ["automation"],
+      "description": "PartyCaption seat scripts"
+    },
+    "sharkystrator.exe": {
+      "label": "SharkyStrator",
+      "points": 10,
+      "type": "script",
+      "categories": ["automation"],
+      "description": "SharkyStrator table selection"
+    },
+    "tablescan turbo.exe": {
+      "label": "TableScan Turbo",
+      "points": 10,
+      "type": "script",
+      "categories": ["automation"],
+      "description": "TableScan Turbo live auto-join"
+    },
+    "seatscript.exe": {
+      "label": "SeatScript",
+      "points": 10,
+      "type": "script",
+      "categories": ["automation"],
+      "description": "SeatScript auto-seating"
+    },
+    "hhdealer.exe": {
+      "label": "HHDealer",
+      "points": 10,
+      "type": "data_mining",
+      "categories": ["data_mining"],
+      "description": "Data mining / hand history sharing service"
+    }
+  },
+  "category_definitions": {
+    "bots": {
+      "name": "Automated Play / Bot Software",
+      "description": "Programs that automatically play poker without human intervention. All forms of auto-decisions/auto-actions are prohibited.",
+      "default_points": 15
+    },
+    "rta_tools": {
+      "name": "Real-Time Assistance / Solvers",
+      "description": "Tools that provide real-time advice during active hands (prohibited during play). Includes GTO solvers, RTA overlays, and training tools with live assistance.",
+      "default_points": 10
+    },
+    "automation": {
+      "name": "Automation Tools",
+      "description": "Scripting engines and automation frameworks that can be used to create bots or automate actions. Includes Python, AutoHotkey, AutoIt, and RPA tools.",
+      "default_points": 10
+    },
+    "macros": {
+      "name": "Macro Tools",
+      "description": "Macro recording and playback tools that can automate mouse/keyboard actions. All auto-clickers and macro tools are prohibited.",
+      "default_points": 10
+    },
+    "hud_tracking": {
+      "name": "Dynamic HUDs / Screen-Scraping Tools",
+      "description": "Heads-up displays and tracking software that read live tables or provide dynamic overlays during play. Prohibited if they update mid-hand or scrape live screen data.",
+      "default_points": 10
+    },
+    "communication": {
+      "name": "Communication Apps",
+      "description": "Messaging and communication applications that could be used for coordination or receiving assistance during play.",
+      "default_points": 5
+    },
+    "data_mining": {
+      "name": "Data Mining / Hand History Sharing",
+      "description": "Services that provide hand histories you did not play yourself or unauthorized data pools. Prohibited for creating unfair advantages.",
+      "default_points": 10
+    }
+  }
+}
+

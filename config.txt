@@ -1,0 +1,46 @@
+# ====================================
+# Bot Detection System Configuration
+# ====================================
+
+# --- Environment ---
+ENV=DEV                              # DEV eller PROD
+INPUT_DEBUG=1                        # Debug logging (0=off, 1=on)
+
+# --- Batch System ---
+BATCH_INTERVAL_HEAVY=92              # Batch-rapporter skickas var 92:e sekund
+NEW_BATCHES_LOG=y                     # Spara batch-loggar lokalt (debugging)
+
+# --- Dashboard Connection ---
+WEB=y                                # Aktivera skickning till dashboard
+WEB_URL_DEV=http://localhost:3001/api/signal
+#WEB_URL_PROD=https://bot-rta-dashboard-1.onrender.com/api/signal
+SIGNAL_TOKEN=detector-secret-token-2024
+
+FORWARDER_MODE=auto                  # web=WebForwarder only, auto=WebForwarder+HTTP fallback, panel=HTTP only
+WEB_FORWARDER_TIMEOUT=10             # Timeout i sekunder för HTTP requests när batch-rapporter skickas till dashboard (default: 10s)
+
+# --- Detection Features ---
+ENABLEHASHLOOKUP=true                # Hash database lookups
+ENABLEONLINELOOKUPS=true             # Online API calls (VirusTotal)
+CHECKSIGNATURES=true                 # Digital signature verification
+VirusTotalAPIKey=3dc67831fd53e5691fe568944041d9cb4894221be33ed06cf5221cea20b7686b
+
+# --- Runtime Tweaks ---
+# IMPORTANT (English):
+# SYNC_SEGMENTS ensures every detection segment starts and ticks at the same time (no staggered delay).
+# COOLDOWN_MULTIPLIER scales EVERY per-segment cooldown/cache globally: 1.0 = default behaviour,
+# values <1 speed up detections (e.g. 0 = no throttling, warnings fire immediately),
+# values >1 slow things down (useful if signals are too noisy). Change once here instead of per file.
+SYNC_SEGMENTS=Y                      # Sprid ut segment-start över första 92s perioden
+COOLDOWN_MULTIPLIER=0                # Standard cooldowns (0=av, 1=normal, 2=dubbel)
+
+# --- Detection Segments (intervall i sekunder för varje segment) ---
+PROGRAMS=92                          # ProcessScanner - intervall mellan skanningar
+AUTO=92                              # AutomationDetector - intervall mellan skanningar
+NETWORK=92                           # WebMonitor/TrafficMonitor - intervall mellan skanningar
+BEHAVIOUR=92                         # BehaviourDetector - intervall mellan skanningar
+VM=92                                # VMDetector - intervall mellan skanningar
+SCREEN=92                            # ScreenDetector - intervall mellan skanningar
+
+# --- Security ---
+RAM_CONFIG=y                         # n=använd disk-cache, y=endast RAM (tamper-proof)

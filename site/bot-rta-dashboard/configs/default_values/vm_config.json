@@ -1,0 +1,312 @@
+{
+  "_points_mapping": {
+    "15": {"status": "CRITICAL", "description": "Active VM guest tools, high bot risk"},
+    "10": {"status": "ALERT", "description": "VM software detected"},
+    "5": {"status": "WARN", "description": "VM components running"},
+    "0": {"status": "INFO", "description": "Informational VM detection"}
+  },
+  "vm_processes": {
+    "vmware": {
+      "vmware.exe": {
+        "name": "VMware Workstation",
+        "points": 10
+      },
+      "vmware-vmx.exe": {
+        "name": "VMware VM Process",
+        "points": 15
+      },
+      "vmplayer.exe": {
+        "name": "VMware Player",
+        "points": 10
+      },
+      "vmware-hostd.exe": {
+        "name": "VMware Host",
+        "points": 10
+      },
+      "vmnat.exe": {
+        "name": "VMware NAT",
+        "points": 5
+      },
+      "vmnetdhcp.exe": {
+        "name": "VMware DHCP",
+        "points": 5
+      },
+      "vmware-authd.exe": {
+        "name": "VMware Auth",
+        "points": 5
+      },
+      "vmtoolsd.exe": {
+        "name": "VMware Tools",
+        "points": 15
+      },
+      "vmwaretray.exe": {
+        "name": "VMware Tray",
+        "points": 10
+      },
+      "vmwareuser.exe": {
+        "name": "VMware User",
+        "points": 10
+      },
+      "vmusr.exe": {
+        "name": "VMware User Service",
+        "points": 10
+      }
+    },
+    "virtualbox": {
+      "virtualbox.exe": {
+        "name": "VirtualBox Manager",
+        "points": 10
+      },
+      "virtualboxvm.exe": {
+        "name": "VirtualBox VM",
+        "points": 15
+      },
+      "vboxsvc.exe": {
+        "name": "VirtualBox Service",
+        "points": 5
+      },
+      "vboxheadless.exe": {
+        "name": "VirtualBox Headless",
+        "points": 15
+      },
+      "vboxtray.exe": {
+        "name": "VirtualBox Tray",
+        "points": 5
+      },
+      "vboxservice.exe": {
+        "name": "VirtualBox Guest Service",
+        "points": 15
+      },
+      "vboxclient.exe": {
+        "name": "VirtualBox Client",
+        "points": 10
+      }
+    },
+    "hyperv": {
+      "vmcompute.exe": {
+        "name": "Hyper-V Compute",
+        "points": 10
+      },
+      "vmms.exe": {
+        "name": "Hyper-V Management",
+        "points": 10
+      },
+      "vmwp.exe": {
+        "name": "Hyper-V Worker",
+        "points": 15
+      },
+      "vmmem": {
+        "name": "WSL/Hyper-V Memory",
+        "points": 10
+      },
+      "wsl.exe": {
+        "name": "WSL",
+        "points": 5
+      },
+      "wslhost.exe": {
+        "name": "WSL Host",
+        "points": 5
+      }
+    },
+    "qemu": {
+      "qemu.exe": {
+        "name": "QEMU",
+        "points": 15
+      },
+      "qemu-system-x86_64.exe": {
+        "name": "QEMU x64",
+        "points": 15
+      },
+      "qemu-ga.exe": {
+        "name": "QEMU Guest Agent",
+        "points": 15
+      }
+    },
+    "docker": {
+      "docker.exe": {
+        "name": "Docker",
+        "points": 5
+      },
+      "dockerd.exe": {
+        "name": "Docker Daemon",
+        "points": 10
+      },
+      "docker-compose.exe": {
+        "name": "Docker Compose",
+        "points": 5
+      }
+    },
+    "android_emulators": {
+      "bluestacks.exe": {
+        "name": "BlueStacks Android",
+        "points": 10
+      },
+      "noxvmhandle.exe": {
+        "name": "NoxPlayer Android",
+        "points": 10
+      },
+      "ldplayer.exe": {
+        "name": "LDPlayer Android",
+        "points": 10
+      },
+      "memu.exe": {
+        "name": "MEmu Android",
+        "points": 10
+      }
+    },
+    "other": {
+      "parallels.exe": {
+        "name": "Parallels Desktop",
+        "points": 10
+      },
+      "prl_tools.exe": {
+        "name": "Parallels Tools",
+        "points": 15
+      },
+      "prl_tools_service.exe": {
+        "name": "Parallels Tools Service",
+        "points": 15
+      },
+      "sandboxie.exe": {
+        "name": "Sandboxie",
+        "points": 10
+      },
+      "sbiesvc.exe": {
+        "name": "Sandboxie Service",
+        "points": 10
+      }
+    }
+  },
+  "vm_manufacturers": [
+    "vmware",
+    "virtualbox",
+    "innotek gmbh",
+    "oracle",
+    "qemu",
+    "xen",
+    "kvm",
+    "parallels",
+    "bhyve",
+    "bochs",
+    "microsoft corporation"
+  ],
+  "vm_models": [
+    "virtual",
+    "vmware",
+    "virtualbox",
+    "kvm",
+    "qemu",
+    "hyper-v",
+    "hyperv",
+    "parallels",
+    "xen",
+    "bhyve",
+    "vbox"
+  ],
+  "vm_mac_prefixes": [
+    "00:05:69",
+    "00:0C:29",
+    "00:1C:14",
+    "00:50:56",
+    "08:00:27",
+    "52:54:00",
+    "00:03:FF",
+    "00:15:5D",
+    "00:16:3E",
+    "00:1C:42"
+  ],
+  "vm_registry_markers": [
+    {
+      "root": "HKEY_LOCAL_MACHINE",
+      "path": "SOFTWARE\\VMware, Inc.\\VMware Tools",
+      "label": "VMware Tools"
+    },
+    {
+      "root": "HKEY_LOCAL_MACHINE",
+      "path": "SOFTWARE\\Oracle\\VirtualBox Guest Additions",
+      "label": "VirtualBox Guest Additions"
+    },
+    {
+      "root": "HKEY_LOCAL_MACHINE",
+      "path": "SOFTWARE\\Microsoft\\Virtual Machine\\Guest\\Parameters",
+      "label": "Hyper-V Guest"
+    },
+    {
+      "root": "HKEY_LOCAL_MACHINE",
+      "path": "SYSTEM\\CurrentControlSet\\Services\\VBoxGuest",
+      "label": "VirtualBox Guest Service"
+    },
+    {
+      "root": "HKEY_LOCAL_MACHINE",
+      "path": "SYSTEM\\CurrentControlSet\\Services\\vmtools",
+      "label": "VMware Tools Service"
+    },
+    {
+      "root": "HKEY_LOCAL_MACHINE",
+      "path": "SYSTEM\\CurrentControlSet\\Services\\vmmouse",
+      "label": "VMware Mouse"
+    },
+    {
+      "root": "HKEY_LOCAL_MACHINE",
+      "path": "SYSTEM\\CurrentControlSet\\Services\\VMBusHID",
+      "label": "Hyper-V Bus"
+    },
+    {
+      "root": "HKEY_LOCAL_MACHINE",
+      "path": "SYSTEM\\CurrentControlSet\\Services\\xenbus",
+      "label": "Xen Bus"
+    }
+  ],
+  "risk_to_points": {
+    "1": 5,
+    "2": 10,
+    "3": 15
+  },
+  "known_hv_vendors": {
+    "VMwareVMware": "VMware",
+    "Microsoft Hv": "Hyper-V",
+    "KVMKVMKVM": "KVM",
+    "VBoxVBoxVBox": "VirtualBox",
+    "XenVMMXenVMM": "Xen",
+    "BHYPERV": "Bhyve",
+    "QEMU": "QEMU"
+  },
+  "evidence_weights": {
+    "manufacturer_vm": 25,
+    "model_vm": 25,
+    "bios_vm": 20,
+    "disk_vm_each": 10,
+    "disk_vm_cap": 20,
+    "video_vm": 6,
+    "mac_vm_each": 10,
+    "mac_vm_cap": 20,
+    "proc_vm": 35,
+    "reg_vm_each": 30,
+    "cpuid_hv_vendor": 30,
+    "cpuid_hv_bit_only": 12,
+    "wmi_hypervisor_present": 10,
+    "guest_tools": 40
+  },
+  "detection_settings": {
+    "interval_seconds": 30,
+    "report_cooldown": 60,
+    "full_check_interval": 300,
+    "high_probability_threshold": 80,
+    "medium_probability_threshold": 55,
+    "low_probability_threshold": 35,
+    "logistic_center": 50,
+    "logistic_slope": 12
+  },
+  "poker_monitoring": {
+    "protected_poker_process": "game.exe",
+    "protected_poker_path_hint": "coinpoker",
+    "other_poker_processes": [
+      "pokerstars",
+      "ggpoker",
+      "888poker",
+      "partypoker",
+      "winamax",
+      "wsop"
+    ]
+  }
+}

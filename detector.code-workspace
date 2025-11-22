@@ -1,0 +1,12 @@
+{
+  "folders": [
+    {
+      "name": "Detector (Main)",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "terminal.integrated.cwd": "${workspaceFolder:Detector (Main)}"
+  }
+}
+

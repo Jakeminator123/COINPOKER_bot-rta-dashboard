@@ -1,0 +1,27 @@
+{
+  "entries": {
+    "0315129933c1fa5e000000000000000000000000000000000000000000000000": {
+      "sha256": "0315129933c1fa5e000000000000000000000000000000000000000000000000",
+      "program_name": "proc=telegram.exe pid=16120",
+      "file_path": "",
+      "status": "WARN",
+      "points": 5,
+      "first_seen": 1762557225991,
+      "last_seen": 1762557245907,
+      "detection_count": 2,
+      "device_ids": [
+        "462a6a3a5c173a1ea54e05b355ea1790"
+      ],
+      "device_names": [
+        "JakobsDator"
+      ],
+      "source": "proc=telegram.exe pid=16120",
+      "comment": ""
+    }
+  },
+  "_meta": {
+    "version": "1.0",
+    "last_updated": 1762557245907,
+    "total_entries": 1
+  }
+}

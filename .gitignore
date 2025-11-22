@@ -1,0 +1,56 @@
+# Python
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+
+# PyInstaller
+*.spec.bak
+*.manifest
+# Keep CoinPokerScanner.spec (needed for builds)
+!CoinPokerScanner.spec
+
+# Executables (too large for GitHub)
+*.exe
+CoinPokerScanner.exe
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Project specific
+*.lock
+config_cache/
+*.csv
+*.png
+*.jpg
+nickname_*.png
+nickname_*.json
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+*.old
+old/
+test/
+hack-coin
+
+node_modules
+.next/(all)

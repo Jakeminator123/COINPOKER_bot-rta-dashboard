@@ -1,0 +1,64 @@
+{
+  "_points_mapping": {
+    "0": {
+      "status": "INFO",
+      "description": "Unusual but not threatening, score 15-24"
+    },
+    "5": {
+      "status": "WARN",
+      "description": "Suspicious input, score 25-44"
+    },
+    "10": {
+      "status": "ALERT",
+      "description": "Likely bot patterns, score 45-69"
+    },
+    "15": {
+      "status": "CRITICAL",
+      "description": "Perfect bot patterns, score 70+"
+    }
+  },
+  "polling": {
+    "frequency_hz": 239,
+    "window_seconds": 20,
+    "min_move_px": 6,
+    "jitter_px_threshold": 1.5,
+    "jitter_window": 0.3
+  },
+  "thresholds": {
+    "iki_cv_alert": 0.07,
+    "iki_cv_warn": 0.1,
+    "ici_cv_alert": 0.07,
+    "ici_cv_warn": 0.1,
+    "const_velocity_alert": 0.75,
+    "const_velocity_warn": 0.5,
+    "const_velocity_tolerance": 0.1,
+    "dir_variability_alert": 0.045,
+    "dir_variability_warn": 0.09,
+    "min_reaction_ms": 140,
+    "jitter_rms_alert": 0.25,
+    "repeated_pixel_radius_px": 2,
+    "repeated_pixel_threshold": 3,
+    "repeated_pixel_fraction": 0.3
+  },
+  "scoring_weights": {
+    "iki_very_low_variance": 12,
+    "iki_low_variance": 6,
+    "ici_very_low_variance": 12,
+    "ici_low_variance": 6,
+    "constant_velocity_high": 20,
+    "constant_velocity_medium": 10,
+    "direction_very_straight": 12,
+    "direction_straight": 6,
+    "repeated_pixels": 12,
+    "low_jitter": 0,
+    "too_fast_reactions": 10
+  },
+  "reporting": {
+    "report_cooldown_s": 30,
+    "interval_s": 20,
+    "min_events_threshold": 20
+  },
+  "_deprecated": {
+    "suspicious_tools": "DEPRECATED: This field has been moved to shared_config.json under 'automation_tools'. The Behaviour Detector now reads automation tool definitions from shared_config. This field is kept for backward compatibility only and will be removed in a future version."
+  }
+}

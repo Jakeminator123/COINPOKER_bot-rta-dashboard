@@ -1,0 +1,4 @@
+---
+description: When working in the subfolders of "site", remember that that is a subproject of the proejct - and will just receeve detections batches for the admin. The projects are separated, but have the same logic
+alwaysApply: false
+---

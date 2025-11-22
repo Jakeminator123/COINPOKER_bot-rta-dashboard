@@ -1,0 +1,109 @@
+PROHIBITED TOOLS – OVERVIEW (2025)
+===================================
+
+Purpose
+-------
+This document consolidates and structures tools and services that are not allowed to be used during play.
+
+Core rule during play
+---------------------
+• All real-time assistance (RTA) and solver usage during an active hand is prohibited.
+• All automated play software (bots) is prohibited.
+• All unauthorized collection/sharing of hand histories is prohibited.
+• All dynamic HUDs or screen‑scraping tools that read live tables are prohibited.
+
+Categories & lists
+==================
+
+1) DATA MINING / HAND HISTORY SHARING
+-------------------------------------
+("Databases or sites that provide hands you did not play yourself")
+
+- HandHQ — nothing reliable to find online (appears defunct)
+- HHDealer — currently selling 1.46M of our hands
+- PokerTableRatings (PTR) — nothing reliable to find online (appears defunct)
+- PokerStove Databases (public/mined versions) — cannot be blocked
+- DriveHUD Cloud Sharing (unauthorized data pools) — DriveHUD is permitted after we confirm dynamic HUD modes are disabled
+- SharkScope Hand History Imports (live collection) — cannot be blocked
+- OmahaTracker Data Service — nothing reliable to find online
+- All custom APIs/marketplaces for HH scraping
+- SmartHand — seems to only have Stars & 888 hands
+- StatName — does not have CP hands
+
+2) AUTO-SEATING / TABLE SELECTION SCRIPTS
+-----------------------------------------
+("Programs that automatically seat you at tables based on stats/profiles")
+
+- SeatMojo — appears discontinued; replaced by TimeMojo (Stars & FullTilt)
+- StarsCaption (if seat scripting is enabled) — not for CP
+- PartyCaption (seat scripts) — not for CP
+- iPoker Tools (auto-seat modes) — not for CP
+- SharkyStrator — not for CP
+- TableScan Turbo (live auto-join versions) — not for CP
+- SeatScript — nothing reliable online / StarsHelper seat finder — not for CP
+
+3) REAL-TIME ASSISTANCE (RTA) / SOLVERS (DURING PLAY = PROHIBITED)
+------------------------------------------------------------------
+- GTO Wizard (live mode / browser overlay) — on our list — reports confirm blocking
+- Odin Poker Solver — company acquired; web login page added to the list
+- Simple GTO Trainer (live assistance) — added to the list; desktop app — tests show it is not blocked
+- Simple Postflop (linked to live hands) — same as above
+- PioSolver (live usage) — on our list; desktop app — unclear if blocking is possible
+- GTO+ (live usage) — desktop app — unclear if blocking is possible
+- MonkerSolver — desktop app — unclear if blocking is possible
+- PokerSnowie (live advice) — web login added to the list — test: could connect & play without issues
+- Simple Preflop Holdem / Simple Omaha (RTA versions) — same status as Simple GTO Trainer
+- PokerRanger (during play) — desktop app — unclear if blocking is possible
+- WPA Wizard — no reliable info online / Equilab with live data input — PokerStrategy/ClickOut-owned; can be blocked directly
+
+The following are listed as “Disallowed Programs”:
+- PioViewer
+- novasolver
+- Solutions – GTO Wizard
+- Deepsolver
+- PLO Genius
+- plomastermind
+- plomatrix
+- prometheuspoker
+- octopipoker
+- vision-gto-trainer
+- Login | Run It Once
+- Login – BBZPoker
+- Log in – RocketSolver
+- GTO.exe
+- app.gtobase.com
+
+4) AUTOMATED PLAY / BOT SOFTWARE
+--------------------------------
+("All forms of auto-decisions/auto-actions")
+
+- Shanky Bot (Holdem Bot 12.3.5) — CP not on their supported sites — cannot be blocked
+- PLO4 Bot 12.3.55 • PLO5 Bot 12.3.5 • Hi‑Lo Bot 12.3.5
+- OpenHoldem / OHReplay (OpenHoldem_14.0.2.0) — cannot be blocked
+- PioHUD bot integrations — no reliable info; related to DeeperMind PokerBot (Stars, Party & GG) & pokerbot.app
+- SimpleBot / PokerBot.ai — we are on their lists — cannot be blocked
+- AutoIt / AutoHotKey scripts that auto‑play — cannot be blocked
+- PokerBotPro — no reliable info (searches point to bots above)
+- GrinderSchool Bots — no info; the site is closed
+- RPA/Python script bots — cannot be blocked
+- iPokerBot, PartyPoker Bot, PokerStars Bot variants — found aipokerbot.com (CP not listed), xpokerbot.com and warbotpoker (we are listed) — cannot be blocked
+- All custom OCR‑based auto‑clickers/“action” macros
+
+5) DYNAMIC HUDS / SCREEN‑SCRAPING TOOLS
+---------------------------------------
+- Hand2Note (dynamic or real‑time mode)
+- DriveHUD LiveStats overlay (if it reads live cards)
+- PokerTracker/HM – proprietary live plug‑ins that update mid‑hand
+- Poker Edge, Holdem Indicator, Tournament Shark
+- SmartBuddy, Poker Crusher, Poker Office
+- ZyngaHUD / generic OCR HUDs (screen‑recording/screen‑capture‑based)
+
+Policy notes
+------------
+• “Not for CP” means the tool/script is not permitted for use on CP.
+• “Cannot be blocked” describes a technical limitation in client/platform blocking — the prohibition still applies.
+• Website logins listed are intended to facilitate detection/blocking and do not constitute permission to use the service.
+
+Contact / Reporting
+-------------------
+Tips, questions, or observations about new tools or methods? Report via the standard channel.

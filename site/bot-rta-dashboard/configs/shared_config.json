@@ -1,0 +1,70 @@
+{
+  "schema_version": "1.0.1",
+  "last_updated": "2025-10-29T00:00:00Z",
+  "_points_mapping": {
+    "0": {
+      "status": "INFO",
+      "description": "Informational"
+    },
+    "5": {
+      "status": "WARN",
+      "description": "Suspicious activity"
+    },
+    "10": {
+      "status": "ALERT",
+      "description": "Serious threats"
+    },
+    "15": {
+      "status": "CRITICAL",
+      "description": "Critical threats"
+    }
+  },
+  "poker_sites": {
+    "protected": {
+      "process": "game.exe",
+      "path_hint": "coinpoker",
+      "window_class": "Qt673QWindowIcon",
+      "name": "CoinPoker"
+    },
+    "other": [
+      "pokerstars",
+      "ggpoker",
+      "888poker",
+      "partypoker",
+      "winamax",
+      "wsop",
+      "pokerbros",
+      "party",
+      "titan",
+      "betfair",
+      "unibet",
+      "bwin",
+      "pokerstars.eu",
+      "fulltilt"
+    ]
+  },
+  "_deprecated": {
+    "automation_tools": "DEPRECATED: All automation tools have been moved to programs_registry.json (Detection Rules). Use programs_registry.json to manage all program definitions including automation tools like AutoHotkey, AutoIt, Python, etc."
+  },
+  "browser_processes": [
+    "chrome.exe",
+    "msedge.exe",
+    "firefox.exe",
+    "brave.exe",
+    "opera.exe",
+    "vivaldi.exe",
+    "safari.exe",
+    "iexplore.exe"
+  ],
+  "communication_apps": [
+    "telegram.exe",
+    "telegramdesktop.exe",
+    "discord.exe",
+    "slack.exe",
+    "teams.exe",
+    "skype.exe",
+    "whatsapp.exe",
+    "signal.exe",
+    "zoom.exe"
+  ]
+}

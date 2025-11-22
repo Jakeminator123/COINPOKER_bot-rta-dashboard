@@ -1,0 +1,709 @@
+{
+  "_points_mapping": {
+    "15": {"status": "CRITICAL", "description": "Known bots, malware, critical threats"},
+    "10": {"status": "ALERT", "description": "RTA tools, suspicious programs"},
+    "5": {"status": "WARN", "description": "Automation tools, potential threats"},
+    "0": {"status": "INFO", "description": "Informational only, benign"}
+  },
+  "ignored_programs": [
+    "PowerShell"
+  ],
+  "known_processes": {
+    "bots": {
+      "warbot.exe": {
+        "label": "WarBot",
+        "points": 15,
+        "type": "bot"
+      },
+      "holdembot.exe": {
+        "label": "HoldemBot",
+        "points": 15,
+        "type": "bot"
+      },
+      "shankybot.exe": {
+        "label": "ShankyBot BonusBot",
+        "points": 15,
+        "type": "bot"
+      },
+      "bonusbot.exe": {
+        "label": "ShankyBot BonusBot",
+        "points": 15,
+        "type": "bot"
+      },
+      "openholdem.exe": {
+        "label": "OpenHoldem",
+        "points": 15,
+        "type": "bot"
+      },
+      "oh.exe": {
+        "label": "OpenHoldem",
+        "points": 15,
+        "type": "bot"
+      },
+      "pokerbotai.exe": {
+        "label": "PokerBotAI",
+        "points": 15,
+        "type": "bot"
+      },
+      "pokerbot.exe": {
+        "label": "Generic PokerBot",
+        "points": 15,
+        "type": "bot"
+      },
+      "inhuman.exe": {
+        "label": "InHuman Poker Bot",
+        "points": 15,
+        "type": "bot"
+      },
+      "deepermind.exe": {
+        "label": "DeeperMind Bot",
+        "points": 15,
+        "type": "bot"
+      }
+    },
+    "rta_tools": {
+      "rta.poker.exe": {
+        "label": "RTA.poker (Nefton)",
+        "points": 10,
+        "type": "rta"
+      },
+      "rtapoker.exe": {
+        "label": "RTA Poker",
+        "points": 10,
+        "type": "rta"
+      },
+      "gtohero.exe": {
+        "label": "GTO Hero",
+        "points": 10,
+        "type": "rta"
+      },
+      "piosolver.exe": {
+        "label": "PioSolver",
+        "points": 10,
+        "type": "solver"
+      },
+      "piosolver-edge.exe": {
+        "label": "PioSolver Edge",
+        "points": 10,
+        "type": "solver"
+      },
+      "pioviewer.exe": {
+        "label": "PioViewer",
+        "points": 10,
+        "type": "solver"
+      },
+      "monkersolver.exe": {
+        "label": "MonkerSolver",
+        "points": 10,
+        "type": "solver"
+      },
+      "monkerviewer.exe": {
+        "label": "MonkerViewer",
+        "points": 10,
+        "type": "solver"
+      },
+      "gto+.exe": {
+        "label": "GTO+",
+        "points": 10,
+        "type": "solver"
+      },
+      "simple postflop.exe": {
+        "label": "Simple Postflop",
+        "points": 10,
+        "type": "solver"
+      },
+      "simple gto.exe": {
+        "label": "Simple GTO Trainer",
+        "points": 10,
+        "type": "solver"
+      },
+      "icmizer.exe": {
+        "label": "ICMizer",
+        "points": 10,
+        "type": "solver"
+      },
+      "icmizer3.exe": {
+        "label": "ICMizer 3",
+        "points": 10,
+        "type": "solver"
+      }
+    },
+    "macro_automation": {
+      "autohotkey.exe": {
+        "label": "AutoHotkey",
+        "points": 10,
+        "type": "macro"
+      },
+      "autoit3.exe": {
+        "label": "AutoIt3",
+        "points": 10,
+        "type": "macro"
+      },
+      "macro recorder.exe": {
+        "label": "Macro Recorder",
+        "points": 10,
+        "type": "macro"
+      },
+      "tinytask.exe": {
+        "label": "TinyTask",
+        "points": 10,
+        "type": "macro"
+      },
+      "pulover.exe": {
+        "label": "Pulover's Macro",
+        "points": 10,
+        "type": "macro"
+      }
+    },
+    "hud_tracking": {
+      "holdemmanager.exe": {
+        "label": "Holdem Manager",
+        "points": 10,
+        "type": "hud"
+      },
+      "hm3.exe": {
+        "label": "Holdem Manager 3",
+        "points": 10,
+        "type": "hud"
+      },
+      "pokertracker.exe": {
+        "label": "PokerTracker",
+        "points": 10,
+        "type": "hud"
+      },
+      "pt4.exe": {
+        "label": "PokerTracker 4",
+        "points": 10,
+        "type": "hud"
+      },
+      "drivehud.exe": {
+        "label": "DriveHUD",
+        "points": 10,
+        "type": "hud"
+      },
+      "h2n.exe": {
+        "label": "Hand2Note",
+        "points": 10,
+        "type": "hud"
+      },
+      "hand2note.exe": {
+        "label": "Hand2Note",
+        "points": 10,
+        "type": "hud"
+      }
+    },
+    "communication": {
+      "telegram.exe": {
+        "label": "Telegram",
+        "points": 10,
+        "type": "messenger"
+      },
+      "discord.exe": {
+        "label": "Discord",
+        "points": 5,
+        "type": "messenger"
+      }
+    }
+  },
+  "points_mapping": {
+    "0": "INFO",
+    "5": "WARN",
+    "10": "ALERT",
+    "15": "CRITICAL"
+  },
+  "path_hints": {
+    "bot_paths": [
+      "\\warbot\\",
+      "\\holdembot\\",
+      "\\openholdem\\",
+      "\\shankybot\\",
+      "\\pokerbotai\\",
+      "\\pokerbot\\",
+      "\\bot\\poker\\",
+      "\\poker\\bot\\",
+      "\\inhuman\\",
+      "\\deepermind\\",
+      "\\bonusbot\\"
+    ],
+    "rta_solver_paths": [
+      "\\rta.poker\\",
+      "\\rtapoker\\",
+      "\\gtohero\\",
+      "\\nefton\\",
+      "\\piosolver\\",
+      "\\monker\\",
+      "\\gto+\\",
+      "\\simple postflop\\",
+      "\\icmizer\\",
+      "\\solver\\",
+      "\\gto\\tools\\"
+    ],
+    "automation_paths": [
+      "\\autohotkey\\",
+      "\\autoit\\",
+      "\\macro\\",
+      "\\scripts\\poker\\"
+    ],
+    "suspicious_generic": [
+      "\\bot\\",
+      "\\cheat\\",
+      "\\hack\\",
+      "\\exploit\\",
+      "\\automation\\",
+      "\\ai\\poker\\",
+      "\\poker\\ai\\"
+    ]
+  },
+  "packer_signatures": {
+    "UPX!": "UPX Packer",
+    "UPX0": "UPX Packer",
+    "UPX1": "UPX Packer",
+    "Themida": "Themida Protector",
+    "VMProtect": "VMProtect",
+    ".vmp": "VMProtect",
+    "ASPack": "ASPack",
+    "PEC2": "PECompact",
+    "NSPack": "NSPack",
+    ".perplex": "Perplex PE Protector",
+    "PEBundle": "PEBundle",
+    "Petite": "Petite",
+    "MEW": "MEW Packer",
+    "FSG!": "FSG Packer"
+  },
+  "anti_analysis_signatures": {
+    "IsDebuggerPresent": "Anti-Debug",
+    "CheckRemoteDebuggerPresent": "Anti-Debug",
+    "NtQueryInformationProcess": "Anti-Debug",
+    "GetTickCount": "Timing Check",
+    "QueryPerformanceCounter": "Timing Check",
+    "VirtualProtect": "Memory Protection",
+    "VirtualAlloc": "Dynamic Memory"
+  },
+  "suspicious_pe_sections": [
+    ".vmp",
+    ".upx",
+    ".asi",
+    ".perplex",
+    ".petite",
+    ".mew",
+    ".upack",
+    ".fsg"
+  ],
+  "process_scanner": {
+    "protected_poker": {
+      "exe": "game.exe",
+      "path_key": "coinpoker"
+    },
+    "macro_headers": [
+      "AUT0HOOK",
+      "AUT0IT",
+      "CHEATENG"
+    ],
+    "windows_system_processes": [
+      "svchost",
+      "smss",
+      "csrss",
+      "wininit",
+      "services",
+      "winlogon",
+      "wudfhost",
+      "dwm",
+      "audiodg",
+      "spoolsv",
+      "ctfmon",
+      "wlanext",
+      "explorer",
+      "taskhostw",
+      "searchindexer",
+      "lsass",
+      "conhost",
+      "runtimebroker",
+      "searchhost"
+    ],
+    "expected_locations": {
+      "chrome.exe": [
+        "program files",
+        "google",
+        "chrome"
+      ],
+      "firefox.exe": [
+        "program files",
+        "mozilla firefox"
+      ],
+      "msedge.exe": [
+        "program files",
+        "microsoft",
+        "edge"
+      ],
+      "python.exe": [
+        "python",
+        "programdata",
+        "miniconda"
+      ],
+      "pythonw.exe": [
+        "python",
+        "programdata",
+        "miniconda"
+      ],
+      "autohotkey.exe": [
+        "autohotkey",
+        "program files"
+      ],
+      "autoit3.exe": [
+        "autoit",
+        "program files"
+      ]
+    },
+    "suspicious_drop_zones": [
+      "\\temp\\",
+      "\\tmp\\",
+      "appdata\\local\\temp"
+    ],
+    "user_folders": [
+      "downloads",
+      "desktop",
+      "documents"
+    ],
+    "automation_tools": [
+      "python",
+      "autohotkey",
+      "autoit",
+      "powershell",
+      "node",
+      "bot",
+      "poker",
+      "macro"
+    ],
+    "rename_ignore": {
+      "mui_files": [
+        ".mui"
+      ],
+      "benign_processes": [
+        "nvcontainer",
+        "nvdisplay",
+        "rtkaud"
+      ],
+      "suspicious_keywords": [
+        "bot",
+        "macro",
+        "auto",
+        "poker",
+        "holdem",
+        "cheat",
+        "hack"
+      ]
+    },
+    "other_poker_sites": [
+      "pokerstars",
+      "ggpoker",
+      "888poker",
+      "partypoker",
+      "winamax",
+      "wsop"
+    ]
+  },
+  "content_analyzer": {
+    "entropy_thresholds": {
+      "high": 7.8,
+      "suspicious": 7.4
+    },
+    "obfuscation_skip_patterns": [
+      "system32",
+      "syswow64",
+      "windows\\",
+      "\\microsoft",
+      "defender",
+      "qtwebengineprocess",
+      "qtwebengineproc",
+      "expressvpn",
+      "nordvpn",
+      "nvidia",
+      "nvcontainer",
+      "geforce",
+      "chrome",
+      "msedge",
+      "firefox",
+      "adobe",
+      "steam",
+      "discord",
+      "telegram",
+      "coinpoker",
+      "pokerstars",
+      "vscode",
+      "codesetup",
+      "code",
+      "notepad++",
+      "sublime_text",
+      "atom",
+      "brackets",
+      "git",
+      "github",
+      "sourcetree",
+      "tortoisegit",
+      "visualstudio",
+      "rider",
+      "pycharm",
+      "intellij",
+      "postman",
+      "insomnia",
+      "soapui",
+      "virtualbox",
+      "vmware",
+      "hyper-v",
+      "teamviewer",
+      "anydesk",
+      "zoom",
+      "slack",
+      "skype",
+      "whatsapp",
+      "signal",
+      "teams",
+      "*code*",
+      "*studio*",
+      "*ide*",
+      "*editor*",
+      "*debug*"
+    ],
+    "min_repeat_seconds": 45,
+    "obfuscation_cache_ttl": 3600,
+    "anti_analysis_alert_threshold": 7,
+    "anti_analysis_warn_threshold": 4,
+    "pe_entropy_threshold": 3.5
+  },
+  "hash_scanner": {
+    "interval_seconds": 15,
+    "min_repeat_hours": 1,
+    "process_cooldown_seconds": 60,
+    "virustotal": {
+      "cache_duration_hours": 24,
+      "min_interval_seconds": 20,
+      "malware_threshold": 5,
+      "suspicious_threshold": 2,
+      "poker_keywords": [
+        "poker",
+        "bot",
+        "rta",
+        "solver",
+        "gto",
+        "holdem"
+      ]
+    }
+  },
+  "whitelist": {
+    "safe_processes": [
+      "dropbox.exe",
+      "kaspersky",
+      "cursor.exe"
+    ],
+    "skip_paths": [
+      "\\windows\\",
+      "\\system32\\",
+      "\\microsoft\\"
+    ]
+  },
+  "ioc": {
+    "bad_hashes": {
+      "f31cf8c3e9a12345678901234567890123456789012345678901234567890e9a": {
+        "label": "HoldemBot 1.3.0",
+        "points": 15,
+        "comment": "OpenHoldem-based bot"
+      },
+      "a9150b9b42f12345678901234567890123456789012345678901234567890142f": {
+        "label": "WarBot 2024-11 exe",
+        "points": 15,
+        "comment": "WarBot main binary"
+      },
+      "b0b1e7aac0012345678901234567890123456789012345678901234567890c00": {
+        "label": "AutoHotkey v1.1",
+        "points": 10,
+        "comment": "Macro engine (context dependent)"
+      },
+      "da8bf0e0ec5bbcad1b0868d2f46152259ba89b80509f31064c9efa834088ba26": {
+        "label": "HM3_HUD",
+        "points": 15,
+        "comment": "HoldemManager 3 HUD - prohibited tool"
+      },
+      "9bb4c1c9eaa4044ffa32d781905969869fd8051fb09f529b9a369d62ba83f5e7": {
+        "label": "TASKBAR_RENAMER",
+        "points": 10,
+        "comment": "Window title manipulation tool"
+      }
+    },
+    "allowlist": {},
+    "safe_processes": {
+      "qtwebengineprocess.exe": {
+        "name": "Qt WebEngine Process",
+        "reason": "Used by CoinPoker and other legitimate Qt-based applications",
+        "used_by": [
+          "CoinPoker",
+          "Discord",
+          "Telegram",
+          "Various desktop apps"
+        ]
+      },
+      "explorer.exe": {
+        "name": "Windows Explorer",
+        "reason": "Windows file manager and shell",
+        "used_by": [
+          "Windows OS"
+        ]
+      },
+      "dwm.exe": {
+        "name": "Desktop Window Manager",
+        "reason": "Windows desktop compositor",
+        "used_by": [
+          "Windows OS"
+        ]
+      },
+      "chrome.exe": {
+        "name": "Google Chrome",
+        "reason": "Legitimate web browser",
+        "used_by": [
+          "Users"
+        ]
+      },
+      "msedge.exe": {
+        "name": "Microsoft Edge",
+        "reason": "Legitimate web browser",
+        "used_by": [
+          "Users"
+        ]
+      },
+      "firefox.exe": {
+        "name": "Mozilla Firefox",
+        "reason": "Legitimate web browser",
+        "used_by": [
+          "Users"
+        ]
+      },
+      "steamwebhelper.exe": {
+        "name": "Steam Web Helper",
+        "reason": "Steam client component",
+        "used_by": [
+          "Steam"
+        ]
+      },
+      "discord.exe": {
+        "name": "Discord",
+        "reason": "Legitimate communication app",
+        "used_by": [
+          "Users"
+        ]
+      },
+      "coinpoker.exe": {
+        "name": "CoinPoker Client",
+        "reason": "The poker site we are protecting - NOT a threat",
+        "used_by": [
+          "CoinPoker players"
+        ]
+      },
+      "dropbox.exe": {
+        "name": "Dropbox",
+        "reason": "Legitimate cloud storage service",
+        "used_by": [
+          "Users"
+        ]
+      },
+      "kpm_tray.exe": {
+        "name": "Kaspersky Password Manager Tray",
+        "reason": "Legitimate Kaspersky security software component",
+        "used_by": [
+          "Kaspersky Password Manager"
+        ]
+      },
+      "avpui.exe": {
+        "name": "Kaspersky Anti-Virus User Interface",
+        "reason": "Legitimate Kaspersky antivirus software",
+        "used_by": [
+          "Kaspersky Anti-Virus"
+        ]
+      },
+      "ksdeui.exe": {
+        "name": "Kaspersky Security Data Exchange UI",
+        "reason": "Legitimate Kaspersky security software component",
+        "used_by": [
+          "Kaspersky Security"
+        ]
+      },
+      "avp.exe": {
+        "name": "Kaspersky Anti-Virus Process",
+        "reason": "Legitimate Kaspersky antivirus engine",
+        "used_by": [
+          "Kaspersky Anti-Virus"
+        ]
+      },
+      "klif.sys": {
+        "name": "Kaspersky Lab Interface Filter",
+        "reason": "Legitimate Kaspersky system driver",
+        "used_by": [
+          "Kaspersky Lab"
+        ]
+      },
+      "vscode.exe": {
+        "name": "Visual Studio Code",
+        "reason": "Legitimate Microsoft IDE used for development",
+        "used_by": [
+          "Developers",
+          "Programmers"
+        ]
+      },
+      "code.exe": {
+        "name": "VS Code Helper",
+        "reason": "VS Code background process",
+        "used_by": [
+          "VS Code users"
+        ]
+      },
+      "python.exe": {
+        "name": "Python Interpreter",
+        "reason": "Legitimate Python runtime (but monitor for suspicious scripts)",
+        "used_by": [
+          "Developers",
+          "Automation scripts"
+        ]
+      },
+      "pythonw.exe": {
+        "name": "Python Windowed",
+        "reason": "Python runtime without console window",
+        "used_by": [
+          "Python applications"
+        ]
+      },
+      "java.exe": {
+        "name": "Java Runtime",
+        "reason": "Legitimate Java virtual machine",
+        "used_by": [
+          "Java applications"
+        ]
+      },
+      "javaw.exe": {
+        "name": "Java Windowed Runtime",
+        "reason": "Java runtime without console",
+        "used_by": [
+          "Java applications"
+        ]
+      },
+      "dotnet.exe": {
+        "name": ".NET Runtime",
+        "reason": "Microsoft .NET framework runtime",
+        "used_by": [
+          ".NET applications"
+        ]
+      },
+      "node.exe": {
+        "name": "Node.js Runtime",
+        "reason": "Legitimate JavaScript runtime",
+        "used_by": [
+          "Node.js applications"
+        ]
+      },
+      "nodejs.exe": {
+        "name": "Node.js Runtime",
+        "reason": "Alternative Node.js executable name",
+        "used_by": [
+          "Node.js applications"
+        ]
+      }
+    }
+  }
+}

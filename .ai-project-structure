@@ -1,0 +1,51 @@
+# AI Project Structure Guide
+
+This file helps AI agents understand the monorepo structure.
+
+## Project Separation
+
+This repository contains TWO SEPARATE PROJECTS:
+
+### Project 1: Detection Tool
+- **Type**: Python application
+- **Root**: `/` (repository root)
+- **Files**: `*.py`, `requirements.txt`, `scanner.py`, `core/`, `segments/`, `utils/`
+- **Purpose**: Bot detection and monitoring
+- **Entry Point**: `scanner.py`
+
+### Project 2: Dashboard
+- **Type**: Next.js web application
+- **Root**: `/site/bot-rta-dashboard/`
+- **Files**: `*.ts`, `*.tsx`, `package.json`, `app/`, `components/`, `lib/`
+- **Purpose**: Web dashboard for visualization and configuration
+- **Entry Point**: `site/bot-rta-dashboard/app/page.tsx`
+
+## Rules for AI Agents
+
+1. **When working on detection tool**: Focus on Python files in root, `core/`, `segments/`, `utils/`
+2. **When working on dashboard**: Focus on TypeScript/React files in `site/bot-rta-dashboard/`
+3. **Shared configuration**: Dashboard serves configs to detection tool via API
+4. **Communication**: Detection tool → Dashboard via HTTP (`/api/signal`)
+5. **Independence**: Projects can be modified independently, but must maintain API compatibility
+
+## File Patterns
+
+**Detection Tool (Python)**:
+- `*.py` files in root, `core/`, `segments/`, `utils/`
+- `requirements.txt`
+- `config.txt`
+- `scanner.py`
+
+**Dashboard (Next.js)**:
+- `*.ts`, `*.tsx` files in `site/bot-rta-dashboard/`
+- `site/bot-rta-dashboard/package.json`
+- `site/bot-rta-dashboard/app/`
+- `site/bot-rta-dashboard/components/`
+
+## Dependencies
+
+- Detection Tool: Python packages (pip)
+- Dashboard: Node.js packages (npm)
+
+Do not mix dependencies between projects.
+
