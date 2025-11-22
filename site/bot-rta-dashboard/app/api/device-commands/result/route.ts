@@ -5,12 +5,12 @@ import {
   parseJsonBody,
   successResponse,
   validateToken,
-} from "@/lib/api-utils";
+} from "@/lib/utils/api-utils";
 import {
   consumeCommandResult,
   isCommandPending,
   saveCommandResult,
-} from "@/lib/device-command-store";
+} from "@/lib/device/device-command-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

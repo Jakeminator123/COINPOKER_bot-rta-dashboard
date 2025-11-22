@@ -1,0 +1,192 @@
+{
+  "scan_type": "unified",
+  "batch_number": 1,
+  "bot_probability": 40,
+  "nickname": null,
+  "summary": {
+    "critical": 0,
+    "alert": 6,
+    "warn": 0,
+    "info": 0,
+    "total_detections": 6,
+    "total_threats": 4,
+    "threat_score": 40,
+    "raw_detection_score": 60
+  },
+  "categories": {
+    "network": 1,
+    "programs": 2,
+    "auto": 3
+  },
+  "active_threats": 4,
+  "aggregated_threats": [
+    {
+      "threat_id": "weatherzeroservice",
+      "name": "Suspicious Code: weatherzeroservice.exe",
+      "category": "programs",
+      "status": "ALERT",
+      "score": 10,
+      "age_seconds": 3,
+      "confidence": 2,
+      "sources": [
+        "programs/Suspicious Entropy: weatherzeroservice.exe",
+        "programs/Suspicious Code: weatherzeroservice.exe"
+      ],
+      "detections": 6
+    },
+    {
+      "threat_id": "node",
+      "name": "Rapid Connections: node.exe",
+      "category": "network",
+      "status": "ALERT",
+      "score": 10,
+      "age_seconds": 2,
+      "confidence": 2,
+      "sources": [
+        "network/Rapid Connections: node.exe",
+        "auto/Node.js"
+      ],
+      "detections": 22
+    },
+    {
+      "threat_id": "python",
+      "name": "Python",
+      "category": "auto",
+      "status": "ALERT",
+      "score": 10,
+      "age_seconds": 3,
+      "confidence": 1,
+      "sources": [
+        "auto/Python"
+      ],
+      "detections": 3
+    },
+    {
+      "threat_id": "powershell",
+      "name": "PowerShell Core",
+      "category": "auto",
+      "status": "ALERT",
+      "score": 10,
+      "age_seconds": 2,
+      "confidence": 1,
+      "sources": [
+        "auto/PowerShell Core"
+      ],
+      "detections": 3
+    }
+  ],
+  "vm_probability": 0,
+  "file_analysis_count": 0,
+  "system": {
+    "cpu_percent": 47.3,
+    "mem_used_percent": 28.5,
+    "segments_running": 11,
+    "env": "DEV",
+    "host": "JakobsDator"
+  },
+  "timestamp": 1763772778.9337077,
+  "metadata": {
+    "flow": {
+      "description": "Signal flow through the bot detection system",
+      "steps": [
+        "Segments detect threats and call post_signal()",
+        "Signals are emitted to EventBus",
+        "ReportBatcher collects signals in memory",
+        "Every 92.0s, ReportBatcher creates unified batch report",
+        "Batch report is sent via WebForwarder to Dashboard API"
+      ]
+    },
+    "segments": [
+      {
+        "name": "ContentAnalyzer",
+        "category": "programs",
+        "interval": 92.0,
+        "status": "running"
+      },
+      {
+        "name": "HashAndSignatureScanner",
+        "category": "programs",
+        "interval": 92.0,
+        "status": "running"
+      },
+      {
+        "name": "ObfuscationDetector",
+        "category": "programs",
+        "interval": 92.0,
+        "status": "running"
+      },
+      {
+        "name": "ProcessScanner",
+        "category": "programs",
+        "interval": 92.0,
+        "status": "running"
+      },
+      {
+        "name": "TelegramDetector",
+        "category": "network",
+        "interval": 92.0,
+        "status": "running"
+      },
+      {
+        "name": "TrafficMonitor",
+        "category": "network",
+        "interval": 92.0,
+        "status": "running"
+      },
+      {
+        "name": "WebMonitor",
+        "category": "network",
+        "interval": 92.0,
+        "status": "running"
+      },
+      {
+        "name": "BehaviourDetector",
+        "category": "behaviour",
+        "interval": 20,
+        "status": "running"
+      },
+      {
+        "name": "VMDetector",
+        "category": "vm",
+        "interval": 30,
+        "status": "running"
+      },
+      {
+        "name": "AutomationDetector",
+        "category": "auto",
+        "interval": 92.0,
+        "status": "running"
+      },
+      {
+        "name": "ScreenDetector",
+        "category": "screen",
+        "interval": 8,
+        "status": "running"
+      }
+    ],
+    "timing": {
+      "batch_interval": 92.0,
+      "sync_segments": true,
+      "segment_intervals": {
+        "programs": 92.0,
+        "auto": 92.0,
+        "network": 92.0,
+        "behaviour": 92.0,
+        "vm": 92.0,
+        "screen": 92.0
+      }
+    },
+    "configuration": {
+      "env": "DEV",
+      "web_enabled": true,
+      "testing_json": true
+    },
+    "system_state": {
+      "segments_running": 11,
+      "batch_count": 1,
+      "cpu_percent": 47.3,
+      "mem_used_percent": 28.5,
+      "host": "JakobsDator"
+    }
+  }
+}

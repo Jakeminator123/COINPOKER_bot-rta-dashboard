@@ -1,4 +1,4 @@
-import { Signal, Stored } from "@/lib/sections";
+import { Signal, Stored } from "@/lib/detections/sections";
 
 export interface AggregateSegmentStats {
   critical: number;
@@ -21,6 +21,9 @@ export interface AggregatePoint {
 export interface DeviceListEntry {
   device_id: string;
   device_name: string;
+  device_hostname?: string;
+  player_nickname?: string;
+  player_nickname_confidence?: number;
   last_seen: number;
   signal_count: number;
   unique_detection_count: number;

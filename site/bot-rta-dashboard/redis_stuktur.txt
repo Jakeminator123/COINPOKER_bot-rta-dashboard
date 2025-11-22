@@ -1,0 +1,73 @@
+Dashboardöversikt
+Efter inloggning på Bot & RTA‑Detection visas en översikt över alla spelare. Navigeringen består av tre flikar:
+•	Overview – visar sammanfattande statistik, t.ex. antal online‑spelare, totala unika spelare, andel hög risk och genomsnittlig hotnivå. I listan under dessa rutor kan man söka och sortera spelare. Varje spelare visas som en kort ruta med namn, hotnivå, antal detektioner och kritiska incidenter.
+•	Device Manager – klickar man på en spelare hamnar man på en detaljsida med namn, enhets‑ID, status, sista aktivitet och aktuell risk. Sidan innehåller också riskanalys, hotmätare (bot‑probabilitet), live feed för detektioner, historiska analyser och kategorier (program, nätverk, beteende, virtual machines, script & automation). Där finns även snabbknappar som “Emergency Mode”, “Kill CoinPoker Client” och “Take Table Snapshot”.
+•	Settings – inställningsflik (ej detaljerad här).
+Denna struktur är optimerad för realtidsöversikt och enskild analys.
+Förslag för Redis‑baserad hantering av ~4 000 spelare
+Använd lämpliga datatyper
+1.	Hash per spelare – en Redis‑hash är ett minnes‑effektivt sätt att lagra många fält. För varje spelare kan man skapa en nyckel player:<device_id> som innehåller:
+ 	nickname => "JakobsDator"
+status => "online" / "offline"
+risk_score => 50
+detections => 0
+last_activity => <UNIX‑timestamp>
+…
+ 	Hashar gör att man kan uppdatera enskilda fält utan att skriva om hela objektet.
+2.	Sorterade mängder (Sorted Sets) – för att få snabba listor över t.ex. de högsta riskerna eller de senaste aktiviteterna. En Redis‑sorted‑set håller element sorterade på poängen och erbjuder uppdatering och insättning i O(log N) tid[1]. Med ZADD uppdaterar man poängen och med ZRANGE/ZREVRANGE hämtas ett intervall. Exempel:
+3.	players:by_risk – medlemmar är device_id och poängen är risknivån.
+4.	players:by_activity – poängen är tidsstämpel för senaste aktivitet.
+Sorted‑set‑operationer har generellt O(log N) komplexitet[2]. De gör det enkelt att hämta de 20 farligaste spelarna eller de som varit inaktiva längst.
+1.	Set för online‑spelare – en enkel mängd online_players som innehåller device_id för alla aktiva. Antalet online spelare fås via SCARD. När spelare kopplar upp sig kör man SADD och när de kopplar från SREM eller låter nyckeln gå ut med TTL.
+2.	TTL och utgångstid – Redis har Time‑to‑Live som automatiskt tar bort ett nyckelvärde efter angiven tid. Det är användbart för sessionsdata; sätt ett rimligt TTL‑värde (t.ex. 30 minuter) för spelare som gått offline. Undvik för korta TTL som ger onödig rensning och för långa TTL som slösar minne[3].
+3.	Redis Streams för händelser – om detektioner genererar händelser i realtid (t.ex. program upptäckt, nätverksavvikelse) kan de skrivas till en Stream. Streams är utformade för hög genomströmning och lagrar meddelanden i ordning med unika ID:n; de stöder konsumentgrupper, kvitteringar och trimming[4]. Worker‑processer kan läsa från streamen, uppdatera spelarnas hash och sorted sets samt publisera notifikationer till dashboarden.
+4.	Pub/Sub för realtids‑UI – front‑end kan prenumerera på en kanal, t.ex. dashboard_updates, och backend publicerar (via PUBLISH) meddelanden när en spelares risk ändras. Då uppdateras gränssnittet utan om¬laddning.
+Skalning och tillgänglighet
+•	Prestanda – Redis är en in‑memory databas som använder en single‑threaded event‑loop och kan hantera >100 000 förfrågningar per sekund[5]. Med 4 000 spelare finns gott om kapacitet, men förbered för växt.
+•	Minne och eviktion – eftersom allt ligger i RAM är datamängden begränsad av serverns minne. Eviktion kan konfigureras (LRU, LFU, Random, TTL‑baserad) när minnet tar slut[6].
+•	Persistens – konfigurera AOF eller RDB om du vill kunna återskapa data efter krasch[7]. För sessions‑data kan det vara acceptabelt att återskapa från bakomliggande databas.
+•	Kluster och repliker – använd Redis Cluster eller Sentinel för att skala horisontellt och ge hög tillgänglighet. Med kluster sprids nycklarna över flera noder; med repliker kan läsningar göras från slav‑noder.
+•	Nyckelkonventioner – namnge nycklar konsekvent, t.ex. player:<device_id>, players:by_risk, events:stream. Korta och beskrivande namn minskar minnesåtgång och gör datan lättare att underhålla[8].
+Exempelkod (Python)
+Följande Python‑exempel visar hur man kan uppdatera en spelares riskpoäng, hantera sorted sets och publicera en uppdatering. Koden använder biblioteket redis och kan köras på Windows 11:
+import redis
+import time
+
+# Anslut till Redis (lokal server på port 6379)
+r = redis.Redis(host='localhost', port=6379, db=0)
+
+def update_risk(device_id: str, risk_score: float):
+    """Uppdatera spelarens risk och sorterade listor."""
+    # Hashnyckel för spelaren
+    player_key = f"player:{device_id}"
+
+    # Sätt fält i hash – HSET skapar ny hash om den inte finns
+    r.hset(player_key, mapping={
+        'risk_score': risk_score,
+        'last_activity': int(time.time())
+    })
+
+    # Lägg till/uppdatera sorted sets
+    r.zadd('players:by_risk', {device_id: risk_score})
+    r.zadd('players:by_activity', {device_id: time.time()})
+
+    # Publicera en uppdatering till front‑end
+    message = f"{{'id': '{device_id}', 'risk': {risk_score}}}"
+    r.publish('dashboard_updates', message)
+
+# Exempelanrop
+update_risk('462a6a3a5c173a1ea54e05b355ea1790', 75.0)
+Koden ansluter till en Redis‑instans, uppdaterar spelarens hash, sorterar listor efter risk och aktivitet och skickar en notifikation via Pub/Sub. TTL kan läggas på player_key med expire(player_key, ttl_seconds) när spelaren går offline.
+Sammanfattning
+För att hantera omkring 4 000 spelare i en realtidsmiljö kan Redis fungera som snabb session‑ och analysmotor. Hashar ger struktur för varje spelare, sorted sets tillhandahåller effektiva rangeringar, sets håller koll på aktiva spelare och TTL rensar bort inaktiva. Streams och Pub/Sub gör det möjligt att behandla detektions‑händelser och uppdatera användargränssnittet i realtid. Redis är extremt snabb tack vare sitt in‑memory‑och single‑threaded‑upplägg[5] och sorted set‑operationerna har logaritmisk tidskomplexitet[2], vilket gör denna lösning skalbar för 4 000 spelare och långt därutöver.
+________________________________________
+[1] Building Real-Time Gaming Leaderboards with Redis: A Practical Guide | by Master Spring Ter | Medium
+https://master-spring-ter.medium.com/building-real-time-gaming-leaderboards-with-redis-a-practical-guide-c45e85d8325e
+[2] Complete tutorial on Sorted Sets in Redis - GeeksforGeeks
+https://www.geeksforgeeks.org/system-design/complete-tutorial-on-sorted-sets-in-redis/
+[3] [8] Redis Best Practices - Expert Tips for High Performance
+https://www.dragonflydb.io/guides/redis-best-practices
+[4] Using Redis Streams: Commands, Sample Application & Best Practices
+https://www.dragonflydb.io/guides/using-redis-streams-commands-sample-application-and-best-practices
+[5] [6] [7] Why is Redis so Fast and Efficient?
+https://blog.algomaster.io/p/why-is-redis-so-fast-and-efficient

@@ -3,8 +3,8 @@
 import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Tooltip from '@/components/Tooltip';
-import { getProgramExplanation, getGenericExplanation } from '@/lib/detection-info';
-import { useDebounce } from '@/lib/hooks';
+import { getProgramExplanation, getGenericExplanation } from '@/lib/detections/detection-info';
+import { useDebounce } from '@/lib/utils/hooks';
 
 type PointsLevel = 0 | 5 | 10 | 15;
 

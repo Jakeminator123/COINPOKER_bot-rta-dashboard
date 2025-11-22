@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ConfigDiff } from '@/lib/config-diff';
+import { ConfigDiff } from '@/lib/utils/config-diff';
 
 interface MissingDefaultsPanelProps {
   category: string;

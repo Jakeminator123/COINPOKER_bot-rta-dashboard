@@ -27,6 +27,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 import psutil
 
+from core.api import post_signal
 from core.command_client import DashboardCommandClient
 from core.forwarder import ForwarderService
 from utils.admin_check import get_admin_status_message, is_admin
@@ -327,12 +328,76 @@ class CoinPokerDetector:
 
         return detected
 
+    def find_lobby_window(self) -> tuple[int | None, int | None]:
+        """Locate the CoinPoker lobby window (hwnd, pid) if visible."""
+        if not WIN32_AVAILABLE:
+            return None, None
+
+        target_hwnd: int | None = None
+        target_pid: int | None = None
+        expected_class = (self._window_class or "").lower()
+        expected_process = (self._process_name or "").lower()
+
+        def enum_handler(hwnd, _):
+            nonlocal target_hwnd, target_pid
+            try:
+                if not win32gui.IsWindowVisible(hwnd):
+                    return True
+
+                class_name = win32gui.GetClassName(hwnd) or ""
+                if expected_class and expected_class not in class_name.lower():
+                    return True
+
+                title = win32gui.GetWindowText(hwnd) or ""
+                title_lower = title.lower()
+                if "lobby" not in title_lower or "coinpoker" not in title_lower:
+                    return True
+
+                _, pid = win32process.GetWindowThreadProcessId(hwnd)
+                proc = psutil.Process(pid)
+                proc_name = (proc.name() or "").lower()
+                exe_path = (proc.exe() or "").lower()
+
+                if expected_process and proc_name != expected_process:
+                    return True
+                if "coinpoker" not in exe_path:
+                    return True
+            except Exception:
+                return True
+
+            target_hwnd = hwnd
+            target_pid = pid
+            return False  # Stop enumeration
+
+        win32gui.EnumWindows(enum_handler, None)
+        return target_hwnd, target_pid
+
+    def wait_for_lobby_window(
+        self, timeout_seconds: float = 30.0, poll_interval: float = 0.5
+    ) -> tuple[int | None, int | None]:
+        """Wait for lobby window to appear within timeout."""
+        if not WIN32_AVAILABLE:
+            return None, None
+
+        deadline = time.time() + max(0.0, timeout_seconds)
+        interval = max(0.1, poll_interval)
+
+        while time.time() < deadline:
+            hwnd, pid = self.find_lobby_window()
+            if hwnd and pid:
+                return hwnd, pid
+            time.sleep(interval)
+
+        return None, None
+
 
 class CoinPokerScanner:
     """Scanner that monitors CoinPoker and runs detection while active."""
 
     COINPOKER_EXE = "game.exe"
     CHECK_INTERVAL = 5.0  # Check for CoinPoker every 5 seconds when inactive
+    LOBBY_WAIT_TIMEOUT = 30.0  # seconds to wait for lobby window before fallback
+    NICKNAME_WARMUP_SECONDS = 5.0  # grace period for nickname detector
 
     def __init__(self):
         self.service: ForwarderService | None = None
@@ -355,6 +420,8 @@ class CoinPokerScanner:
         self._start_stop_lock = threading.Lock()
         self._last_start_attempt = 0.0
         self._start_debounce_seconds = 1.0  # Debounce start attempts by 1 second
+
+        self._nickname_thread: threading.Thread | None = None
 
         # Process lock file for singleton guard
         self._lock_file: Any | None = None
@@ -404,6 +471,8 @@ class CoinPokerScanner:
                 print("[Scanner] CoinPoker detected - Starting detection scanner...")
                 print("-" * 60)
 
+                self._wait_for_lobby_window_and_warmup()
+
                 self.service = ForwarderService()
                 self.service.start(segments_base_dir=self.segments_dir)
                 self._coinpoker_active = True
@@ -411,8 +480,6 @@ class CoinPokerScanner:
                 # Send explicit "Scanner Started" signal for accurate online/offline tracking
                 # This ensures immediate Redis update for device activity
                 try:
-                    from core.api import post_signal
-
                     post_signal(
                         category="system",
                         name="Scanner Started",
@@ -426,6 +493,42 @@ class CoinPokerScanner:
                 # Clean up on failure
                 self.service = None
                 self._coinpoker_active = False
+
+    def _wait_for_lobby_window_and_warmup(self) -> None:
+        """Wait for lobby window so nickname detector can run before segments start."""
+        if not WIN32_AVAILABLE:
+            return
+
+        try:
+            print(f"[Scanner] Waiting for CoinPoker lobby window (timeout={self.LOBBY_WAIT_TIMEOUT}s)...")
+            hwnd, pid = self.detector.wait_for_lobby_window(self.LOBBY_WAIT_TIMEOUT)
+            if hwnd and pid:
+                print("[Scanner] CoinPoker lobby detected - giving nickname detector time to run...")
+                self._start_nickname_detection(hwnd, pid)
+                if self.NICKNAME_WARMUP_SECONDS > 0:
+                    time.sleep(self.NICKNAME_WARMUP_SECONDS)
+            else:
+                print("[Scanner] Lobby window not detected within timeout - continuing with fallback defaults")
+        except Exception as exc:
+            print(f"[Scanner] Lobby wait skipped due to error: {exc}")
+
+    def _start_nickname_detection(self, hwnd: int, pid: int) -> None:
+        """Kick off nickname detector thread for the detected lobby window."""
+        try:
+            from utils.nickname_detector import detect_nickname
+        except Exception as exc:
+            print(f"[Scanner] Nickname detector unavailable: {exc}")
+            return
+
+        def _runner():
+            try:
+                detect_nickname(hwnd, pid, post_signal)
+            except Exception as err:
+                print(f"[Scanner] Nickname detector error: {err}")
+
+        thread = threading.Thread(target=_runner, daemon=True, name="NicknameDetector")
+        thread.start()
+        self._nickname_thread = thread
 
     def stop_scanner(self):
         """Stop the detection scanner service (thread-safe)."""
@@ -444,8 +547,6 @@ class CoinPokerScanner:
                 # Send explicit "Scanner Stopping" signal BEFORE stopping service
                 # This ensures last_seen is updated immediately, improving offline detection speed
                 try:
-                    from core.api import post_signal
-
                     post_signal(
                         category="system",
                         name="Scanner Stopping",

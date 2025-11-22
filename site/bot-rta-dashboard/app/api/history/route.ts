@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
-import { withRedis } from '@/lib/redis-client';
-import { successResponse, errorResponse } from '@/lib/api-utils';
+import { withRedis } from '@/lib/redis/redis-client';
+import { successResponse, errorResponse } from '@/lib/utils/api-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

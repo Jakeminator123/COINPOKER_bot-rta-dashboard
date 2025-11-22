@@ -13,7 +13,7 @@ import { motion } from "framer-motion";
 import useSWR from "swr";
 import UnifiedHistoryChart from "@/components/UnifiedHistoryChart";
 import ReportExportModal from "@/components/ReportExportModal";
-import { getThreatColor, getThreatLevel } from "@/lib/threat-scoring";
+import { getThreatColor, getThreatLevel } from "@/lib/detections/threat-scoring";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
 import AnimatedCounter from "@/components/AnimatedCounter";
 

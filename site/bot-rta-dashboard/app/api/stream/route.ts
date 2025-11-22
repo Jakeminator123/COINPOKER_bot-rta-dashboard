@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getSnapshot } from "@/lib/store";
+import { getSnapshot } from "@/lib/utils/store";
 
 export const runtime = "nodejs";
 

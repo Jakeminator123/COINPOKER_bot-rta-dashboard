@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server';
 import * as fs from 'fs/promises';
 import path from 'path';
-import { compareConfigs, extractMainConfig } from '@/lib/config-diff';
-import { successResponse, errorResponse } from '@/lib/api-utils';
+import { compareConfigs, extractMainConfig } from '@/lib/utils/config-diff';
+import { successResponse, errorResponse } from '@/lib/utils/api-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

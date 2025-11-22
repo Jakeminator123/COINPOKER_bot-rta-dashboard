@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
-import { withRedis } from '@/lib/redis-client';
-import { successResponse, errorResponse } from '@/lib/api-utils';
+import { withRedis } from '@/lib/redis/redis-client';
+import { redisKeys } from "@/lib/redis/schema";
+import { successResponse, errorResponse } from '@/lib/utils/api-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
     const result = await withRedis(async (client) => {
       // Get player summary from Redis
       // Note: Summary is stored as JSON string, not hash
-      const summaryKey = `player_summary:${device}`;
+      const summaryKey = redisKeys.playerSummary(device);
       const summaryStr = await client.get(summaryKey);
 
       if (!summaryStr) {
@@ -54,7 +55,7 @@ export async function GET(req: NextRequest) {
         }
 
         // Get session data
-        const sessionKeys = await client.keys(`session:${device}:*`);
+        const sessionKeys = await client.keys(redisKeys.sessionPattern(device));
         totalSessions = sessionKeys.length;
 
         for (const sessionKey of sessionKeys) {

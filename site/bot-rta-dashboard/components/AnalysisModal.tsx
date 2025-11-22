@@ -12,6 +12,7 @@ interface AnalysisModalProps {
   timePreset?: TimePreset;
   onTimePresetChange?: (preset: TimePreset) => void;
   onReanalyze?: () => void;
+  deviceLabel?: string | null;
 }
 
 const TIME_PRESETS: Record<TimePreset, { label: string; seconds: number }> = {
@@ -34,16 +35,36 @@ export default function AnalysisModal({
   isLoading,
   timePreset = '24h',
   onTimePresetChange,
-  onReanalyze
+  onReanalyze,
+  deviceLabel,
 }: AnalysisModalProps) {
   if (!isOpen) return null;
+
+  const displayName = deviceLabel?.trim() || null;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-slate-800 rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-700">
-          <h2 className="text-xl font-bold text-gradient">AI Bot Analysis</h2>
+        <div className="flex items-start justify-between p-6 border-b border-slate-700 gap-6">
+          <div className="flex flex-col gap-1">
+            {displayName && (
+              <>
+                <span className="text-xs uppercase tracking-[0.25em] text-slate-400">
+                  Player
+                </span>
+                <p className="text-2xl font-bold text-white leading-tight">
+                  {displayName}
+                </p>
+              </>
+            )}
+            <h2 className="text-xl font-semibold text-gradient">
+              AI Bot Analysis
+            </h2>
+            <p className="text-sm text-slate-400">
+              Automated reasoning over recent detection signals
+            </p>
+          </div>
           <button
             onClick={onClose}
             className="text-slate-400 hover:text-white transition-colors"

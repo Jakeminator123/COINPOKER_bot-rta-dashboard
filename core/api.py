@@ -13,77 +13,12 @@ import socket
 import threading
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
 
-
-def get_windows_computer_name() -> str:
-    """
-    Get Windows Computer Name (can contain spaces like "Jakobs dator").
-    
-    Tries multiple methods in order:
-    1. Windows API GetComputerNameEx (most accurate, preserves spaces)
-    2. COMPUTERNAME environment variable
-    3. socket.gethostname() (fallback)
-    """
-    # Try Windows API first (most accurate)
-    try:
-        import win32api  # type: ignore
-        import win32con  # type: ignore
-        
-        # GetComputerNameEx with ComputerNamePhysicalDnsHostname gets the actual Computer Name
-        # This preserves spaces and special characters
-        name = win32api.GetComputerNameEx(win32con.ComputerNamePhysicalDnsHostname)
-        if name:
-            return name
-    except (ImportError, Exception):
-        pass
-    
-    # Fallback to COMPUTERNAME environment variable
-    computer_name = os.environ.get("COMPUTERNAME")
-    if computer_name:
-        return computer_name
-    
-    # Final fallback to socket.gethostname()
-    try:
-        hostname = socket.gethostname()
-        if hostname:
-            return hostname
-    except Exception:
-        pass
-    
-    return "Unknown Device"
-
-
-@dataclass
-class Signal:
-    """Event signal structure for inter-segment communication"""
-
-    timestamp: float
-    category: str  # programs, network, behaviour
-    name: str
-    status: str  # OK, INFO, WARN, ALERT, CRITICAL
-    details: str
-    device_id: str | None = None
-    device_name: str | None = None
-    device_ip: str | None = None  # Source IP address
-    segment_name: str | None = None  # Name of segment that created this signal
-
-
-@dataclass
-class ActiveThreat:
-    """Persistent threat tracking for continuous bot probability calculation"""
-
-    threat_id: str
-    category: str
-    name: str
-    status: str
-    details: str
-    first_seen: float
-    last_seen: float
-    detection_count: int
-    threat_score: float  # Individual threat contribution to bot probability
-    detection_sources: list[str]  # Which segments detected this (for confidence)
-    confidence_score: int  # Number of different sources (1-5+)
+from core.device_identity import resolve_device_name
+from core.models import ActiveThreat, Signal
+from core.system_info import get_windows_computer_name
+from core.web_forwarder import init_web_forwarder as _web_forwarder_init
+from core.web_forwarder import stop_web_forwarder as _web_forwarder_stop
 
 
 class EventBus:
@@ -150,10 +85,14 @@ class ReportBatcher:
         self._log_batches = False
         self._log_dir = None
         self._max_log_files = 20
+        
+        # Testing JSON metadata (if enabled in config)
+        self._testing_json = False
+        
         self._init_batch_logging()
     
     def _init_batch_logging(self):
-        """Initialize batch logging if NEW_BATCHES_LOG=y in config"""
+        """Initialize batch logging if NEW_BATCHES_LOG=y in config, and testing_json if TESTING_JSON=y"""
         try:
             import os
             config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.txt")
@@ -161,16 +100,42 @@ class ReportBatcher:
                 with open(config_path, encoding="utf-8") as f:
                     for line in f:
                         line = line.strip()
-                        if line.startswith("NEW_BATCHES_LOG="):
-                            value = line.split("=", 1)[1].strip().upper()
-                            if value == "Y":
-                                self._log_batches = True
-                                # Log directory: same folder as scanner.py
-                                scanner_dir = os.path.dirname(os.path.dirname(__file__))
-                                self._log_dir = os.path.join(scanner_dir, "batch_logs")
-                                os.makedirs(self._log_dir, exist_ok=True)
-                                print(f"[ReportBatcher] Batch logging enabled: {self._log_dir}")
-                                break
+                        if not line or line.startswith("#") or "=" not in line:
+                            continue
+                        
+                        key, value = line.split("=", 1)
+                        key = key.strip().upper()
+                        value = value.strip().upper()
+                        
+                        # Remove inline comments
+                        if "#" in value:
+                            value = value.split("#")[0].strip()
+                        
+                        if key == "NEW_BATCHES_LOG" and value == "Y":
+                            self._log_batches = True
+                            # Log directory: check if BATCH_LOG_DIR is set, otherwise use batch_logs
+                            scanner_dir = os.path.dirname(os.path.dirname(__file__))
+                            # Check for custom log directory in config
+                            log_dir_name = "batch_logs"  # default
+                            try:
+                                # Re-read config to get BATCH_LOG_DIR if set
+                                with open(config_path, encoding="utf-8") as f2:
+                                    for line2 in f2:
+                                        line2 = line2.strip()
+                                        if line2.startswith("BATCH_LOG_DIR="):
+                                            log_dir_name = line2.split("=", 1)[1].strip()
+                                            # Remove inline comments
+                                            if "#" in log_dir_name:
+                                                log_dir_name = log_dir_name.split("#")[0].strip()
+                                            break
+                            except Exception:
+                                pass
+                            self._log_dir = os.path.join(scanner_dir, log_dir_name)
+                            os.makedirs(self._log_dir, exist_ok=True)
+                            print(f"[ReportBatcher] Batch logging enabled: {self._log_dir}")
+                        elif key == "TESTING_JSON" and value == "Y":
+                            self._testing_json = True
+                            print("[ReportBatcher] Testing JSON metadata enabled")
         except Exception as e:
             print(f"[ReportBatcher] Error initializing batch logging: {e}")
     
@@ -227,18 +192,120 @@ class ReportBatcher:
         """Add signal to unified batch (all categories together)"""
         self._all_detections.append(signal)
 
-    def maybe_send_batches(self, threat_manager, system_info=None) -> None:
+    def maybe_send_batches(self, threat_manager, system_info=None, segments_info=None) -> None:
         """Check if it's time to send unified batch report"""
         now = time.time()
 
         # Unified batch (every configured interval, default 92s)
         if now - self._last_batch >= self._batch_interval:
             window_start = self._last_batch or (now - self._batch_interval)
-            self._send_batch(threat_manager, system_info, window_start=window_start)
+            self._send_batch(threat_manager, system_info, window_start=window_start, segments_info=segments_info)
             self._last_batch = now
             self._batch_count += 1
 
-    def _send_batch(self, threat_manager, system_info=None, window_start: float | None = None):
+    def _generate_metadata(self, segments_info=None, system_info=None) -> dict:
+        """Generate metadata JSON explaining system flow, segments, timing, and configuration"""
+        import os
+        from utils.runtime_flags import sync_segments_enabled
+        
+        # Flow explanation
+        flow_steps = [
+            "Segments detect threats and call post_signal()",
+            "Signals are emitted to EventBus",
+            "ReportBatcher collects signals in memory",
+            f"Every {self._batch_interval}s, ReportBatcher creates unified batch report",
+            "Batch report is sent via WebForwarder to Dashboard API"
+        ]
+        
+        # Get active segments info
+        segments_list = []
+        if segments_info:
+            for segment_name, segment_instance in segments_info.items():
+                try:
+                    segment_data = {
+                        "name": getattr(segment_instance, "name", segment_name.split(".")[-1]),
+                        "category": getattr(segment_instance, "category", "unknown"),
+                        "interval": getattr(segment_instance, "interval_s", 0.0),
+                        "status": "running" if getattr(segment_instance, "_running", False) else "stopped"
+                    }
+                    segments_list.append(segment_data)
+                except Exception:
+                    pass
+        
+        # Get timing info
+        sync_segments = sync_segments_enabled()
+        timing_info = {
+            "batch_interval": self._batch_interval,
+            "sync_segments": sync_segments
+        }
+        
+        # Get configuration info
+        config_info = {
+            "env": system_info.get("env", "PROD") if system_info else "PROD",
+            "web_enabled": False,  # Will be updated if WebForwarder is available
+            "testing_json": self._testing_json
+        }
+        
+        # Try to get web_enabled status from WebForwarder
+        global _web_forwarder
+        if _web_forwarder:
+            config_info["web_enabled"] = _web_forwarder.enabled
+        
+        # Read segment intervals from config.txt
+        segment_intervals = {}
+        try:
+            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.txt")
+            if os.path.exists(config_path):
+                with open(config_path, encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith("#") or "=" not in line:
+                            continue
+                        key, value = line.split("=", 1)
+                        key = key.strip().upper()
+                        value = value.strip()
+                        
+                        # Remove inline comments
+                        if "#" in value:
+                            value = value.split("#")[0].strip()
+                        
+                        # Map config keys to segment categories
+                        if key in ["PROGRAMS", "AUTO", "NETWORK", "BEHAVIOUR", "BEHAVIUOUR", "VM", "SCREEN"]:
+                            try:
+                                segment_intervals[key.lower()] = float(value)
+                            except ValueError:
+                                pass
+        except Exception:
+            pass
+        
+        timing_info["segment_intervals"] = segment_intervals
+        
+        # System state
+        system_state = {
+            "segments_running": len(segments_list) if segments_list else 0,
+            "batch_count": self._batch_count
+        }
+        if system_info:
+            system_state.update({
+                "cpu_percent": system_info.get("cpu_percent", 0.0),
+                "mem_used_percent": system_info.get("mem_used_percent", 0.0),
+                "host": system_info.get("host", "unknown")
+            })
+        
+        metadata = {
+            "flow": {
+                "description": "Signal flow through the bot detection system",
+                "steps": flow_steps
+            },
+            "segments": segments_list,
+            "timing": timing_info,
+            "configuration": config_info,
+            "system_state": system_state
+        }
+        
+        return metadata
+
+    def _send_batch(self, threat_manager, system_info=None, window_start: float | None = None, segments_info=None):
         """Send unified batch report with all detections (all categories together)"""
         # Always send batch report, even if empty (for heartbeat functionality)
         detection_count = len(self._all_detections)
@@ -260,10 +327,25 @@ class ReportBatcher:
             if isinstance(detail, dict) and detail.get("threat_id")
         }
 
+        # Collect nickname from system signals before filtering them out
+        detected_nickname_from_batch = None
+        if self._all_detections:
+            for sig in self._all_detections:
+                if sig.category == "system" and sig.name == "Player Name Detected" and sig.details:
+                    try:
+                        import json
+                        details_json = json.loads(sig.details)
+                        detected_nickname_from_batch = details_json.get("player_name")
+                        if detected_nickname_from_batch:
+                            break
+                    except Exception:
+                        pass
+
         if self._all_detections:
             for sig in self._all_detections:
                 if sig.category == "system":
                     # Unified batch reports and system events shouldn't be double-counted here
+                    # But we've already extracted nickname above
                     continue
 
                 # Get threat level and points
@@ -331,19 +413,79 @@ class ReportBatcher:
         # Total score is raw sum of all threat points (pre-dedup, display only)
         raw_detection_score = sum(d["points"] for d in detections_list)
 
-        # Extract nickname if present in detections
-        detected_nickname = None
+        # Use nickname extracted earlier from system signals
+        detected_nickname = detected_nickname_from_batch
+
+        # Get device info early (needed for batch_data)
+        device_id = None
+        device_name = None
+        device_ip = None
+        
+        # Try to get device info from first signal
         if self._all_detections:
-            for sig in self._all_detections:
-                if sig.name == "Player Name Detected" and sig.details:
-                    try:
-                        import json
-                        details_json = json.loads(sig.details)
-                        detected_nickname = details_json.get("player_name")
-                        if detected_nickname:
-                            break
-                    except Exception:
-                        pass
+            device_id = self._all_detections[0].device_id
+            device_name = self._all_detections[0].device_name
+            device_ip = self._all_detections[0].device_ip
+        
+        # If device_name is missing, try to get it from WebForwarder
+        if not device_name and _web_forwarder:
+            if _web_forwarder.device_name:
+                device_name = _web_forwarder.device_name
+                if not device_id and _web_forwarder.device_id:
+                    device_id = _web_forwarder.device_id
+        
+        # If still no device_name, try system_info
+        if not device_name and system_info:
+            device_name = system_info.get("host")
+            if device_name and device_name != "unknown":
+                if not device_id:
+                    device_id = hashlib.md5(device_name.encode()).hexdigest()
+        
+        # Final fallback: generate from Windows Computer Name
+        if not device_name:
+            computer_name = get_windows_computer_name()
+            device_name = computer_name
+            if not device_id:
+                device_id = hashlib.md5(device_name.encode()).hexdigest()
+        
+        # Get device_ip from system_info if available (ForwarderService provides this)
+        if not device_ip and system_info:
+            device_ip = system_info.get("device_ip") or system_info.get("local_ip")
+        
+        # Fallback: try to get IP from ForwarderService
+        if not device_ip:
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(("8.8.8.8", 80))
+                device_ip = s.getsockname()[0]
+                s.close()
+            except Exception:
+                device_ip = "127.0.0.1"
+
+        # Check DEV mode and apply "Test" name BEFORE creating batch_data
+        config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.txt")
+        is_dev = False
+        try:
+            if os.path.exists(config_path):
+                with open(config_path, encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("ENV="):
+                            env_val = line.split("=", 1)[1].strip().upper()
+                            if env_val == "DEV":
+                                is_dev = True
+                                break
+        except Exception:
+            pass
+        
+        if is_dev:
+            device_name = "Test"
+            print("[ReportBatcher] DEV mode: Using player name 'Test'")
+
+        # Ensure device_id is never None BEFORE creating batch_data
+        if not device_id:
+            device_id = hashlib.md5("unknown".encode()).hexdigest()
+            device_name = device_name or "Unknown Device"
 
         # Prepare system info (defaults if not provided)
         system_data = {
@@ -354,6 +496,17 @@ class ReportBatcher:
             "host": system_info.get("host", "unknown") if system_info else "unknown",
         }
 
+        # Resolve final display/stored name using shared identity priority
+        name_sources = {
+            "batchNickname": detected_nickname,
+            "batchDevice": (system_info or {}).get("device_name") if system_info else None,
+            "batchHost": system_data.get("host"),
+            "batchDeviceHostname": (system_info or {}).get("host") if system_info else None,
+            "batchMetaHostname": None,
+            "signalDeviceName": device_name,
+        }
+        device_name = resolve_device_name(device_id, name_sources)
+
         # Structured batch data
         import json
 
@@ -362,11 +515,22 @@ class ReportBatcher:
         # Individual threats array is redundant since backend can extract from aggregated_threats
         aggregated_threats = summary.get("threat_details", [])
         
+        batch_timestamp = time.time()
+        
         batch_data = {
             "scan_type": "unified",
             "batch_number": self._batch_count,
             "bot_probability": summary["bot_probability"],  # USE THIS - deduplicated score
             "nickname": detected_nickname,  # Add detected nickname to batch report
+            "device_id": device_id,  # Device identifier (MD5 hash of computer name)
+            "device_name": device_name,  # Device name (Windows Computer Name)
+            "device_ip": device_ip,  # Device IP address
+            "device": {
+                "hostname": system_data.get("host"),
+                "ip": device_ip,
+            },
+            "timestamp": batch_timestamp,  # When batch was created
+            "batch_sent_at": batch_timestamp,  # When batch was sent (for online/offline detection)
             # REMOVED: "threats": detections_list,  # Redundant - use aggregated_threats instead
             "summary": {
                 "critical": threat_counts["critical"],
@@ -388,74 +552,21 @@ class ReportBatcher:
                 if "hash" in d["name"].lower() or "file" in d["name"].lower()
             ) if detections_list else 0,
             "system": system_data,
-            "timestamp": time.time(),
         }
+        
+        # Add metadata if testing_json is enabled
+        if self._testing_json:
+            try:
+                metadata = self._generate_metadata(segments_info=segments_info, system_info=system_info)
+                batch_data["metadata"] = metadata
+            except Exception as e:
+                print(f"[ReportBatcher] Error generating metadata: {e}")
 
-        # Log batch if enabled
+        # Log batch if enabled (before creating signal, so device info is included)
         self._log_batch(batch_data)
 
+        # Serialize batch_data to JSON AFTER all updates are complete
         details_str = json.dumps(batch_data)
-
-        # Get device info from first signal or system_info
-        # OPTIMIZATION: Cache Windows Computer Name to avoid repeated calls
-        device_id = None
-        device_name = None
-        
-        # Try to get device info from first signal
-        if self._all_detections:
-            device_id = self._all_detections[0].device_id
-            device_name = self._all_detections[0].device_name
-        
-        # If device_name is missing, try to get it from WebForwarder
-        if not device_name:
-            try:
-                from core.api import _web_forwarder
-                if _web_forwarder and _web_forwarder.device_name:
-                    device_name = _web_forwarder.device_name
-                    # Also ensure device_id matches if not already set
-                    if not device_id and _web_forwarder.device_id:
-                        device_id = _web_forwarder.device_id
-            except Exception:
-                pass
-        
-        # If still no device_name, try system_info
-        if not device_name and system_info:
-            device_name = system_info.get("host")
-            if device_name and device_name != "unknown":
-                if not device_id:
-                    device_id = hashlib.md5(device_name.encode()).hexdigest()
-        
-        # Final fallback: generate from Windows Computer Name (cached per batch)
-        if not device_name:
-            computer_name = get_windows_computer_name()
-            device_name = computer_name
-            if not device_id:
-                device_id = hashlib.md5(device_name.encode()).hexdigest()
-        
-        # In DEV mode, use "Test" as player name (config.txt ENV=DEV)
-        config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.txt")
-        is_dev = False
-        try:
-            if os.path.exists(config_path):
-                with open(config_path, encoding="utf-8") as f:
-                    for line in f:
-                        line = line.strip()
-                        if line.startswith("ENV="):
-                            env_val = line.split("=", 1)[1].strip().upper()
-                            if env_val == "DEV":
-                                is_dev = True
-                                break
-        except Exception:
-            pass
-        
-        if is_dev:
-            device_name = "Test"
-            print("[ReportBatcher] DEV mode: Using player name 'Test'")
-
-        # Ensure device_id is never None
-        if not device_id:
-            device_id = hashlib.md5("unknown".encode()).hexdigest()
-            device_name = device_name or "Unknown Device"
 
         # Create batch report signal with JSON details
         batch_signal = Signal(
@@ -466,6 +577,7 @@ class ReportBatcher:
             details=details_str,
             device_id=device_id,
             device_name=device_name,
+            device_ip=device_ip,
         )
         
         # Debug logging
@@ -995,6 +1107,7 @@ class ThreatManager:
 
 # Global instances
 _event_bus = EventBus()
+_web_forwarder = None
 _threat_manager = ThreatManager()
 _report_batcher: ReportBatcher | None = None
 
@@ -1115,331 +1228,19 @@ def post_signal(
 # =========================
 # Web Dashboard Integration
 # =========================
-class WebForwarder:
-    """Forwards ONLY batch reports to web dashboard if WEB=y in config.txt
-    
-    IMPORTANT: This class ONLY receives and forwards batch reports (var 92s),
-    NOT individual detection signals. The filter in get_web_forwarder() ensures
-    only "Unified Scan Report" signals reach this class.
-    
-    Flow: ReportBatcher (92s) → EventBus → WebForwarder (filter) → Dashboard
-    """
-
-    def __init__(self):
-        self.enabled = False
-        self.url = "http://localhost:3001/api/signal"
-        self.token = "detector-secret-token-2024"  # Match .env.local in dashboard
-        self.buffer: list[Signal] = []
-        self.buffer_lock = threading.Lock()
-        self.thread = None
-        self.running = False
-        self._stop_event = threading.Event()  # Event for interruptible sleep
-        self.interval_s = 1.0  # Send immediately (1s check interval)
-        self.timeout = 10.0  # HTTP request timeout (increased for slow Next.js compilation)
-
-        # Device identification - use Windows Computer Name (can contain spaces)
-        computer_name = get_windows_computer_name()
-        self.device_id = hashlib.md5(computer_name.encode()).hexdigest()
-        self.device_name = computer_name
-
-        # Check config.txt
-        self._load_config()
-
-        if self.enabled:
-            print(f"[WebForwarder] Enabled - forwarding to {self.url} every {self.interval_s}s")
-            self.start()
-        else:
-            print("[WebForwarder] Disabled (WEB=y not found in config.txt)")
-
-    def _load_config(self):
-        """Load config.txt and apply WEB, WEB_URL_PROD/DEV, WEB_PORT, SIGNAL_TOKEN based on ENV"""
-        try:
-            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.txt")
-            if not os.path.exists(config_path):
-                return
-
-            env = "PROD"  # Default to production
-            web_url_prod = None
-            web_url_dev = None
-
-            with open(config_path, encoding="utf-8") as f:
-                for raw_line in f:
-                    line = raw_line.strip()
-                    if not line or line.startswith("#") or "=" not in line:
-                        continue
-                    key, value = line.split("=", 1)
-                    key = key.strip().upper()
-                    value = value.strip()
-
-                    # Remove inline comments
-                    if "#" in value:
-                        value = value.split("#")[0].strip()
-
-                    if key == "ENV":
-                        env = value.upper()
-                    elif key == "WEB":
-                        self.enabled = value.lower() in ("y", "yes", "true", "1")
-                    elif key == "WEB_URL_PROD":
-                        web_url_prod = value
-                    elif key == "WEB_URL_DEV":
-                        web_url_dev = value
-                    elif key == "WEB_URL" and value:
-                        # Backward compatibility - treat as production URL
-                        web_url_prod = value
-                    elif key == "WEB_FORWARDER_TIMEOUT" and value:
-                        # Configure HTTP request timeout
-                        try:
-                            self.timeout = float(value)
-                        except ValueError:
-                            pass
-                    elif key == "WEB_PORT" and value:
-                        # update only the port portion of current URL
-                        try:
-                            import urllib.parse
-
-                            u = urllib.parse.urlparse(self.url)
-                            new_netloc = f"{u.hostname}:{int(value)}"
-                            self.url = urllib.parse.urlunparse(
-                                (
-                                    u.scheme,
-                                    new_netloc,
-                                    u.path,
-                                    u.params,
-                                    u.query,
-                                    u.fragment,
-                                )
-                            )
-                        except Exception:
-                            pass
-                    elif key == "SIGNAL_TOKEN" and value:
-                        self.token = value
-
-            # Select URL based on environment
-            if env == "DEV" and web_url_dev:
-                self.url = web_url_dev
-            elif env == "PROD" and web_url_prod:
-                self.url = web_url_prod
-            else:
-                # Fallback to old WEB_URL format for backward compatibility
-                self.url = web_url_prod or web_url_dev or "http://localhost:3001/api/signal"
-
-            print(f"[WebForwarder] Environment: {env}, URL: {self.url}")
-
-        except Exception as e:
-            print(f"[WebForwarder] Config read error: {e}")
-            self.enabled = False
-
-    def on_signal(self, signal: Signal):
-        """Callback when a signal is emitted"""
-        if not self.enabled:
-            return
-
-        # Debug logging for batch reports
-        if signal.category == "system" and "Scan Report" in signal.name:
-            print(f"[WebForwarder] Received batch report: device_id={signal.device_id}, device_name={signal.device_name}, has_details={bool(signal.details)}")
-
-        # Log WebForwarder receive (non-blocking)
-        try:
-            from utils.signal_logger import get_signal_logger
-            logger = get_signal_logger()
-            logger.log_webforwarder_receive(signal.name, signal.category, signal.device_id)
-        except Exception:
-            pass  # Don't break signal flow if logging fails
-
-        with self.buffer_lock:
-            self.buffer.append(signal)
-            # Limit buffer size
-            if len(self.buffer) > 200:
-                self.buffer.pop(0)
-
-    def start(self):
-        """Start the forwarding thread"""
-        if not self.enabled or self.running:
-            return
-
-        self.running = True
-        self.thread = threading.Thread(target=self._forward_loop, daemon=True)
-        self.thread.start()
-
-    def stop(self):
-        """Stop the forwarding thread"""
-        self.running = False
-        self._stop_event.set()  # Interrupt any sleep operations immediately
-        if self.thread:
-            # Thread is daemon, so it will stop automatically
-            # But wait briefly for clean shutdown
-            self.thread.join(timeout=1.0)  # Reduced timeout for faster shutdown
-    
-    def cleanup(self):
-        """Clean up WebForwarder resources (clear buffer and stop thread)"""
-        self.stop()  # Stop thread first
-        with self.buffer_lock:
-            self.buffer.clear()  # Clear signal buffer
-
-    def _forward_loop(self):
-        """Main loop that sends buffered signals every interval"""
-        # Try to import requests, fail gracefully if not available
-        try:
-            import requests
-        except ImportError:
-            print("[WebForwarder] requests library not installed. Run: pip install requests")
-            self.enabled = False
-            return
-
-        while self.running:
-            # Use Event.wait() instead of time.sleep() so we can interrupt it during shutdown
-            if self._stop_event.wait(timeout=self.interval_s):
-                # Event was set (shutdown requested)
-                break
-
-            # Check if we should stop before processing signals
-            if not self.running:
-                break
-
-            # Get buffered signals
-            with self.buffer_lock:
-                if not self.buffer:
-                    continue
-                signals_to_send = list(self.buffer)
-                self.buffer.clear()
-
-            # Send to dashboard (with timeout to prevent blocking shutdown)
-            try:
-                # Check again before sending (shutdown might have been requested)
-                if not self.running:
-                    break
-                payload = [
-                    {
-                        "timestamp": int(sig.timestamp),
-                        "category": sig.category,
-                        "name": sig.name,
-                        "status": sig.status,
-                        "details": sig.details or "",
-                        "device_id": sig.device_id or self.device_id,
-                        "device_name": sig.device_name or self.device_name,
-                        "device_ip": sig.device_ip,
-                        "segment_name": sig.segment_name,
-                    }
-                    for sig in signals_to_send
-                ]
-
-                # Add authorization header
-                headers = {
-                    "Authorization": f"Bearer {self.token}",
-                    "Content-Type": "application/json",
-                }
-
-                # Fix SSL certificate bundle path for PyInstaller .exe
-                # When running as .exe, certifi may not find CA bundle correctly
-                import sys
-
-                if getattr(sys, "frozen", False):
-                    try:
-                        import os
-
-                        import certifi
-
-                        # Set SSL_CERT_FILE to point to bundled certifi CA bundle
-                        if hasattr(sys, "_MEIPASS"):
-                            ca_bundle_path = os.path.join(sys._MEIPASS, "certifi", "cacert.pem")
-                            if os.path.exists(ca_bundle_path):
-                                os.environ["SSL_CERT_FILE"] = ca_bundle_path
-                                os.environ["REQUESTS_CA_BUNDLE"] = ca_bundle_path
-                            else:
-                                # Fallback: use certifi.where() to find bundle
-                                ca_bundle_path = certifi.where()
-                                if os.path.exists(ca_bundle_path):
-                                    os.environ["SSL_CERT_FILE"] = ca_bundle_path
-                                    os.environ["REQUESTS_CA_BUNDLE"] = ca_bundle_path
-                    except Exception:
-                        pass  # Continue without setting cert bundle if certifi not available
-
-                response = requests.post(
-                    self.url, json=payload, headers=headers, timeout=self.timeout
-                )
-                success = response.status_code == 200
-                
-                # Log WebForwarder send (non-blocking)
-                try:
-                    from utils.signal_logger import get_signal_logger
-                    logger = get_signal_logger()
-                    logger.log_webforwarder_send(
-                        len(signals_to_send),
-                        self.url,
-                        success,
-                        None if success else f"HTTP {response.status_code}",
-                    )
-                except Exception:
-                    pass  # Don't break signal flow if logging fails
-                
-                if not success:
-                    print(f"[WebForwarder] Dashboard returned status {response.status_code}")
-
-            except requests.exceptions.ConnectionError:
-                # Only show error once to avoid spam
-                if not hasattr(self, "_connection_error_shown"):
-                    print("[WebForwarder] Dashboard not reachable (localhost:3001)")
-                    self._connection_error_shown = True
-                
-                # Log connection error (non-blocking)
-                try:
-                    from utils.signal_logger import get_signal_logger
-                    logger = get_signal_logger()
-                    logger.log_webforwarder_send(
-                        len(signals_to_send),
-                        self.url,
-                        False,
-                        "ConnectionError",
-                    )
-                except Exception:
-                    pass
-            except Exception as e:
-                print(f"[WebForwarder] Send error: {e}")
-                
-                # Log send error (non-blocking)
-                try:
-                    from utils.signal_logger import get_signal_logger
-                    logger = get_signal_logger()
-                    logger.log_webforwarder_send(
-                        len(signals_to_send),
-                        self.url,
-                        False,
-                        str(e),
-                    )
-                except Exception:
-                    pass
-
-
-# Global web forwarder instance
-_web_forwarder = None
-
-
 def init_web_forwarder():
-    """Initialize web forwarder and subscribe to event bus (only batch reports)"""
+    """Wrapper that injects the global event bus into the WebForwarder module."""
     global _web_forwarder
     if _web_forwarder is None:
-        _web_forwarder = WebForwarder()
-        if _web_forwarder.enabled:
-            # Filtered subscription - only unified batch reports
-            def _on_batch_report(signal: Signal):
-                if signal.category == "system" and "Scan Report" in signal.name:
-                    print(f"[WebForwarder] Filter matched batch report: device_id={signal.device_id}, name={signal.name}")
-                    _web_forwarder.on_signal(signal)
-                elif signal.category == "system":
-                    # Debug: log system signals that don't match
-                    if "Scan Report" not in signal.name:
-                        print(f"[WebForwarder] Filter did NOT match: category={signal.category}, name={signal.name}")
-            
-            _event_bus.subscribe("detection", _on_batch_report)
+        _web_forwarder = _web_forwarder_init(_event_bus)
     return _web_forwarder
 
 
 def stop_web_forwarder():
-    """Stop web forwarder if running"""
+    """Stop the web forwarder instance (if any)."""
     global _web_forwarder
-    if _web_forwarder:
-        _web_forwarder.stop()
-
+    _web_forwarder_stop()
+    _web_forwarder = None
 
 def cleanup_globals():
     """

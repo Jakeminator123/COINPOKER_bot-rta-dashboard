@@ -5,8 +5,8 @@ import {
   parseJsonBody,
   successResponse,
   validateToken,
-} from "@/lib/api-utils";
-import { enqueueCommand, dequeueCommands } from "@/lib/device-command-store";
+} from "@/lib/utils/api-utils";
+import { enqueueCommand, dequeueCommands } from "@/lib/device/device-command-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

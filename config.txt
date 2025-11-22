@@ -9,15 +9,35 @@ INPUT_DEBUG=1                        # Debug logging (0=off, 1=on)
 # --- Batch System ---
 BATCH_INTERVAL_HEAVY=92              # Batch-rapporter skickas var 92:e sekund
 NEW_BATCHES_LOG=y                     # Spara batch-loggar lokalt (debugging)
+BATCH_LOG_DIR=jay                    # Mapp där batch-loggar sparas (default: batch_logs)
 
-# --- Dashboard Connection ---
-WEB=y                                # Aktivera skickning till dashboard
+# --- Forwarder-läge (väljer hur batchar skickas) ---
+# OPTION 1 – Direkt till Redis (snabbast, bypass HTTP)
+#   • Ange REDIS_URL
+#   • Sätt FORWARDER_MODE=redis (eller auto för fallback)
+#   • WEB kan vara n
+#
+# OPTION 2 – Via webb-API (dashboard postar vidare till Redis)
+#   • Lämna REDIS_URL kommenterad
+#   • Sätt WEB=y och ange WEB_URL_*
+#   • FORWARDER_MODE=web (eller auto om du vill kunna falla tillbaka)
+#
+# All metadata (nickname, device_id, device_name, IP osv) följer alltid med.
+
+# --- HTTP Dashboard (Option 2) ---
+WEB=n                                # y=Skicka batchar till dashboardens HTTP-endpoint
+TESTING_JSON=y                       # Lägg till metadata i batches (förklarar systemflödet)
+
 WEB_URL_DEV=http://localhost:3001/api/signal
-#WEB_URL_PROD=https://bot-rta-dashboard-1.onrender.com/api/signal
+# WEB_URL_PROD=https://bot-rta-dashboard-1.onrender.com/api/signal
 SIGNAL_TOKEN=detector-secret-token-2024
+WEB_FORWARDER_TIMEOUT=10             # Timeout för HTTP requests när batchar skickas
 
-FORWARDER_MODE=auto                  # web=WebForwarder only, auto=WebForwarder+HTTP fallback, panel=HTTP only
-WEB_FORWARDER_TIMEOUT=10             # Timeout i sekunder för HTTP requests när batch-rapporter skickas till dashboard (default: 10s)
+# --- Direkt Redis (Option 1) ---
+REDIS_URL=redis://default:RmJmzvxtcg4PpDPCEly7ap7sHdpgQhmR@redis-12756.c44.us-east-1-2.ec2.redns.redis-cloud.com:12756  # Direkt-skrivning till Redis
+REDIS_TTL_SECONDS=604800                      # TTL för Redis-keys (default: 7 dagar)
+
+FORWARDER_MODE=redis                  # web=HTTP, redis=Redis, auto=försök Redis → HTTP fallback
 
 # --- Detection Features ---
 ENABLEHASHLOOKUP=true                # Hash database lookups
@@ -43,4 +63,5 @@ VM=92                                # VMDetector - intervall mellan skanningar
 SCREEN=92                            # ScreenDetector - intervall mellan skanningar
 
 # --- Security ---
-RAM_CONFIG=y                         # n=använd disk-cache, y=endast RAM (tamper-proof)
+RAM_CONFIG=n                         # n=använd disk-cache, y=endast RAM (tamper-proof)
+

@@ -1,3 +1,0 @@
-INFORMATION_CONRAD
-
-ForwarderService starts ReportBatcher when the scanner boots. Every segment sends detections through post_signal, and the batcher caches them until the 92-second window expires. A background batch thread then calls maybe_send_batches(), adds CPU/MEM stats plus ThreatManager summaries, and produces a single JSON payload titled "Unified Scan Report." Finally WebForwarder (or panel HTTP in fallback mode) posts that payload to the dashboard URL from config.txt, so the frontend only parses one consolidated batch per cycle.

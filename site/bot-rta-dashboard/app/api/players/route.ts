@@ -5,13 +5,14 @@ import type {
   RedisScripts,
 } from "redis";
 import { NextRequest } from "next/server";
-import { successResponse, errorResponse } from "@/lib/api-utils";
-import { getDevices } from "@/lib/store";
-import { withRedis } from "@/lib/redis-client";
-import { scanPrimaryDeviceIds } from "@/lib/redis-device-helpers";
-import type { DeviceListEntry } from "@/lib/storage-adapter";
-import { THREAT_THRESHOLDS } from "@/lib/threat-scoring";
-import { getDeviceDisplayName } from "@/lib/device-name-utils";
+import { successResponse, errorResponse } from "@/lib/utils/api-utils";
+import { getDevices } from "@/lib/utils/store";
+import { withRedis } from "@/lib/redis/redis-client";
+import { scanPrimaryDeviceIds } from "@/lib/redis/redis-device-helpers";
+import { redisKeys } from "@/lib/redis/schema";
+import type { DeviceListEntry } from "@/lib/storage/storage-adapter";
+import { THREAT_THRESHOLDS } from "@/lib/detections/threat-scoring";
+import { getDeviceDisplayName } from "@/lib/device/device-name-utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ export const dynamic = "force-dynamic";
 // DASHBOARD_PLAYER_LIMIT: Default number of players per page (configurable via env var)
 const DASHBOARD_PLAYER_LIMIT = Number(process.env.DASHBOARD_PLAYER_LIMIT || 20);
 // TOP_PLAYERS_ZSET: Redis sorted set key storing players ranked by bot_probability
-const TOP_PLAYERS_ZSET = "top_players:bot_probability";
+const TOP_PLAYERS_ZSET = redisKeys.topPlayers();
 // DEVICE_TIMEOUT_MS: Device considered offline if no signal for this duration
 // MS = Milliseconds (120 * 1000 = 120 seconds = 2 minutes)
 // Must be > 92s (batch report interval) to avoid false logouts
@@ -412,7 +413,10 @@ async function buildPlayersFromDevices(limit: number): Promise<PlayerResponse[]>
 
       return {
         id: device.device_id,
-        name: getDeviceDisplayName(device.device_name, device.device_id),
+        name: getDeviceDisplayName(
+          device.player_nickname ?? device.device_name,
+          device.device_id,
+        ),
         status: isOnline
           ? threatLevel >= THREAT_THRESHOLDS.HIGH_RISK
             ? "suspicious"
@@ -458,14 +462,21 @@ async function buildPlayersFromRedisBatch(
   const pipeline = client.multi();
   for (const entry of entries) {
     const deviceId = entry.deviceId;
-    // Queue 6 Redis commands per player:
-    pipeline.hGetAll(`device:${deviceId}`); // Primary device info hash
-    pipeline.hGetAll(`device:${deviceId}:info`); // Legacy device info hash (for backward compatibility)
-    pipeline.get(`player_summary:${deviceId}`); // Player summary JSON (contains avg_bot_probability)
-    pipeline.get(`device:${deviceId}:threat`); // Dedicated threat level key (updated by batch reports)
-    pipeline.get(`device:${deviceId}:detections:CRITICAL`); // Critical detection count
-    pipeline.get(`device:${deviceId}:detections:WARN`); // Warning detection count
-    pipeline.get(`device:${deviceId}:categories`); // Latest category summary snapshot
+    const deviceHashKey = redisKeys.deviceHash(deviceId);
+    const legacyDeviceKey = redisKeys.legacyDeviceInfo(deviceId);
+    const summaryKey = redisKeys.playerSummary(deviceId);
+    const threatKey = redisKeys.deviceThreat(deviceId);
+    const criticalKey = redisKeys.deviceDetections(deviceId, "CRITICAL");
+    const warnKey = redisKeys.deviceDetections(deviceId, "WARN");
+    const categoriesKey = redisKeys.deviceCategories(deviceId);
+    // Queue 7 Redis commands per player:
+    pipeline.hGetAll(deviceHashKey); // Primary device info hash
+    pipeline.hGetAll(legacyDeviceKey); // Legacy device info hash (for backward compatibility)
+    pipeline.get(summaryKey); // Player summary JSON (contains avg_bot_probability)
+    pipeline.get(threatKey); // Dedicated threat level key (updated by batch reports)
+    pipeline.get(criticalKey); // Critical detection count
+    pipeline.get(warnKey); // Warning detection count
+    pipeline.get(categoriesKey); // Latest category summary snapshot
   }
 
   // Execute all operations in one batch (single network round-trip)
@@ -554,8 +565,10 @@ async function buildPlayersFromRedisBatch(
     console.log("  - deviceInfo.device_name:", deviceInfo.device_name || "(null/undefined)");
     console.log("  - entry.deviceId:", entry.deviceId);
     const playerName = getDeviceDisplayName(
-      summary?.device_name || deviceInfo.device_name,
-      entry.deviceId
+      summary?.device_name ||
+        (deviceInfo as Record<string, string>).player_nickname ||
+        deviceInfo.device_name,
+      entry.deviceId,
     );
     console.log("  - getDeviceDisplayName() result:", playerName);
     console.log("[players] ============================================");
@@ -652,12 +665,17 @@ async function buildPlayerFromLegacySource(
   }
 
   // Calculate is_online dynamically based on last_seen
-  const { lastSeen: deviceLastSeen, isOnline } = deriveLastSeenInfo(device?.last_seen);
+  const { lastSeen: deviceLastSeen, isOnline } = deriveLastSeenInfo(
+    device?.last_seen,
+  );
   const threatLevel = Math.round(device?.threat_level || 0);
-  
+
   return {
     id: deviceId,
-    name: getDeviceDisplayName(device?.device_name, deviceId),
+    name: getDeviceDisplayName(
+      device?.player_nickname ?? device?.device_name,
+      deviceId,
+    ),
     status: isOnline
       ? threatLevel >= THREAT_THRESHOLDS.HIGH_RISK
         ? "suspicious"

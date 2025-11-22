@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
-import { THREAT_WEIGHTS, THREAT_THRESHOLDS, TIME_WINDOWS } from '@/lib/threat-scoring';
-import { DETECTION_CONTEXT } from '@/lib/detection-context';
-import { successResponse, errorResponse, parseJsonBody, type SettingsPostRequest } from '@/lib/api-utils';
+import { THREAT_WEIGHTS, THREAT_THRESHOLDS, TIME_WINDOWS } from '@/lib/detections/threat-scoring';
+import { DETECTION_CONTEXT } from '@/lib/detections/detection-context';
+import { successResponse, errorResponse, parseJsonBody, type SettingsPostRequest } from '@/lib/utils/api-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

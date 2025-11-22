@@ -1,6 +1,7 @@
-import { withRedis } from "@/lib/redis-client";
-import { successResponse, errorResponse } from "@/lib/api-utils";
-import { getDevices } from "@/lib/store";
+import { withRedis } from "@/lib/redis/redis-client";
+import { redisKeys } from "@/lib/redis/schema";
+import { successResponse, errorResponse } from "@/lib/utils/api-utils";
+import { getDevices } from "@/lib/utils/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,8 +59,8 @@ export async function GET() {
       const pipeline = client.multi();
 
       for (const device of devicesToEnhance) {
-        const deviceKey = `device:${device.device_id}`;
-        const threatKey = `device:${device.device_id}:threat`;
+        const deviceKey = redisKeys.deviceHash(device.device_id);
+        const threatKey = redisKeys.deviceThreat(device.device_id);
         // Queue Redis commands in pipeline (executed together later)
         pipeline.hGetAll(deviceKey); // Get device info hash
         pipeline.get(threatKey); // Get threat level (updated by batch reports)

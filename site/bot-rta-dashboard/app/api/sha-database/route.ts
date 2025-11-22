@@ -6,7 +6,7 @@ import {
   errorResponse,
   corsOptions,
   validateToken,
-} from "@/lib/api-utils";
+} from "@/lib/utils/api-utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

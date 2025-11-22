@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
-import { withRedis } from '@/lib/redis-client';
-import { successResponse, errorResponse } from '@/lib/api-utils';
-import { parseDeviceInfo } from '@/lib/device-info';
+import { withRedis } from '@/lib/redis/redis-client';
+import { redisKeys } from "@/lib/redis/schema";
+import { successResponse, errorResponse } from '@/lib/utils/api-utils';
+import { parseDeviceInfo } from '@/lib/device/device-info';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -71,7 +72,7 @@ export async function GET(_req: NextRequest) {
       if (parseFloat(deviceData.threat_level || '0') > 75) riskFactors.push('High Risk');
 
       // Get session data
-      const sessionKeys = await client.keys(`session:${deviceId}:*`);
+      const sessionKeys = await client.keys(redisKeys.sessionPattern(deviceId));
       const totalSessions = sessionKeys.length;
       let totalDuration = 0;
       let firstSeen = Date.now() / 1000;

@@ -6,9 +6,9 @@ import { join } from "path";
 import {
   buildDetectionContext,
   categorizeSignals,
-} from "@/lib/detection-context";
-import { getProgramExplanation } from "@/lib/detection-info";
-import { successResponse, errorResponse, parseJsonBody } from "@/lib/api-utils";
+} from "@/lib/detections/detection-context";
+import { getProgramExplanation } from "@/lib/detections/detection-info";
+import { successResponse, errorResponse, parseJsonBody } from "@/lib/utils/api-utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

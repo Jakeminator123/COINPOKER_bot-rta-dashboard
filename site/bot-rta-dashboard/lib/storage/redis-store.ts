@@ -1,17 +1,30 @@
-import { getRedisClient } from "@/lib/redis-client";
-import { Signal, Stored, type Status } from "@/lib/sections";
+import {
+  Signal,
+  Stored,
+  type Status,
+  routeToSectionKey,
+} from "@/lib/detections/sections";
+import { resolveDeviceName } from "@/lib/device/identity";
+import { sanitizeDeviceName } from "@/lib/device/device-name-utils";
+import { redisKeys, redisTtl } from "@/lib/redis/schema";
+import { getRedisClient } from "@/lib/redis/redis-client";
+import { scanPrimaryDeviceIds } from "@/lib/redis/redis-device-helpers";
 import { StorageAdapter } from "./storage-adapter";
 import { MemoryStore } from "./memory-store";
-import { scanPrimaryDeviceIds } from "./redis-device-helpers";
-import { sanitizeDeviceName } from "./device-name-utils";
+import { DEVICE_TIMEOUT_MS, type DeviceSessionState } from "./device-session";
 
 // Redis TTL (Time To Live) - how long data is kept in Redis before automatic cleanup
 // Configurable via REDIS_TTL_SECONDS env var (default: 604800 = 7 days)
 // Examples: 604800 (7 days), 259200 (3 days), 1209600 (14 days), 2592000 (30 days)
-const TTL_SECONDS = Number(process.env.REDIS_TTL_SECONDS) || 604800; // Default: 7 days
-const DEVICE_TIMEOUT_MS = 120 * 1000; // 120s (safe margin over 92s batch interval)
-const TOP_PLAYERS_ZSET = "top_players:bot_probability";
+const TTL_SECONDS = redisTtl.batchSeconds();
+const TOP_PLAYERS_ZSET = redisKeys.topPlayers();
 const TOP_PLAYERS_CACHE_LIMIT = Number(process.env.TOP_PLAYERS_CACHE_LIMIT || 500);
+const REDIS_SNAPSHOT_BATCH_LIMIT = Number(
+  process.env.REDIS_SNAPSHOT_BATCH_LIMIT || 5,
+);
+const REDIS_SNAPSHOT_SECTION_LIMIT = Number(
+  process.env.REDIS_SNAPSHOT_SECTION_LIMIT || 50,
+);
 const SEVERITY_RANK: Record<string, number> = {
   CRITICAL: 15,
   ALERT: 10,
@@ -142,12 +155,6 @@ interface BatchData {
   errors?: BatchErrorInfo[];
 }
 
-interface DeviceState {
-  session_start?: number;
-  last_seen: number;
-  is_online: boolean;
-}
-
 const VALID_STATUSES: ReadonlyArray<Status> = [
   "CRITICAL",
   "ALERT",
@@ -170,7 +177,7 @@ export class RedisStore implements StorageAdapter {
   private client: Awaited<ReturnType<typeof getRedisClient>> | null = null;
   private connected = false;
   private memoryStore: MemoryStore;
-  private deviceStates: Map<string, DeviceState> = new Map();
+  private deviceStates: Map<string, DeviceSessionState> = new Map();
   private connectionPromise: Promise<void> | null = null;
 
   constructor() {
@@ -292,16 +299,18 @@ export class RedisStore implements StorageAdapter {
         console.log("    * batch.meta.hostname:", batchMetaHostname || "(null/undefined)");
         
         // Determine which name to use (priority order)
-        // Try multiple sources to find a valid device name
-        const deviceName = batchNickname || 
-                          (typeof batchDevice === 'string' ? batchDevice : null) ||
-                          batchHost || 
-                          batchDeviceHostname ||
-                          batchMetaHostname ||
-                          signalDeviceName || 
-                          device_id;
+        // Try multiple sources to find a valid device name (see config/redis_identity.json)
+        const deviceName = resolveDeviceName({
+          deviceId: device_id,
+          batchNickname,
+          batchDevice: typeof batchDevice === "string" ? batchDevice : null,
+          batchHost,
+          batchDeviceHostname,
+          batchMetaHostname,
+          signalDeviceName,
+        });
         console.log("  - SELECTED name for updateDevice():", deviceName);
-        console.log("  - Name selection logic: batch.nickname || batch.device || batch.system.host || batch.device.hostname || batch.meta.hostname || signal.device_name || device_id");
+        console.log("  - Name selection config: config/redis_identity.json (overridable via REDIS_IDENTITY_PATH)");
         console.log("[RedisStore] ============================================");
         
         // CRITICAL: Always update device when batch comes in (they're online!)
@@ -439,7 +448,7 @@ export class RedisStore implements StorageAdapter {
     const hour = new Date(timestamp * 1000).toISOString().slice(0, 13);
     
     // Store batch report with timestamp key for easy retrieval
-    const batchKey = `batch:${device_id}:${timestamp}`;
+    const batchKey = redisKeys.batchRecord(device_id, timestamp);
     
     // Store batch to Redis
     const categorySummary = (batch.segments || []).map((segment) => {
@@ -480,7 +489,7 @@ export class RedisStore implements StorageAdapter {
     await this.client.set(batchKey, JSON.stringify(batchRecord), { EX: TTL_SECONDS });
     
 
-    const deviceCategoriesKey = `device:${device_id}:categories`;
+    const deviceCategoriesKey = redisKeys.deviceCategories(device_id);
     const categorySummaryPayload = {
       updatedAt: timestamp,
       severityHighest: batch.summary?.severityHighest || null,
@@ -497,24 +506,24 @@ export class RedisStore implements StorageAdapter {
     });
 
     // Add to time indexes for queries
-    await this.client.zAdd(`batches:${device_id}:hourly`, {
+    await this.client.zAdd(redisKeys.batchesHourly(device_id), {
       score: timestamp,
       value: batchKey,
     });
     
-    await this.client.zAdd(`batches:${device_id}:daily`, {
+    await this.client.zAdd(redisKeys.batchesDaily(device_id), {
       score: timestamp,
       value: batchKey,
     });
 
     // Update daily average
-    const dayKey = `day:${device_id}:${day}`;
+    const dayKey = redisKeys.dayStats(device_id, day);
     await this.client.hIncrBy(dayKey, "reports", 1);
     await this.client.hIncrBy(dayKey, "score_sum", batch.bot_probability || 0);
     await this.client.expire(dayKey, TTL_SECONDS);
 
     // Update hourly average
-    const hourKey = `hour:${device_id}:${hour}`;
+    const hourKey = redisKeys.hourStats(device_id, hour);
     await this.client.hIncrBy(hourKey, "reports", 1);
     await this.client.hIncrBy(hourKey, "score_sum", batch.bot_probability || 0);
     await this.client.expire(hourKey, TTL_SECONDS);
@@ -527,9 +536,21 @@ export class RedisStore implements StorageAdapter {
     
     // Store current detection counts (overwrite with latest batch values)
     // This represents the current state from the most recent batch report
-    await this.client.set(`device:${device_id}:detections:CRITICAL`, criticalCount.toString(), { EX: TTL_SECONDS });
-    await this.client.set(`device:${device_id}:detections:WARN`, warnCount.toString(), { EX: TTL_SECONDS });
-    await this.client.set(`device:${device_id}:detections:ALERT`, alertCount.toString(), { EX: TTL_SECONDS });
+    await this.client.set(
+      redisKeys.deviceDetections(device_id, "CRITICAL"),
+      criticalCount.toString(),
+      { EX: TTL_SECONDS },
+    );
+    await this.client.set(
+      redisKeys.deviceDetections(device_id, "WARN"),
+      warnCount.toString(),
+      { EX: TTL_SECONDS },
+    );
+    await this.client.set(
+      redisKeys.deviceDetections(device_id, "ALERT"),
+      alertCount.toString(),
+      { EX: TTL_SECONDS },
+    );
 
     // Update player_summary with rolling average (last 24 hours)
     await this.updatePlayerSummary(device_id, batch.bot_probability || 0, timestamp);
@@ -550,7 +571,7 @@ export class RedisStore implements StorageAdapter {
 
     const now = Date.now();
     const nowSeconds = Math.floor(now / 1000);
-    const deviceKey = `device:${device_id}`;
+    const deviceKey = redisKeys.deviceHash(device_id);
     
     // ========== COMPREHENSIVE NAME HANDLING LOGGING ==========
     console.log("[RedisStore] ========== UPDATE DEVICE - NAME HANDLING ==========");
@@ -654,7 +675,7 @@ export class RedisStore implements StorageAdapter {
     }
     
     // Also update dedicated threat key (used by getDevices for accurate threat_level)
-    const threatKey = `device:${device_id}:threat`;
+    const threatKey = redisKeys.deviceThreat(device_id);
     await this.client.set(threatKey, threat_level.toString(), { EX: TTL_SECONDS });
     console.log("[RedisStore] Updated threat key:", threatKey, "=", threat_level);
     
@@ -693,10 +714,10 @@ export class RedisStore implements StorageAdapter {
     // Get all batch reports from last 24 hours
     // Use zRangeByScore to get batches within time range
     const batchKeys = await this.client.zRange(
-      `batches:${device_id}:hourly`,
+      redisKeys.batchesHourly(device_id),
       minTime,
       now,
-      { BY: "SCORE" }
+      { BY: "SCORE" },
     );
 
     let sum = 0;
@@ -705,7 +726,7 @@ export class RedisStore implements StorageAdapter {
     let lastSeen = 0;
 
     // Also check the most recent batch directly (in case zRange misses it due to timing)
-    const mostRecentBatchKey = `batch:${device_id}:${timestamp}`;
+    const mostRecentBatchKey = redisKeys.batchRecord(device_id, timestamp);
     const mostRecentBatchData = await this.client.get(mostRecentBatchKey);
     if (mostRecentBatchData) {
       try {
@@ -752,7 +773,7 @@ export class RedisStore implements StorageAdapter {
       : avg_bot_probability;
 
     // Get device name from device hash (most up-to-date source)
-    const deviceKey = `device:${device_id}`;
+    const deviceKey = redisKeys.deviceHash(device_id);
     const deviceInfo = await this.client.hGetAll(deviceKey);
     console.log("[RedisStore] updatePlayerSummary - Reading device name from Redis:");
     console.log("  - deviceKey:", deviceKey);
@@ -772,7 +793,7 @@ export class RedisStore implements StorageAdapter {
     }
 
     // Get session count
-    const sessionKeys = await this.client.keys(`session:${device_id}:*`);
+    const sessionKeys = await this.client.keys(redisKeys.sessionPattern(device_id));
     const totalSessions = sessionKeys.length;
 
     // Calculate total detections from batch reports
@@ -790,7 +811,7 @@ export class RedisStore implements StorageAdapter {
     }
 
     // Update player_summary
-    const summaryKey = `player_summary:${device_id}`;
+    const summaryKey = redisKeys.playerSummary(device_id);
     console.log("[RedisStore] updatePlayerSummary - Writing summary to Redis:");
     console.log("  - summaryKey:", summaryKey);
     console.log("  - device_name (stored in summary):", device_name);
@@ -923,7 +944,7 @@ export class RedisStore implements StorageAdapter {
         });
         
         // Update Redis to reflect offline status
-        const deviceKey = `device:${device_id}`;
+        const deviceKey = redisKeys.deviceHash(device_id);
         await this.client.hSet(deviceKey, {
           last_seen: (Math.floor((nowMs - DEVICE_TIMEOUT_MS - 1000) / 1000)).toString(),
         });
@@ -997,13 +1018,13 @@ export class RedisStore implements StorageAdapter {
       final_bot_probability: final_threat_score, // Same as threat score in unified system
     };
 
-    const sessionKey = `session:${device_id}:${timestamp}`;
+    const sessionKey = redisKeys.sessionRecord(device_id, timestamp);
     await this.client.set(sessionKey, JSON.stringify(sessionData), {
       EX: TTL_SECONDS,
     });
 
     // Add to session index for queries
-    await this.client.zAdd(`sessions:${device_id}`, {
+    await this.client.zAdd(redisKeys.sessionIndex(device_id), {
       score: timestamp,
       value: sessionKey,
     });
@@ -1022,9 +1043,9 @@ export class RedisStore implements StorageAdapter {
     try {
       const payload = Date.now().toString();
       if (device_id) {
-        await this.client.publish(`updates:${device_id}`, payload);
+        await this.client.publish(redisKeys.deviceUpdatesChannel(device_id), payload);
       }
-      await this.client.publish("updates:all", payload);
+      await this.client.publish(redisKeys.globalUpdatesChannel(), payload);
     } catch (error) {
       console.error("[Redis] Failed to publish update:", error);
     }
@@ -1080,7 +1101,7 @@ export class RedisStore implements StorageAdapter {
       return;
     }
 
-    const deviceKey = `device:${device_id}`;
+    const deviceKey = redisKeys.deviceHash(device_id);
     console.log("[RedisStore] WRITING TO REDIS:");
     console.log("  - Redis key:", deviceKey);
     console.log("  - Field: device_name =", sanitized);
@@ -1100,7 +1121,30 @@ export class RedisStore implements StorageAdapter {
     serverTime: number;
     sections: Record<string, { items: Stored[] }>;
   }> {
-    return this.memoryStore.getSnapshot(device_id);
+    let snapshot = await this.memoryStore.getSnapshot(device_id);
+
+    if (device_id && this.areSectionsEmpty(snapshot.sections)) {
+      const redisSnapshot = await this.buildSnapshotFromRedis(device_id);
+      if (redisSnapshot) {
+        snapshot = redisSnapshot;
+      }
+    }
+
+    return snapshot;
+  }
+
+  async getCachedSnapshot(device_id: string): Promise<{
+    serverTime: number;
+    sections: Record<string, { items: Stored[] }>;
+    cached?: boolean;
+  } | null> {
+    const cached = await this.memoryStore.getCachedSnapshot(device_id);
+    if (cached && !this.areSectionsEmpty(cached.sections)) {
+      return cached;
+    }
+
+    const redisSnapshot = await this.buildSnapshotFromRedis(device_id);
+    return redisSnapshot ? { ...redisSnapshot, cached: false } : cached;
   }
 
   async getDevices(): Promise<{
@@ -1125,7 +1169,7 @@ export class RedisStore implements StorageAdapter {
     }
 
     // Get devices from Redis
-    let deviceIds = await this.client.zRange("devices", 0, -1, { REV: true });
+    let deviceIds = await this.client.zRange(redisKeys.deviceIndex(), 0, -1, { REV: true });
     
     // If devices sorted set is empty, scan for historical device keys
     if (deviceIds.length === 0) {
@@ -1135,7 +1179,7 @@ export class RedisStore implements StorageAdapter {
       const historicalIds = await scanPrimaryDeviceIds(this.client);
 
       for (const deviceId of historicalIds) {
-        const deviceData = await this.client.hGetAll(`device:${deviceId}`);
+        const deviceData = await this.client.hGetAll(redisKeys.deviceHash(deviceId));
         if (!deviceData || !deviceData.device_id) {
           continue;
         }
@@ -1146,13 +1190,13 @@ export class RedisStore implements StorageAdapter {
             ? Math.floor(raw_last_seen / 1000)
             : raw_last_seen || Math.floor(Date.now() / 1000);
 
-        await this.client.zAdd("devices", {
+        await this.client.zAdd(redisKeys.deviceIndex(), {
           score: last_seen_seconds * 1000,
           value: deviceId,
         });
       }
 
-      deviceIds = await this.client.zRange("devices", 0, -1, { REV: true });
+      deviceIds = await this.client.zRange(redisKeys.deviceIndex(), 0, -1, { REV: true });
       if (process.env.NODE_ENV === 'development') {
         console.log(`[Redis] Rebuilt devices sorted set with ${deviceIds.length} devices from historical data`);
       }
@@ -1162,7 +1206,7 @@ export class RedisStore implements StorageAdapter {
     const now = Date.now();
 
     for (const device_id of deviceIds) {
-      const data = await this.client.hGetAll(`device:${device_id}`);
+      const data = await this.client.hGetAll(redisKeys.deviceHash(device_id));
       if (data && data.device_id) {
         const raw_last_seen = parseInt(data.last_seen || "0");
         const last_seen_seconds =
@@ -1173,7 +1217,7 @@ export class RedisStore implements StorageAdapter {
         const is_online = now - last_seen_ms < DEVICE_TIMEOUT_MS;
         
         // Get threat_level from dedicated key (updated by batch reports) or fallback to hash
-        const threatKey = `device:${device_id}:threat`;
+        const threatKey = redisKeys.deviceThreat(device_id);
         const threatFromKey = await this.client.get(threatKey);
         const threatLevel = threatFromKey
           ? parseFloat(threatFromKey)
@@ -1182,6 +1226,11 @@ export class RedisStore implements StorageAdapter {
         devices.push({
           device_id: data.device_id,
           device_name: data.device_name || device_id,
+          device_hostname: data.device_hostname || data.host || data.device_name,
+          player_nickname: data.player_nickname,
+          player_nickname_confidence: data.player_nickname_confidence
+            ? parseFloat(data.player_nickname_confidence)
+            : undefined,
           last_seen: last_seen_ms,  // Return in milliseconds for UI consistency
           signal_count: 0,
           unique_detection_count: 0,
@@ -1237,10 +1286,10 @@ export class RedisStore implements StorageAdapter {
 
     // Get batch reports for time range
     const batchKeys = await this.client.zRange(
-      `batches:${device_id}:hourly`,
+      redisKeys.batchesHourly(device_id),
       minTime,
       now,
-      { BY: "SCORE" }
+      { BY: "SCORE" },
     );
 
     // Group by hour with categories
@@ -1337,10 +1386,10 @@ export class RedisStore implements StorageAdapter {
 
     // Get batch reports for time range (each batch report represents activity)
     const batchKeys = await this.client.zRange(
-      `batches:${device_id}:hourly`,
+      redisKeys.batchesHourly(device_id),
       minTime,
       now,
-      { BY: "SCORE" }
+      { BY: "SCORE" },
     );
 
     const results = [];
@@ -1408,7 +1457,7 @@ export class RedisStore implements StorageAdapter {
       date.setDate(date.getDate() - i);
       const dayStr = date.toISOString().split('T')[0];
       
-      const dayKey = `day:${device_id}:${dayStr}`;
+      const dayKey = redisKeys.dayStats(device_id, dayStr);
       const data = await this.client.hGetAll(dayKey);
       
       if (data && data.reports) {
@@ -1423,6 +1472,317 @@ export class RedisStore implements StorageAdapter {
     }
 
     return results.sort((a, b) => a.day.localeCompare(b.day));
+  }
+
+  private areSectionsEmpty(
+    sections: Record<string, { items: Stored[] }> | undefined | null,
+  ): boolean {
+    if (!sections) {
+      return true;
+    }
+
+    return Object.values(sections).every(
+      (section) => !section || section.items.length === 0,
+    );
+  }
+
+  private normalizeEpochValue(value?: number): number {
+    if (
+      value === undefined ||
+      value === null ||
+      Number.isNaN(value as number)
+    ) {
+      return Math.floor(Date.now() / 1000);
+    }
+    return value > 1_000_000_000_000
+      ? Math.floor(value / 1000)
+      : Math.floor(value);
+  }
+
+  private appendSectionItem(
+    sections: Record<string, { items: Stored[] }>,
+    section: string,
+    item: Stored,
+  ): void {
+    if (!sections[section]) {
+      sections[section] = { items: [] };
+    }
+    sections[section].items.push(item);
+    if (sections[section].items.length > REDIS_SNAPSHOT_SECTION_LIMIT) {
+      sections[section].items.length = REDIS_SNAPSHOT_SECTION_LIMIT;
+    }
+  }
+
+  private getSummaryStatus(summary?: {
+    critical?: number;
+    alert?: number;
+    warn?: number;
+  }): Status {
+    if (!summary) return "INFO";
+    if ((summary.critical || 0) > 0) return "CRITICAL";
+    if ((summary.alert || 0) > 0) return "ALERT";
+    if ((summary.warn || 0) > 0) return "WARN";
+    return "INFO";
+  }
+
+  private async getRecentBatchKeys(device_id: string): Promise<string[]> {
+    if (!this.client) return [];
+
+    const limit = Math.max(1, REDIS_SNAPSHOT_BATCH_LIMIT);
+    let keys = await this.client.zRange(
+      redisKeys.batchesHourly(device_id),
+      0,
+      limit - 1,
+      { REV: true },
+    );
+
+    if (!keys.length) {
+      keys = await this.client.zRange(
+        redisKeys.batchesDaily(device_id),
+        0,
+        limit - 1,
+        { REV: true },
+      );
+    }
+
+    if (!keys.length) {
+      const scanned: string[] = [];
+      for await (const key of this.client.scanIterator({
+        MATCH: `batch:${device_id}:*`,
+        COUNT: 100,
+      })) {
+        scanned.push(key as string);
+        if (scanned.length >= limit) {
+          break;
+        }
+      }
+      scanned.sort(
+        (a, b) =>
+          this.extractTimestampFromBatchKey(b) -
+          this.extractTimestampFromBatchKey(a),
+      );
+      keys = scanned.slice(0, limit);
+    }
+
+    return keys;
+  }
+
+  private extractTimestampFromBatchKey(key: string): number {
+    const raw = Number(key.split(":").pop());
+    return Number.isFinite(raw) ? raw : 0;
+  }
+
+  private async buildSnapshotFromRedis(
+    device_id: string,
+  ): Promise<{
+    serverTime: number;
+    sections: Record<string, { items: Stored[] }>;
+  } | null> {
+    const isConnected = await this.ensureConnected();
+    if (!isConnected || !this.client) {
+      return null;
+    }
+
+    const batchKeys = await this.getRecentBatchKeys(device_id);
+    if (!batchKeys.length) {
+      return null;
+    }
+
+    const pipeline = this.client.multi();
+    for (const key of batchKeys) {
+      pipeline.get(key);
+    }
+    const batchResults = await pipeline.exec();
+    if (!batchResults) {
+      return null;
+    }
+
+    const sections: Record<string, { items: Stored[] }> = {};
+    let added = false;
+    const nowSec = Math.floor(Date.now() / 1000);
+
+    batchResults.forEach((entry, batchIndex) => {
+      const raw = Array.isArray(entry) ? entry[1] : entry;
+      if (!raw || typeof raw !== "string") {
+        return;
+      }
+
+      try {
+        const batch = JSON.parse(raw) as {
+          timestamp?: number;
+          aggregated_threats?: Array<Record<string, any>>;
+          categories?: Record<string, number>;
+          summary?: {
+            critical?: number;
+            alert?: number;
+            warn?: number;
+            info?: number;
+            total_detections?: number;
+          };
+          bot_probability?: number;
+          nickname?: string;
+          device?: { hostname?: string };
+          meta?: { hostname?: string };
+          batch_number?: number;
+        };
+
+        const timestamp = this.normalizeEpochValue(batch.timestamp ?? nowSec);
+        const deviceName =
+          (batch.nickname as string) ||
+          batch.device?.hostname ||
+          (batch.meta?.hostname as string) ||
+          device_id;
+
+        const aggregated = Array.isArray(batch.aggregated_threats)
+          ? batch.aggregated_threats
+          : [];
+        let hasThreatItems = false;
+
+        // Inject nickname signal if available (mirrors Player Name Detected events)
+        if (
+          typeof batch.nickname === "string" &&
+          batch.nickname.trim().length > 0
+        ) {
+          const nicknamePayload = {
+            player_name: batch.nickname.trim(),
+            confidence_percent: 100,
+          };
+          const nicknameSignal: Stored = {
+            timestamp,
+            category: "system",
+            name: "Player Name Detected",
+            status: "INFO",
+            details: JSON.stringify(nicknamePayload),
+            device_id,
+            device_name: deviceName,
+            id: `redis:${device_id}:${timestamp}:nickname`,
+            section: "system_reports",
+            uniqueKey: `redis:system:nickname:${device_id}`,
+            firstSeen: timestamp,
+            detections: 1,
+          };
+          this.appendSectionItem(sections, "system_reports", nicknameSignal);
+          added = true;
+        }
+
+        aggregated.forEach((threat, threatIndex) => {
+          const normalizedStatus = normalizeStatus(threat.status);
+          const threatCategory =
+            typeof threat.category === "string"
+              ? threat.category
+              : "programs";
+          const detailParts: string[] = [];
+          if (Array.isArray(threat.sources) && threat.sources.length) {
+            detailParts.push(`Sources: ${threat.sources.join(", ")}`);
+          }
+          if (typeof threat.score === "number") {
+            detailParts.push(`Score: ${Math.round(threat.score)}`);
+          }
+          if (typeof threat.detections === "number") {
+            detailParts.push(`Detections: ${threat.detections}`);
+          }
+          const details =
+            detailParts.join(" | ") ||
+            `Detections: ${threat.detections ?? 1}`;
+          const signal: Signal = {
+            timestamp,
+            category: threatCategory,
+            name: threat.name || "Detection",
+            status: normalizedStatus,
+            details,
+            device_id,
+            device_name: deviceName,
+            segment_name: Array.isArray(threat.sources)
+              ? threat.sources[0]
+              : undefined,
+          };
+          const section = routeToSectionKey(signal);
+          const stored: Stored = {
+            ...signal,
+            id: `redis:${device_id}:${timestamp}:${batchIndex}:${threatIndex}`,
+            section,
+            uniqueKey: `redis:${section}:${threat.threat_id || threat.name || threatIndex}`,
+            firstSeen: this.normalizeEpochValue(
+              threat.first_detected ?? timestamp,
+            ),
+            detections: threat.detections ?? 1,
+          };
+          this.appendSectionItem(sections, section, stored);
+          hasThreatItems = true;
+          added = true;
+        });
+
+        if (!hasThreatItems && batch.categories) {
+          const summaryStatus = this.getSummaryStatus(batch.summary);
+          Object.entries(batch.categories).forEach(
+            ([categoryKey, count], catIndex) => {
+              if (typeof count !== "number" || count <= 0) return;
+              const category = categoryKey.toLowerCase();
+              const signal: Signal = {
+                timestamp,
+                category,
+                name: `${category} activity`,
+                status: summaryStatus,
+                details: `Detections: ${count}`,
+                device_id,
+                device_name: deviceName,
+              };
+              const section = routeToSectionKey(signal);
+              const stored: Stored = {
+                ...signal,
+                id: `redis:${device_id}:${timestamp}:category:${catIndex}`,
+                section,
+                uniqueKey: `redis:${section}:category:${category}`,
+                firstSeen: timestamp,
+                detections: count,
+              };
+              this.appendSectionItem(sections, section, stored);
+              added = true;
+            },
+          );
+        }
+
+        if (batch.summary) {
+          const summaryStatus = this.getSummaryStatus(batch.summary);
+          const summaryDetails = [
+            `Bot probability: ${batch.bot_probability ?? "N/A"}%`,
+            `Critical: ${batch.summary.critical ?? 0}`,
+            `Alert: ${batch.summary.alert ?? 0}`,
+            `Warn: ${batch.summary.warn ?? 0}`,
+          ].join(" | ");
+          const systemItem: Stored = {
+            timestamp,
+            category: "system",
+            name: `Threat Summary (Batch #${batch.batch_number ?? "?"})`,
+            status: summaryStatus,
+            details: summaryDetails,
+            device_id,
+            device_name: deviceName,
+            id: `redis:${device_id}:${timestamp}:summary:${batchIndex}`,
+            section: "system_reports",
+            uniqueKey: `redis:system:${timestamp}:${batchIndex}`,
+            firstSeen: timestamp,
+            detections: batch.summary.total_detections ?? 0,
+          };
+          this.appendSectionItem(sections, "system_reports", systemItem);
+          added = true;
+        }
+      } catch (error) {
+        console.error(
+          "[RedisStore] Failed to parse batch while building snapshot:",
+          error,
+        );
+      }
+    });
+
+    if (!added) {
+      return null;
+    }
+
+    return {
+      serverTime: Math.floor(Date.now() / 1000),
+      sections,
+    };
   }
 
   async disconnect(): Promise<void> {

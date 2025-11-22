@@ -10,7 +10,7 @@ import {
   Legend,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
-import { DETECTION_SECTIONS } from '@/lib/sections';
+import { DETECTION_SECTIONS } from '@/lib/detections/sections';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 

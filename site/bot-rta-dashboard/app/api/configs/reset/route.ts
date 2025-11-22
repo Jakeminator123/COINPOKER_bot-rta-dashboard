@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import * as fs from 'fs/promises';
 import path from 'path';
-import { successResponse, errorResponse, validateToken, parseJsonBody, type ConfigResetRequest } from '@/lib/api-utils';
+import { successResponse, errorResponse, validateToken, parseJsonBody, type ConfigResetRequest } from '@/lib/utils/api-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

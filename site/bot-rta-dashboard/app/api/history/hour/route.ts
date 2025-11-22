@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "redis";
-import { THREAT_WEIGHTS } from "@/lib/threat-scoring";
-import { successResponse, errorResponse } from "@/lib/api-utils";
+import { THREAT_WEIGHTS } from "@/lib/detections/threat-scoring";
+import { successResponse, errorResponse } from "@/lib/utils/api-utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

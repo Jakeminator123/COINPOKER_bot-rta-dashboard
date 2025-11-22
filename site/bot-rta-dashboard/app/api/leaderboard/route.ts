@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { createClient } from 'redis';
-import { successResponse, errorResponse } from '@/lib/api-utils';
+import { successResponse, errorResponse } from '@/lib/utils/api-utils';
+import { redisKeys } from "@/lib/redis/schema";
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -106,7 +107,7 @@ export async function GET(req: NextRequest) {
             const score = Math.round(scores[i].score);
 
             // Get device name
-            const deviceKey = `device:${device_id}`;
+            const deviceKey = redisKeys.deviceHash(device_id);
             const deviceData = await client.hGetAll(deviceKey).catch(() => ({}));
             const device_name = (deviceData as Record<string, string>).device_name || `Device ${device_id.slice(0, 8)}`;
 

@@ -33,13 +33,13 @@ import {
   DETECTION_SECTIONS,
   type Stored,
   type Status,
-} from "@/lib/sections";
+} from "@/lib/detections/sections";
 import {
   TIME_WINDOWS,
   getThreatColor,
   getThreatLabel,
   THREAT_WEIGHTS,
-} from "@/lib/threat-scoring";
+} from "@/lib/detections/threat-scoring";
 import { CATEGORY_COLORS } from "@/components/charts/constants";
 import dynamic from "next/dynamic";
 import AnalysisModal from "@/components/AnalysisModal";
@@ -931,11 +931,29 @@ function EnhancedDashboardContent() {
 
   const deviceDisplayName = useMemo(() => {
     return (
-      deviceData?.device_name ||
       nicknameInfo?.name ||
+      deviceData?.player_nickname ||
+      deviceData?.device_name ||
       (playerId ? playerId.split("_")[0] : "Unknown Player")
     );
-  }, [deviceData?.device_name, nicknameInfo?.name, playerId]);
+  }, [
+    nicknameInfo?.name,
+    deviceData?.player_nickname,
+    deviceData?.device_name,
+    playerId,
+  ]);
+  const deviceHostLabel =
+    deviceData?.device_hostname || deviceData?.device_name || "Unknown Device";
+  const nicknameLabel =
+    nicknameInfo?.name ||
+    deviceData?.player_nickname ||
+    deviceData?.device_name ||
+    "Unknown Player";
+  const nicknameConfidence =
+    nicknameInfo?.confidencePercent || deviceData?.player_nickname_confidence;
+  const hasExplicitNickname = Boolean(
+    nicknameInfo?.name || deviceData?.player_nickname,
+  );
 
   // Ignore detection function
   const handleIgnoreDetection = useCallback(async (detection: any) => {
@@ -1112,13 +1130,13 @@ function EnhancedDashboardContent() {
               </div>
               <div>
                 <h2 className="text-2xl font-bold text-white">
-                  {deviceData.device_name || "Unknown Player"}
+                  {deviceHostLabel}
                 </h2>
                 {/* Structured Player Information */}
                 <div className="mt-3 space-y-2">
                   <div className="flex items-center gap-2 text-sm">
                     <span className="text-slate-500 font-medium min-w-[100px]">Device:</span>
-                    <span className="text-slate-300">{deviceDisplayName}</span>
+                    <span className="text-slate-300">{deviceHostLabel}</span>
                   </div>
 
                   {playerId && (
@@ -1128,22 +1146,21 @@ function EnhancedDashboardContent() {
                     </div>
                   )}
 
-                  {nicknameInfo && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-slate-500 font-medium min-w-[100px]">Nickname:</span>
-                      <span className="text-green-400 font-medium">{nicknameInfo.name}</span>
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-slate-500 font-medium min-w-[100px]">Nickname:</span>
+                    <span
+                      className={`font-medium ${
+                        hasExplicitNickname ? "text-green-400" : "text-slate-300"
+                      }`}
+                    >
+                      {nicknameLabel}
+                    </span>
+                    {hasExplicitNickname && nicknameConfidence !== undefined && (
                       <span className="text-slate-500 text-xs">
-                        ({nicknameInfo.confidencePercent}% confidence)
+                        ({Math.round(nicknameConfidence)}% confidence)
                       </span>
-                    </div>
-                  )}
-
-                  {!nicknameInfo && deviceData?.device_name && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-slate-500 font-medium min-w-[100px]">Nickname:</span>
-                      <span className="text-slate-300">{deviceData.device_name}</span>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   <div className="flex items-center gap-2 text-sm">
                     <span className="text-slate-500 font-medium min-w-[100px]">Status:</span>
@@ -2049,6 +2066,7 @@ function EnhancedDashboardContent() {
           setAnalysisTimePreset(preset);
         }}
         onReanalyze={handleAnalyze}
+        deviceLabel={deviceDisplayName}
       />
 
       {/* Emergency Modal */}
@@ -2064,7 +2082,7 @@ function EnhancedDashboardContent() {
         isOpen={isScoreOpen}
         onClose={() => setIsScoreOpen(false)}
         deviceId={playerId}
-        deviceName={deviceData?.device_name}
+        deviceName={deviceDisplayName}
       />
       <SegmentHistoryModal
         isOpen={false}

@@ -80,16 +80,15 @@ export function looksLikeDeviceId(value?: string | null): boolean {
  */
 export function sanitizeDeviceName(deviceName?: string | null, deviceId?: string | null): string | null {
   if (!deviceName) return null;
-  
-  // Don't store the device ID as the name
-  if (deviceName === deviceId) return null;
-  
-  // Don't store if it looks like a hash
-  if (looksLikeDeviceId(deviceName)) return null;
-  
-  // Trim and validate
+
   const trimmed = deviceName.trim();
   if (trimmed.length === 0) return null;
-  
+
+  // Don't store the device ID as the name
+  if (trimmed === deviceId) return null;
+
+  // Don't store if it looks like a hash
+  if (looksLikeDeviceId(trimmed)) return null;
+
   return trimmed;
 }

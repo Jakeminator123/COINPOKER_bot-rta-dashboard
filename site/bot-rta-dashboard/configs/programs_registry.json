@@ -1057,6 +1057,14 @@
         "rta_tools"
       ],
       "description": "test"
+    },
+    "test": {
+      "label": "mitmproxy",
+      "points": 10,
+      "type": "macro",
+      "categories": [
+        "macros"
+      ]
     }
   },
   "category_definitions": {

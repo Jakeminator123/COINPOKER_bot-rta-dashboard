@@ -1,0 +1,136 @@
+{
+  "scan_type": "unified",
+  "batch_number": 1,
+  "bot_probability": 45,
+  "nickname": "TestPlayer",
+  "summary": {
+    "critical": 2,
+    "alert": 3,
+    "warn": 5,
+    "info": 0,
+    "total_detections": 10,
+    "total_threats": 8,
+    "threat_score": 45,
+    "raw_detection_score": 85
+  },
+  "categories": {
+    "programs": 4,
+    "network": 2,
+    "behaviour": 2,
+    "auto": 1,
+    "vm": 1,
+    "screen": 0
+  },
+  "active_threats": 8,
+  "aggregated_threats": [
+    {
+      "threat_id": "process_12345",
+      "name": "Suspicious Process Detected",
+      "category": "programs",
+      "status": "CRITICAL",
+      "score": 15,
+      "sources": ["ProcessScanner", "HashAndSignatureScanner"],
+      "detections": 3,
+      "confidence": 0.95,
+      "first_detected": 1700000000.0,
+      "details": "SHA:abc123... | suspicious.exe | Known bot | Hash match"
+    },
+    {
+      "threat_id": "network_67890",
+      "name": "RTA Site Detected",
+      "category": "network",
+      "status": "ALERT",
+      "score": 10,
+      "sources": ["WebMonitor"],
+      "detections": 1,
+      "confidence": 0.85,
+      "first_detected": 1700000100.0,
+      "details": "GTO Wizard detected in browser window"
+    }
+  ],
+  "vm_probability": 0,
+  "file_analysis_count": 2,
+  "system": {
+    "cpu_percent": 25.5,
+    "mem_used_percent": 45.2,
+    "segments_running": 6,
+    "env": "DEV",
+    "host": "MyComputer"
+  },
+  "timestamp": 1700000200.0,
+  "metadata": {
+    "flow": {
+      "description": "Signal flow through the bot detection system",
+      "steps": [
+        "Segments detect threats and call post_signal()",
+        "Signals are emitted to EventBus",
+        "ReportBatcher collects signals in memory",
+        "Every 92s, ReportBatcher creates unified batch report",
+        "Batch report is sent via WebForwarder to Dashboard API"
+      ]
+    },
+    "segments": [
+      {
+        "name": "ProcessScanner",
+        "category": "programs",
+        "interval": 92,
+        "status": "running"
+      },
+      {
+        "name": "AutomationDetector",
+        "category": "auto",
+        "interval": 92,
+        "status": "running"
+      },
+      {
+        "name": "WebMonitor",
+        "category": "network",
+        "interval": 92,
+        "status": "running"
+      },
+      {
+        "name": "BehaviourDetector",
+        "category": "behaviour",
+        "interval": 92,
+        "status": "running"
+      },
+      {
+        "name": "VMDetector",
+        "category": "vm",
+        "interval": 92,
+        "status": "running"
+      },
+      {
+        "name": "ScreenDetector",
+        "category": "screen",
+        "interval": 92,
+        "status": "running"
+      }
+    ],
+    "timing": {
+      "batch_interval": 92,
+      "sync_segments": true,
+      "segment_intervals": {
+        "programs": 92,
+        "auto": 92,
+        "network": 92,
+        "behaviour": 92,
+        "vm": 92,
+        "screen": 92
+      }
+    },
+    "configuration": {
+      "env": "DEV",
+      "web_enabled": true,
+      "testing_json": true
+    },
+    "system_state": {
+      "segments_running": 6,
+      "batch_count": 1,
+      "cpu_percent": 25.5,
+      "mem_used_percent": 45.2,
+      "host": "MyComputer"
+    }
+  }
+}
+

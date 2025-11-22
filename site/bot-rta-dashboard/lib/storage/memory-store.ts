@@ -1,9 +1,10 @@
-import { Signal, SectionKey, routeToSectionKey, Stored } from "@/lib/sections";
+import { Signal, SectionKey, routeToSectionKey, Stored } from "@/lib/detections/sections";
 import {
   StorageAdapter,
   type AggregatePoint,
   type DeviceListEntry,
 } from "./storage-adapter";
+import { DEVICE_TIMEOUT_MS } from "./device-session";
 
 // In-memory store with TTL for live detection signals
 // For historical data and reporting, use a database instead
@@ -17,12 +18,6 @@ const TTL_MS = Number(process.env.MEMORY_STORE_TTL_MS) || (10 * 60 * 1000); // D
 
 // MAX_ITEMS_PER_SECTION: Maximum signals kept per detection section (prevents memory overflow)
 const MAX_ITEMS_PER_SECTION = Number(process.env.MAX_ITEMS_PER_SECTION) || 200; // Configurable via MAX_ITEMS_PER_SECTION env var
-
-// DEVICE_TIMEOUT_MS: Device considered offline if no signal received for this duration
-// Unified batch reports are sent every 92s, so timeout must be >92s to avoid false logouts
-// Using 120s (2 minutes) provides safe margin for network delays and processing time
-// Scanner events still provide immediate start/stop signals for faster detection
-const DEVICE_TIMEOUT_MS = Number(process.env.DEVICE_TIMEOUT_MS) || (120 * 1000); // Default: 120 seconds (configurable via DEVICE_TIMEOUT_MS env var)
 
 // SIGNAL_COOLDOWN_MS: Prevent duplicate signals within this time window
 // Same detection from same source won't be stored again within cooldown period
@@ -1471,6 +1466,9 @@ export class MemoryStore implements StorageAdapter {
         return {
           device_id: device.device_id,
           device_name: device.device_name,
+          device_hostname: device.device_name,
+          player_nickname: device.player_nickname ?? device.device_name,
+          player_nickname_confidence: device.player_nickname_confidence,
           last_seen: device.last_seen,
           signal_count: device.signal_count,
           unique_detection_count: device.unique_detection_count,

@@ -3,7 +3,7 @@
  * ============================
  * Parse and analyze device information from signals
  */
-import type { Signal } from "@/lib/sections";
+import type { Signal } from "@/lib/detections/sections";
 
 export interface DeviceInfo {
   os: string;

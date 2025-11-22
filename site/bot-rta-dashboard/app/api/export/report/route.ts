@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "redis";
-import { errorResponse } from "@/lib/api-utils";
+import { errorResponse } from "@/lib/utils/api-utils";
 import {
   exportPlayerSegmentsToXLSX,
   generateExportFilename,
-} from "@/lib/xlsx-export";
+} from "@/lib/utils/xlsx-export";
+import { redisKeys } from "@/lib/redis/schema";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,7 +48,7 @@ export async function GET(req: NextRequest) {
     await client.connect();
 
     // Get device info
-    const deviceKey = `device:${device}`;
+    const deviceKey = redisKeys.deviceHash(device);
     const deviceData = await client.hGetAll(deviceKey);
     const deviceName =
       deviceData.device_name || `Device_${device.substring(0, 8)}`;
@@ -157,7 +158,7 @@ export async function GET(req: NextRequest) {
      
     const sessionData: any[] = [];
     if (type === "sessions" || type === "all") {
-      const sessionsIndexKey = `sessions:${device}`;
+      const sessionsIndexKey = redisKeys.sessionIndex(device);
       const since = minTimestamp;
       
       const sessionKeys = await client.zRange(sessionsIndexKey, since, "+inf", {

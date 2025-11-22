@@ -1,0 +1,46 @@
+Redis pipeline overview
+=======================
+
+1. Scanner → /api/signal
+   - Every 92s the Python scanner posts a unified batch payload to `/api/signal`.
+   - Critical fields: `device_id`, `device_name`, `bot_probability`, `summary`, `aggregated_threats`,
+     and the identifier hints (`nickname`, `device`, `system.host`, etc.).
+
+2. API route → Storage adapter
+   - `/api/signal/route.ts` deserialises the batch and hands it to `StorageAdapter.addSignal`.
+   - The adapter instance is provided by `lib/utils/store.ts`, which selects `RedisStore` or `MemoryStore`.
+
+3. RedisStore processing (`lib/storage/redis-store.ts`)
+   - Uses helpers from `lib/redis/schema.ts` for every Redis key.
+   - Name selection is handled by `lib/device/identity.ts`, which honours `config/redis_identity.json`
+     so the scanner and dashboard resolve nicknames identically.
+   - Writes:
+     * `device:<id>` hash (last_seen, threat_level, device_name, session_start)
+     * `device:<id>:threat` string (latest bot_probability)
+     * `device:<id>:detections:<SEVERITY>` counters
+     * `device:<id>:categories` JSON snapshot
+     * `batch:<id>:<ts>` JSON batch record
+     * `batches:<id>:hourly|daily` sorted sets referencing batch keys
+     * `day:<id>:YYYY-MM-DD` / `hour:<id>:YYYY-MM-DDTHH` hashes for aggregates
+     * `player_summary:<id>` JSON summary (avg_bot_probability, totals, sessions)
+     * `sessions:<id>` sorted set + `session:<id>:<ts>` JSON for login/logout history
+     * Global sorted sets: `devices` (last_seen ordering) and `top_players:bot_probability`
+   - Publishes notifications via `updates:<id>` and `updates:all`.
+
+4. Readers
+   - `/api/players` builds leaderboards by reading `top_players:bot_probability`, `device:<id>`,
+     `player_summary:<id>`, detection counters and categories through the new schema helpers.
+   - `/api/player/summary`, `/api/export/*`, `/api/devices*` and `/app/page.tsx` reuse the schema
+     for consistent lookups.
+
+5. Fallback (MemoryStore)
+   - If Redis is unavailable, `lib/storage/memory-store.ts` still records live signals and session
+     events using the shared `DEVICE_TIMEOUT_MS` from `lib/storage/device-session.ts`.
+
+Key guarantees
+--------------
+- Both projects share `config/redis_identity.json`, so nickname resolution is deterministic.
+- All Redis key names live in `lib/redis/schema.ts`. Any new reader/writer MUST use those helpers.
+- Session timeout logic (`DEVICE_TIMEOUT_MS`) is centralised in `lib/storage/device-session.ts`
+  to keep MemoryStore and RedisStore perfectly aligned when marking players online/offline.
+

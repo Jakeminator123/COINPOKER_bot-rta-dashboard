@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { getSnapshot, getCachedSnapshot } from "@/lib/store";
-import { successResponse, errorResponse } from "@/lib/api-utils";
+import { getSnapshot, getCachedSnapshot } from "@/lib/utils/store";
+import { successResponse, errorResponse } from "@/lib/utils/api-utils";
 
 export const runtime = "nodejs";
 

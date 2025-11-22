@@ -4,7 +4,7 @@ import {
   successResponse,
   validateToken,
   type ConfigPostRequest,
-} from "@/lib/api-utils";
+} from "@/lib/utils/api-utils";
 import * as fs from "fs/promises";
 import { NextRequest } from "next/server";
 import path from "path";

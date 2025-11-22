@@ -5,10 +5,10 @@
 
 import { useMemo } from "react";
 import { enUS } from "date-fns/locale";
-import { getThreatColor } from "@/lib/threat-scoring";
+import { getThreatColor } from "@/lib/detections/threat-scoring";
 import type { ChartDataPoint, TimePreset, DataType } from "../types";
 import { CATEGORY_COLORS, CATEGORY_TITLES } from "../constants";
-import { DETECTION_SECTIONS } from "@/lib/sections";
+import { DETECTION_SECTIONS } from "@/lib/detections/sections";
 import type { Session } from "./useSessionData";
 
 interface UseChartConfigProps {

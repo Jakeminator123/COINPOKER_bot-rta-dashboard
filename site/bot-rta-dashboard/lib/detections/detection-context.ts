@@ -11,7 +11,7 @@
 // TODO: Consider deprecating this file once all AI analysis functions are updated.
 
 import { getProgramExplanation, getDetectionInfo } from "./detection-info";
-import type { Signal } from "@/lib/sections";
+import type { Signal } from "@/lib/detections/sections";
 
 export interface DetectionContext {
   knownBots: Record<string, { label: string; risk: number; type: string }>; // risk: 1=low, 2=med, 3=high

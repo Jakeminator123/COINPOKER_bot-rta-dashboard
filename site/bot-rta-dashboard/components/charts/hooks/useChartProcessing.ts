@@ -6,7 +6,7 @@
 import { useEffect, useState, useMemo } from "react";
 import type { ChartDataPoint, TimePreset } from "../types";
 import { TIME_PRESETS, CATEGORY_COLORS } from "../constants";
-import { TIME_WINDOWS } from "@/lib/threat-scoring";
+import { TIME_WINDOWS } from "@/lib/detections/threat-scoring";
 
 interface UseChartProcessingProps {
   deviceId: string | null | undefined;

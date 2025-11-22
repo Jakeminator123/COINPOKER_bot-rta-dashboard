@@ -33,6 +33,36 @@ STATUS_POINTS = {
     "OK": 0,
 }
 
+SEGMENT_MAP = {
+    "programs": "ProcessScanner",
+    "network": "WebMonitor",
+    "behaviour": "BehaviourDetector",
+    "auto": "AutomationDetector",
+    "vm": "VMDetector",
+    "screen": "ScreenDetector",
+}
+
+SEGMENT_METADATA = [
+    {"name": "ProcessScanner", "category": "programs", "interval": 92.0, "status": "running"},
+    {"name": "HashAndSignatureScanner", "category": "programs", "interval": 92.0, "status": "running"},
+    {"name": "ObfuscationDetector", "category": "programs", "interval": 92.0, "status": "running"},
+    {"name": "TrafficMonitor", "category": "network", "interval": 92.0, "status": "running"},
+    {"name": "WebMonitor", "category": "network", "interval": 92.0, "status": "running"},
+    {"name": "TelegramDetector", "category": "network", "interval": 92.0, "status": "running"},
+    {"name": "AutomationDetector", "category": "auto", "interval": 92.0, "status": "running"},
+    {"name": "BehaviourDetector", "category": "behaviour", "interval": 20.0, "status": "running"},
+    {"name": "VMDetector", "category": "vm", "interval": 30.0, "status": "running"},
+    {"name": "ScreenDetector", "category": "screen", "interval": 8.0, "status": "running"},
+]
+
+FLOW_STEPS = [
+    "Segments detect threats and call post_signal()",
+    "Signals are emitted to EventBus",
+    "ReportBatcher collects signals in memory",
+    "Every 92.0s, ReportBatcher creates unified batch report",
+    "Batch report is sent via Forwarder to dashboard",
+]
+
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.txt")
 DEFAULT_LOCAL_URL = "http://localhost:3001/api/signal"
@@ -109,6 +139,7 @@ def parse_kv_ratios(text: str, default: dict[str, float]) -> dict[str, float]:
 class PlayerProfile:
     device_id: str
     device_name: str
+    nickname: str
     is_special: bool = False
 
 
@@ -128,6 +159,11 @@ def apply_interval_spread(base_interval: float, spread: float) -> float:
     lower = max(0.1, 1.0 - spread)
     upper = 1.0 + spread
     return max(1.0, base_interval * random.uniform(lower, upper))
+
+
+def slugify_threat_name(name: str) -> str:
+    cleaned = "".join(ch.lower() for ch in name if ch.isalnum())
+    return cleaned[:32] or uuid.uuid4().hex[:32]
 
 
 # ---------------------
@@ -208,6 +244,9 @@ def build_signal(
         name = random.choice(["VMware", "VirtualBox", "Hyper-V"])
         details = f"Evidence: tools_detected={random.choice([True, False])}"
 
+    segment_name = SEGMENT_MAP.get(category, category)
+    source_tag = f"{category}/{name}"
+
     return {
         "v": 1,
         "ts": now,
@@ -219,6 +258,10 @@ def build_signal(
         "details": details,
         "device_id": profile.device_id,
         "device_name": profile.device_name,
+        "segment": segment_name,
+        "source_tag": source_tag,
+        "score_points": STATUS_POINTS.get(status, 0),
+        "threat_id": slugify_threat_name(name),
     }
 
 
@@ -228,55 +271,47 @@ def build_unified_batch(
     batch_no: int,
     env_name: str,
     host_name: str,
+    device_ip: str,
+    batch_interval: float,
 ) -> dict[str, object]:
     severity_counts = {"critical": 0, "alert": 0, "warn": 0, "info": 0}
     categories: dict[str, int] = {}
     total_score = 0
-    
-    # Build threats list matching scanner.py format
-    threats_list: list[dict[str, object]] = []
     detections_map: dict[tuple, dict] = {}
-    
+
     for det in detections:
         status = str(det.get("status", "INFO")).upper()
-        points = STATUS_POINTS.get(status, 0)
+        points = int(det.get("score_points", STATUS_POINTS.get(status, 0)))
         category = str(det.get("category", "unknown"))
         name = str(det.get("name", "Unknown"))
         details = str(det.get("details", ""))
-        timestamp = det.get("ts", time.time())
-        
-        # Deduplicate by (category, name, details) like scanner.py does
+        timestamp = float(det.get("ts", time.time()))
+        threat_id = str(det.get("threat_id") or slugify_threat_name(name))
+
         key = (category, name, details)
-        
-        if key in detections_map:
-            existing = detections_map[key]
-            existing["occurrences"] += 1
-            if timestamp < existing["first_detected"]:
-                existing["first_detected"] = timestamp
-        else:
-            # Map category to segment name (like scanner.py does)
-            segment_map = {
-                "programs": "ProcessScanner",
-                "network": "WebMonitor",
-                "behaviour": "BehaviourDetector",
-                "auto": "AutomationDetector",
-                "vm": "VMDetector",
-                "screen": "ScreenDetector",
-            }
-            segment_name = segment_map.get(category, category)
-            
-            detections_map[key] = {
+        entry = detections_map.setdefault(
+            key,
+            {
                 "name": name,
-                "segment": segment_name,
                 "category": category,
                 "status": status,
-                "points": points,
+                "score": 0,
                 "first_detected": timestamp,
                 "details": details,
-                "occurrences": 1,
-            }
-        
-        # Count severity
+                "detections": 0,
+                "sources": set(),
+                "segment": det.get("segment") or SEGMENT_MAP.get(category, category),
+                "threat_id": threat_id,
+            },
+        )
+
+        entry["detections"] += 1
+        entry["score"] += points
+        entry["status"] = status
+        entry["threat_id"] = threat_id
+        entry["sources"].add(det.get("source_tag") or f"{category}/{name}")
+        entry["first_detected"] = min(entry["first_detected"], timestamp)
+
         if status == "CRITICAL":
             severity_counts["critical"] += 1
         elif status == "ALERT":
@@ -289,59 +324,95 @@ def build_unified_batch(
         categories[category] = categories.get(category, 0) + 1
         total_score += points
 
-    # Convert to list (only threats with points > 0, like scanner.py)
-    threats_list = [
-        threat for threat in detections_map.values()
-        if threat["points"] > 0
-    ]
+    aggregated_threats = []
+    for threat in detections_map.values():
+        aggregated_threats.append(
+            {
+                "threat_id": threat["threat_id"],
+                "name": threat["name"],
+                "category": threat["category"],
+                "status": threat["status"],
+                "score": threat["score"],
+                "age_seconds": random.randint(60, 180),
+                "confidence": random.randint(1, 3),
+                "sources": sorted(threat["sources"]),
+                "detections": threat["detections"],
+                "segment": threat["segment"],
+                "first_detected": threat["first_detected"],
+            }
+        )
 
-    total_threats = len(threats_list)
-    # Calculate bot_probability as deduplicated score (same as threat_score)
-    # In real scanner, this comes from ThreatManager which deduplicates by threat_id
-    # For simulator, we use the raw score but cap at 100 (matches real behavior)
+    total_threats = len(aggregated_threats)
     bot_probability = min(100.0, max(0.0, float(total_score)))
-    
-    # Add threat_id to each threat (simplified: use lowercase name as ID)
-    for threat in threats_list:
-        threat_name_lower = str(threat.get("name", "")).lower().replace(" ", "")
-        threat["threat_id"] = threat_name_lower[:32]  # Limit length like real scanner
+    categories = {k: v for k, v in sorted(categories.items())}
+    system_cpu = random.uniform(30.0, 70.0)
+    system_mem = random.uniform(20.0, 70.0)
+
+    metadata = {
+        "flow": {"description": "Signal flow through the bot detection system", "steps": FLOW_STEPS},
+        "segments": SEGMENT_METADATA,
+        "timing": {
+            "batch_interval": batch_interval,
+            "sync_segments": True,
+            "segment_intervals": {seg["name"]: seg["interval"] for seg in SEGMENT_METADATA},
+        },
+        "configuration": {
+            "env": env_name,
+            "web_enabled": True,
+            "testing_json": True,
+        },
+        "system_state": {
+            "segments_running": len(SEGMENT_METADATA),
+            "batch_count": batch_no,
+            "cpu_percent": system_cpu,
+            "mem_used_percent": system_mem,
+            "host": host_name,
+        },
+    }
+
+    system_block = {
+        "cpu_percent": system_cpu,
+        "mem_used_percent": system_mem,
+        "segments_running": len(SEGMENT_METADATA),
+        "env": env_name,
+        "host": host_name,
+    }
 
     batch_details = {
         "scan_type": "unified",
         "batch_number": batch_no,
-        "bot_probability": bot_probability,  # Deduplicated score (same as threat_score)
-        "threats": threats_list,
+        "bot_probability": bot_probability,
+        "nickname": player.nickname,
+        "device_id": player.device_id,
+        "device_name": player.device_name,
+        "device_ip": device_ip,
+        "device": {"hostname": host_name, "ip": device_ip},
         "summary": {
             "critical": severity_counts["critical"],
             "alert": severity_counts["alert"],
             "warn": severity_counts["warn"],
             "info": severity_counts["info"],
-            "total_detections": len(threats_list),  # Match backend field name
+            "total_detections": total_threats,
             "total_threats": total_threats,
-            "threat_score": bot_probability,  # Same as bot_probability (deduplicated)
-            "raw_detection_score": total_score,  # Raw sum before dedup
+            "threat_score": bot_probability,
+            "raw_detection_score": total_score,
         },
         "categories": categories,
-        "active_threats": max(0, total_threats - severity_counts["info"]),
-        "aggregated_threats": [],  # Empty for simulator (real scanner shows merged threats)
-        "vm_probability": 0.0,
+        "active_threats": sum(1 for t in aggregated_threats if t["status"] != "INFO"),
+        "aggregated_threats": aggregated_threats,
+        "vm_probability": random.uniform(0, 10),
         "file_analysis_count": sum(
-            1 for t in threats_list
-            if "hash" in t["name"].lower() or "file" in t["name"].lower()
+            1 for t in aggregated_threats if "hash" in t["name"].lower() or "file" in t["name"].lower()
         ),
-        "system": {
-            "cpu_percent": random.uniform(15.0, 75.0),
-            "mem_used_percent": random.uniform(20.0, 85.0),
-            "segments_running": random.randint(5, 12),
-            "env": env_name,
-            "host": host_name,
-        },
+        "system": system_block,
+        "segments": SEGMENT_METADATA,
+        "metadata": metadata,
         "timestamp": time.time(),
+        "batch_sent_at": time.time(),
     }
 
-    # Match scanner.py payload format exactly (no "v" or "ts" fields)
     return {
-        "timestamp": time.time(),
+        "timestamp": int(time.time()),
         "category": "system",
         "name": "Unified Scan Report",
         "status": "INFO",
@@ -454,6 +525,8 @@ def player_worker(
                 batch_no,
                 env_name,
                 host_name,
+                xfwd if use_xforwarded else "127.0.0.1",
+                batch_interval,
             )
             
             try:
@@ -788,10 +861,12 @@ def main() -> None:
         is_special = i in special_indices
         name_prefix = special_prefix if is_special else args.device_prefix
         device_name = f"{name_prefix}-{i + 1}-{suffix}"
+        nickname = f"{'VIP' if is_special else 'Player'}{i + 1}"
         players.append(
             PlayerProfile(
                 device_id=device_id,
                 device_name=device_name,
+                nickname=nickname,
                 is_special=is_special,
             )
         )

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, memo } from 'react';
-import { STATUS_COLORS, type Status } from '@/lib/sections';
+import { STATUS_COLORS, type Status } from '@/lib/detections/sections';
 
 interface Detection {
   id: string;

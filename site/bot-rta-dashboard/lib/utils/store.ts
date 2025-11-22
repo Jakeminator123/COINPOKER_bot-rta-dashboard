@@ -1,6 +1,6 @@
-import { Signal } from "@/lib/sections";
-import type { StorageAdapter } from "./storage-adapter";
-import { MemoryStore } from "./memory-store";
+import { Signal } from "@/lib/detections/sections";
+import type { StorageAdapter } from "@/lib/storage/storage-adapter";
+import { MemoryStore } from "@/lib/storage/memory-store";
 
 // Lazy-load Redis to avoid import errors if not installed
 type RedisStoreConstructor = new () => StorageAdapter;
@@ -37,7 +37,7 @@ function getStoreInstance(): StorageAdapter {
       // Synchronously import Redis store (works in Next.js server context)
       if (!RedisStoreCtor) {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const redisModule = require("./redis-store") as {
+        const redisModule = require("../storage/redis-store") as {
           RedisStore: RedisStoreConstructor;
         };
         RedisStoreCtor = redisModule.RedisStore;

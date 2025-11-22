@@ -7,6 +7,7 @@ pillow>=10.0.0,<11.0.0
 pytesseract>=0.3.10,<1.0.0
 cryptography>=41.0.0,<44.0.0
 numpy>=1.24.0,<2.0.0  # Required for nickname detection image processing
+redis>=5.0.0,<6.0.0  # Required for direct Redis forwarding (bypasses HTTP API)
 
 # Build dependencies (optional - only needed for .exe builds)
 pyinstaller>=6.0.0  # Uncomment if building .exe files

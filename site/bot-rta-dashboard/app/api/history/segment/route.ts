@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { createClient } from "redis";
-import { successResponse, errorResponse } from "@/lib/api-utils";
+import { successResponse, errorResponse } from "@/lib/utils/api-utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

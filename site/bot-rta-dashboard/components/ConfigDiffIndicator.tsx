@@ -1,6 +1,6 @@
 'use client';
 
-import { ConfigDiff } from '@/lib/config-diff';
+import { ConfigDiff } from '@/lib/utils/config-diff';
 
 interface ConfigDiffIndicatorProps {
   diff: ConfigDiff;

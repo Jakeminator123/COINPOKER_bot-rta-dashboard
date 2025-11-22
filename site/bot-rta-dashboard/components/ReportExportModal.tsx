@@ -127,6 +127,11 @@ export default function ReportExportModal({
 
   if (!isOpen) return null;
 
+  const resolvedName =
+    (deviceName && deviceName.trim().length > 0 ? deviceName.trim() : null) ||
+    deviceId ||
+    "Unknown Player";
+
   return (
     <AnimatePresence>
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -137,12 +142,18 @@ export default function ReportExportModal({
           className="bg-slate-800 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden border border-slate-700/50 shadow-2xl"
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-slate-700/50 bg-gradient-to-r from-slate-800 to-slate-800/50">
-            <div>
+          <div className="flex items-start justify-between p-6 border-b border-slate-700/50 bg-gradient-to-r from-slate-800 to-slate-800/50 gap-6">
+            <div className="flex flex-col gap-1">
+              <span className="text-xs uppercase tracking-[0.25em] text-slate-400">
+                Player
+              </span>
+              <p className="text-2xl font-bold text-white leading-tight">
+                {resolvedName}
+              </p>
               <h2 className="text-xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
                 Export Report
               </h2>
-              <p className="text-sm text-slate-400 mt-1">
+              <p className="text-sm text-slate-400">
                 Download player history data in your preferred format
               </p>
             </div>

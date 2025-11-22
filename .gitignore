@@ -54,3 +54,6 @@ hack-coin
 
 node_modules
 .next/(all)
+
+# Multi-agent pipeline artifacts
+artifacts/

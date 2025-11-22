@@ -4,8 +4,9 @@ import {
   exportPlayerSegmentsToXLSX,
   generateExportFilename,
   saveXLSXToFile,
-} from "@/lib/xlsx-export";
-import { errorResponse } from "@/lib/api-utils";
+} from "@/lib/utils/xlsx-export";
+import { errorResponse } from "@/lib/utils/api-utils";
+import { redisKeys } from "@/lib/redis/schema";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
     await client.connect();
 
     // Get device info
-    const deviceKey = `device:${device}`;
+    const deviceKey = redisKeys.deviceHash(device);
     const deviceData = await client.hGetAll(deviceKey);
     const deviceName =
       deviceData.device_name || `Device_${device.substring(0, 8)}`;
@@ -144,7 +145,7 @@ export async function GET(req: NextRequest) {
      
     const sessionData: any[] = [];
     if (type === "session" || type === "all") {
-      const sessionsIndexKey = `sessions:${device}`;
+      const sessionsIndexKey = redisKeys.sessionIndex(device);
       const since = now - days * 86400;
       // Redis 4.x API: use zRange with BY_SCORE
       const sessionKeys = await client.zRange(sessionsIndexKey, since, "+inf", {

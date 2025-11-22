@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { addSignal, addSignals } from "@/lib/store";
-import type { Signal } from "@/lib/sections";
+import { addSignal, addSignals } from "@/lib/utils/store";
+import type { Signal } from "@/lib/detections/sections";
 import {
   successResponse,
   errorResponse,
@@ -8,7 +8,7 @@ import {
   validateToken,
   parseJsonBody,
   getClientIP,
-} from "@/lib/api-utils";
+} from "@/lib/utils/api-utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

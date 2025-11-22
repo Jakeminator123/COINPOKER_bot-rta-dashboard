@@ -3,7 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { Stored } from '@/lib/sections';
+import type { Stored } from '@/lib/detections/sections';
 
 interface ThreatSummaryBoxProps {
   detections: Stored[];

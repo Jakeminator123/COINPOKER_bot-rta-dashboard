@@ -17,7 +17,9 @@ from core.api import (
     init_web_forwarder,
     stop_web_forwarder,
 )
+from core.redis_forwarder import init_redis_forwarder, stop_redis_forwarder
 from core.segment_loader import SegmentLoader
+from core.system_info import get_windows_computer_name
 from utils.config_loader import get_config_loader
 from utils.config_reader import get_signal_token, get_web_url, read_config
 
@@ -48,7 +50,6 @@ class ForwarderService:
         
         # Use Windows Computer Name (can contain spaces like "Jakobs dator")
         try:
-            from core.api import get_windows_computer_name
             self.host = get_windows_computer_name()
         except Exception:
             self.host = socket.gethostname()
@@ -84,23 +85,63 @@ class ForwarderService:
             self.batch_interval = 92.0
         self.report_batcher = init_report_batcher(self.batch_interval)
 
-        # Forwarder mode: auto|web|panel (default: auto)
+        # Forwarder mode: auto|web|redis|panel (default: auto)
         self.mode = os.getenv("FORWARDER_MODE", self.cfg.get("FORWARDER_MODE", "auto")).lower()
 
         self.event_bus = get_event_bus()
 
-        # Initialize web forwarder based on mode
-        if self.mode in ("auto", "web"):
-            self.web_forwarder = init_web_forwarder()
+        redis_url = self.cfg.get("REDIS_URL")
+        redis_ttl = self.cfg.get("REDIS_TTL_SECONDS")
+        try:
+            redis_ttl = int(redis_ttl) if redis_ttl else None
+        except (TypeError, ValueError):
+            redis_ttl = None
+
+        self.redis_forwarder = None
+        self.web_forwarder = None
+
+        if self.mode == "redis":
+            if not self._start_redis_forwarder(redis_url, redis_ttl):
+                print("[Forwarder] Redis mode requested but RedisForwarder could not start - falling back to WebForwarder")
+                self._start_web_forwarder()
+        elif self.mode == "web":
+            self._start_web_forwarder()
+        elif self.mode == "auto":
+            if not self._start_redis_forwarder(redis_url, redis_ttl):
+                self._start_web_forwarder()
         else:
-            self.web_forwarder = None
-            print(f"[Forwarder] Mode={self.mode} - WebForwarder disabled")
+            print(f"[Forwarder] Unknown FORWARDER_MODE '{self.mode}', defaulting to web")
+            self._start_web_forwarder()
 
         self.loader = SegmentLoader()
         self.player_service = None
         self._stop_event = threading.Event()
         self._batch_thread: threading.Thread | None = None
         self._stopped = False  # Flag to prevent double shutdown
+
+    def _start_redis_forwarder(self, redis_url: str | None, redis_ttl: int | None) -> bool:
+        if not redis_url:
+            return False
+        try:
+            self.redis_forwarder = init_redis_forwarder(redis_url, redis_ttl, self.event_bus)
+            if self.redis_forwarder:
+                print("[Forwarder] RedisForwarder: ENABLED (direct to Redis, bypasses HTTP API)")
+                return True
+            print("[Forwarder] RedisForwarder could not be started (check REDIS_URL/credentials)")
+        except ImportError:
+            print("[Forwarder] WARNING: redis library not installed. RedisForwarder disabled.")
+        except Exception as e:
+            print(f"[Forwarder] ERROR: RedisForwarder init failed: {e}")
+        self.redis_forwarder = None
+        return False
+
+    def _start_web_forwarder(self):
+        self.web_forwarder = init_web_forwarder()
+        if self.web_forwarder and self.web_forwarder.enabled:
+            print(f"[Forwarder] WebForwarder: ENABLED -> {self.web_forwarder.url}")
+        else:
+            print("[Forwarder] WebForwarder: DISABLED (check config.txt for WEB=y)")
+            self.web_forwarder = None
 
     # ---- lifecycle ----
     def start(self, segments_base_dir: str = None) -> None:
@@ -138,14 +179,19 @@ class ForwarderService:
         print("[Forwarder] Ready. Listening for 'detection' signals... (Ctrl+C to exit)")
         print(f"[Forwarder] Unified batch reports: interval={self.batch_interval}s")
         
-        # Debug: Show WebForwarder status
-        if self.web_forwarder:
+        # Debug: Show forwarder status
+        if self.redis_forwarder:
+            if self.redis_forwarder.enabled:
+                print(f"[Forwarder] RedisForwarder: ENABLED (direct to Redis, bypasses HTTP API)")
+            else:
+                print("[Forwarder] RedisForwarder: DISABLED")
+        elif self.web_forwarder:
             if self.web_forwarder.enabled:
                 print(f"[Forwarder] WebForwarder: ENABLED -> {self.web_forwarder.url}")
             else:
                 print("[Forwarder] WebForwarder: DISABLED (check config.txt for WEB=y)")
         else:
-            print("[Forwarder] WebForwarder: NOT INITIALIZED")
+            print("[Forwarder] No forwarder initialized (check config.txt for REDIS_URL or WEB=y)")
 
     def stop(self) -> None:
         """Idempotent shutdown - only run once."""
@@ -177,9 +223,15 @@ class ForwarderService:
         except Exception:
             pass
         
-        # Stop WebForwarder and cleanup
+        # Stop WebForwarder/RedisForwarder and cleanup
         try:
             stop_web_forwarder()
+        except Exception:
+            pass
+        
+        try:
+            if self.redis_forwarder:
+                stop_redis_forwarder()
         except Exception:
             pass
         
@@ -188,6 +240,7 @@ class ForwarderService:
             self.player_service.cleanup()
         self.loader = None
         self.web_forwarder = None
+        self.redis_forwarder = None
         self.report_batcher = None
         self.event_bus = None
         self.player_service = None
@@ -256,7 +309,6 @@ class ForwarderService:
                     # Use Windows Computer Name for host (can contain spaces like "Jakobs dator")
                     host_name = self.host
                     try:
-                        from core.api import get_windows_computer_name
                         host_name = get_windows_computer_name()
                     except Exception:
                         pass  # Use self.host as fallback
@@ -265,6 +317,8 @@ class ForwarderService:
                         "segments_running": len(self.loader.segments) if self.loader else 0,
                         "env": self.env,
                         "host": host_name,  # Windows Computer Name (preserves spaces)
+                        "device_ip": self.local_ip,  # Local IP address for device identification
+                        "local_ip": self.local_ip,  # Alias for device_ip
                     }
                     # Add CPU/RAM if psutil is available
                     try:
@@ -274,7 +328,12 @@ class ForwarderService:
                     except Exception:
                         pass
                     
-                    self.report_batcher.maybe_send_batches(threat_manager, system_info)
+                    # Prepare segments info for metadata generation
+                    segments_info = None
+                    if self.loader and self.loader.segments:
+                        segments_info = self.loader.segments
+                    
+                    self.report_batcher.maybe_send_batches(threat_manager, system_info, segments_info=segments_info)
                 
                 # Sleep with interruptible wait
                 if self._stop_event.wait(timeout=check_interval):
