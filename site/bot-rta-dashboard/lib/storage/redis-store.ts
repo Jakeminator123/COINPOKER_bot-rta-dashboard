@@ -1118,16 +1118,17 @@ export class RedisStore implements StorageAdapter {
     const deviceKey = redisKeys.deviceHash(device_id);
     console.log("[RedisStore] WRITING TO REDIS:");
     console.log("  - Redis key:", deviceKey);
-    console.log("  - Field: device_name =", sanitized);
+    console.log("  - Field: player_nickname =", sanitized);
     console.log("  - TTL:", TTL_SECONDS, "seconds");
     
-    await this.client.hSet(deviceKey, { device_name: sanitized });
+    // Store nickname in player_nickname field (not device_name) to match Python implementation
+    await this.client.hSet(deviceKey, { player_nickname: sanitized });
     await this.client.expire(deviceKey, TTL_SECONDS);
     
     // Verify what was written
     const writtenData = await this.client.hGetAll(deviceKey);
     console.log("[RedisStore] VERIFICATION:");
-    console.log("  - device_name in Redis:", writtenData.device_name || "(not set)");
+    console.log("  - player_nickname in Redis:", writtenData.player_nickname || "(not set)");
     console.log("[RedisStore] ============================================");
   }
 
