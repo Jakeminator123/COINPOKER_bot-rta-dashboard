@@ -80,9 +80,10 @@ export default function DeviceListModule({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, threatFilter, devices.length]);
+  }, [searchQuery, threatFilter, devices?.length ?? 0]);
 
   const filteredDevices = useMemo(() => {
+    if (!devices) return [];
     return devices.filter((device) => {
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -192,7 +193,7 @@ export default function DeviceListModule({
     );
   }
 
-  if (!devices.length) {
+  if (!devices || !devices.length) {
     return (
       <div className="glass-card p-12 text-center">
         <div className="text-6xl mb-4">🔍</div>

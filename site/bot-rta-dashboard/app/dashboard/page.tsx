@@ -191,12 +191,15 @@ function EnhancedDashboardContent() {
   interface DeviceData {
     device_id?: string;
     device_name?: string;
+    device_hostname?: string;
     is_online?: boolean;
     last_seen?: number;
     threat_level?: number;
     session_start?: number;
     session_duration?: number;
     ip_address?: string;
+    player_nickname?: string;
+    player_nickname_confidence?: number;
   }
 
   const [deviceData, setDeviceData] = useState<DeviceData | null>(null);

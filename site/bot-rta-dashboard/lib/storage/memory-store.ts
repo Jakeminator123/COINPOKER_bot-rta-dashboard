@@ -119,6 +119,8 @@ export class MemoryStore implements StorageAdapter {
       logged_out: boolean; // Whether player is currently logged out
       session_end: number; // When player session ended (if logged out)
       ip_address?: string; // Device IP address
+      player_nickname?: string; // Player nickname
+      player_nickname_confidence?: number; // Confidence level for nickname
     }
   > = new Map();
   private recentSignals: Map<string, number> = new Map();
@@ -144,6 +146,9 @@ export class MemoryStore implements StorageAdapter {
           threat_score: number;
           logged_out: boolean;
           session_end: number;
+          ip_address?: string;
+          player_nickname?: string;
+          player_nickname_confidence?: number;
         }
       | undefined
   ): void {
