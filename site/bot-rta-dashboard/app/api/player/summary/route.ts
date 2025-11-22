@@ -6,6 +6,19 @@ import { successResponse, errorResponse } from '@/lib/utils/api-utils';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// Type definition for player summary
+interface PlayerSummary {
+  device_id: string;
+  device_name: string;
+  total_sessions: number;
+  total_detections: number;
+  avg_threat_score: number;
+  avg_session_duration: number;
+  days_active: number;
+  first_seen: number;
+  last_seen: number;
+}
+
 // Cache for player summaries (TTL: 60 seconds)
 const summaryCache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_TTL = 60000; // 60 seconds
@@ -80,7 +93,7 @@ export async function GET(req: NextRequest) {
         const avgSessionDuration = totalSessions > 0 ? totalDuration / totalSessions : 0;
         const avgThreatScore = totalDetections > 0 ? Math.min(100, (totalScore / totalDetections) * 10) : 0;
 
-        const computedSummary = {
+        const computedSummary: PlayerSummary = {
           device_id: device,
           device_name: device.split('_')[0],
           total_sessions: totalSessions,
@@ -92,44 +105,41 @@ export async function GET(req: NextRequest) {
           last_seen: Math.floor(lastSeen / 1000),
         };
 
-        // Cache the computed summary in Redis
-        await client.hSet(summaryKey, Object.entries(computedSummary).reduce((acc, [k, v]) => {
-          acc[k] = String(v);
-          return acc;
-        }, {} as Record<string, string>));
-        await client.expire(summaryKey, 3600); // Expire after 1 hour
+        // Cache the computed summary in Redis (JSON string for consistency with GET)
+        await client.set(summaryKey, JSON.stringify(computedSummary), { EX: 3600 }); // Expire after 1 hour
 
         return computedSummary;
       }
 
       // Parse stored summary (stored as JSON string)
       try {
-        const summary = JSON.parse(summaryStr);
+        const summary = JSON.parse(summaryStr) as PlayerSummary;
         return {
           device_id: summary.device_id || device,
           device_name: summary.device_name || device.split('_')[0],
-          avg_score: summary.avg_score || 0,
-          avg_bot_probability: summary.avg_bot_probability || 0,
-          total_reports: summary.total_reports || 0,
-          averages: summary.averages || { "1h": 0, "24h": 0, "7d": 0, "30d": 0 },
-          segments: summary.segments || {},
-          top_threats: summary.top_threats || [],
-          updated_at: summary.updated_at || 0,
-        };
+          total_sessions: summary.total_sessions || 0,
+          total_detections: summary.total_detections || 0,
+          avg_threat_score: summary.avg_threat_score || 0,
+          avg_session_duration: summary.avg_session_duration || 0,
+          days_active: summary.days_active || 0,
+          first_seen: summary.first_seen || 0,
+          last_seen: summary.last_seen || 0,
+        } as PlayerSummary;
       } catch (e) {
         console.error(`[player/summary] Failed to parse summary JSON:`, e);
         // Fallback to basic summary structure
-        return {
+        const fallbackSummary: PlayerSummary = {
           device_id: device,
           device_name: device.split('_')[0],
-          avg_score: 0,
-          avg_bot_probability: 0,
-          total_reports: 0,
-          averages: { "1h": 0, "24h": 0, "7d": 0, "30d": 0 },
-          segments: {},
-          top_threats: [],
-          updated_at: 0,
+          total_sessions: 0,
+          total_detections: 0,
+          avg_threat_score: 0,
+          avg_session_duration: 0,
+          days_active: 0,
+          first_seen: 0,
+          last_seen: 0,
         };
+        return fallbackSummary;
       }
     });
 

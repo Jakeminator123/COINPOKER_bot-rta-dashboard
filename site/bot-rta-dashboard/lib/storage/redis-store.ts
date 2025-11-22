@@ -328,11 +328,14 @@ export class RedisStore implements StorageAdapter {
         // The device is sending data, so it's online regardless of session state
         console.log("[RedisStore] Updating device (batch arrived, device is online)");
         
+        // Extract IP address from signal or batch
+        const deviceIp = sig.device_ip || (batch as any).device_ip || (batch as any).device?.ip || null;
+        
         // CRITICAL: Always update device when batch comes in - device is definitely online
         // Even if checkSessionEvents returns false (explicit logout), we still need to update
         // last_seen and threat_level so the device shows up correctly in the player list
         try {
-          await this.updateDevice(device_id, deviceName, batch.bot_probability || 0);
+          await this.updateDevice(device_id, deviceName, batch.bot_probability || 0, deviceIp);
         } catch (error) {
           console.error("[RedisStore] CRITICAL: Failed to update device in Redis:", error);
           // Don't throw - allow processing to continue, but log the error
@@ -556,7 +559,7 @@ export class RedisStore implements StorageAdapter {
     await this.updatePlayerSummary(device_id, batch.bot_probability || 0, timestamp);
   }
 
-  private async updateDevice(device_id: string, device_name: string, threat_level: number): Promise<void> {
+  private async updateDevice(device_id: string, device_name: string, threat_level: number, device_ip?: string | null): Promise<void> {
     const isConnected = await this.ensureConnected();
     if (!isConnected || !this.client) {
       console.error("[RedisStore] updateDevice() - NOT CONNECTED! Cannot write to Redis.");
@@ -626,6 +629,17 @@ export class RedisStore implements StorageAdapter {
     } else if (existingDeviceName && existingDeviceName.trim().length > 0) {
       // Preserve existing name if new name is invalid
       fields.device_name = existingDeviceName;
+    }
+    
+    // Update IP address if provided (preserve existing if not provided)
+    if (device_ip && device_ip.trim().length > 0) {
+      fields.ip_address = device_ip;
+    } else {
+      // Preserve existing IP address if new one is not provided
+      const existingIp = existingData?.ip_address;
+      if (existingIp && existingIp.trim().length > 0) {
+        fields.ip_address = existingIp;
+      }
     }
     
     console.log("[RedisStore] WRITING TO REDIS:");

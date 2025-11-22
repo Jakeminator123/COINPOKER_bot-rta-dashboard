@@ -424,7 +424,7 @@ class RedisForwarder:
         
         # Verify what was written
         written_data = self.redis_client.hgetall(device_key)
-        print(f"[RedisForwarder] ✅ Verified nickname in Redis: {written_data.get('player_nickname', 'NOT FOUND')}")
+        print(f"[RedisForwarder] Verified nickname in Redis: {written_data.get('player_nickname', 'NOT FOUND')}")
 
 
 # Global Redis forwarder instance
@@ -444,7 +444,7 @@ def init_redis_forwarder(redis_url: str | None, ttl_seconds: int | None, event_b
                 _redis_forwarder.on_signal(signal)
 
             event_bus.subscribe("detection", _on_detection)
-            print("[RedisForwarder] ✅ Subscribed to 'detection' events - will receive Player Name Detected signals")
+            print("[RedisForwarder] Subscribed to 'detection' events - will receive Player Name Detected signals")
         else:
             _redis_forwarder = None
     return _redis_forwarder
