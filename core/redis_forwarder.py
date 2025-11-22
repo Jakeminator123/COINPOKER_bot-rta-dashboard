@@ -39,6 +39,7 @@ class RedisForwarder:
 
         if self.enabled:
             print(f"[RedisForwarder] Enabled - writing to Redis at {self._mask_redis_url(self.redis_url)}")
+            print(f"[RedisForwarder] Subscribed to 'detection' events - will handle 'Player Name Detected' signals")
             self.start()
         else:
             print("[RedisForwarder] Disabled (REDIS_URL missing)")
@@ -84,6 +85,7 @@ class RedisForwarder:
 
         if signal.category == "system":
             if signal.name == "Player Name Detected":
+                print(f"[RedisForwarder] Received Player Name Detected signal: device_id={signal.device_id}, name={signal.device_name}")
                 self._handle_player_name_signal(signal)
                 return
 
@@ -174,9 +176,29 @@ class RedisForwarder:
             return
 
         try:
-            nickname = batch.get("nickname") or self.latest_nicknames.get(device_id)
-            if nickname:
-                batch["nickname"] = nickname
+            # Get nickname from batch, or from latest_nicknames cache, or from Redis
+            nickname = batch.get("nickname")
+            # Ensure nickname is a string before calling .strip()
+            if nickname is not None and not isinstance(nickname, str):
+                nickname = str(nickname) if nickname else None
+            
+            if not nickname or (isinstance(nickname, str) and not nickname.strip()):
+                # Try latest_nicknames cache first
+                nickname = self.latest_nicknames.get(device_id)
+                if not nickname:
+                    # Fallback: read from Redis device hash
+                    device_key = redis_keys.device_hash(device_id)
+                    existing_data = self.redis_client.hgetall(device_key)
+                    nickname = existing_data.get("player_nickname")
+                    if nickname:
+                        self.latest_nicknames[device_id] = nickname
+            
+            # Ensure nickname is a string and non-empty before using it
+            if nickname and isinstance(nickname, str) and nickname.strip():
+                batch["nickname"] = nickname.strip()
+            elif nickname and not isinstance(nickname, str):
+                # Convert non-string nickname to string if it exists
+                batch["nickname"] = str(nickname).strip()
 
             device_hostname = device_name
 
@@ -310,18 +332,27 @@ class RedisForwarder:
             }
 
             # Only update device_name if it's valid (not empty, not device_id)
-            if device_name and device_name.strip() and device_name != device_id:
+            if device_name and isinstance(device_name, str) and device_name.strip() and device_name != device_id:
                 fields["device_name"] = device_name
 
-            if device_hostname and device_hostname.strip():
+            if device_hostname and isinstance(device_hostname, str) and device_hostname.strip():
                 fields["device_hostname"] = device_hostname
 
             if device_ip:
                 fields["ip_address"] = device_ip
 
-            if player_nickname:
-                fields["player_nickname"] = player_nickname
-                self.latest_nicknames[device_id] = player_nickname
+            # Preserve existing player_nickname if new one is not provided
+            if player_nickname and isinstance(player_nickname, str) and player_nickname.strip():
+                fields["player_nickname"] = player_nickname.strip()
+                self.latest_nicknames[device_id] = player_nickname.strip()
+            else:
+                # If no new nickname provided, preserve existing one from Redis
+                existing_nickname = existing_data.get("player_nickname")
+                if existing_nickname and isinstance(existing_nickname, str) and existing_nickname.strip():
+                    fields["player_nickname"] = existing_nickname.strip()
+                    # Also update cache
+                    if device_id not in self.latest_nicknames:
+                        self.latest_nicknames[device_id] = existing_nickname.strip()
 
             self.redis_client.hset(device_key, mapping=fields)
             self.redis_client.expire(device_key, self.ttl_seconds)
@@ -340,6 +371,7 @@ class RedisForwarder:
     def _handle_player_name_signal(self, signal: Signal) -> None:
         """Persist player nickname when detector captures it."""
         if not signal.details:
+            print("[RedisForwarder] Player Name Detected signal has no details - skipping")
             return
 
         nickname = None
@@ -348,32 +380,51 @@ class RedisForwarder:
             payload = json.loads(signal.details)
             nickname = payload.get("player_name") or payload.get("nickname")
             confidence = payload.get("confidence_percent") or payload.get("confidence")
-        except Exception:
-            # Ignore parsing errors
-            pass
+            print(f"[RedisForwarder] Parsed nickname from signal: {nickname} (confidence: {confidence})")
+        except Exception as e:
+            print(f"[RedisForwarder] Failed to parse Player Name Detected signal details: {e}")
+            return
 
         if not nickname:
+            print("[RedisForwarder] No nickname found in Player Name Detected signal")
             return
+
+        # Ensure nickname is a string before calling .strip()
+        if not isinstance(nickname, str):
+            nickname = str(nickname) if nickname else None
+            if not nickname:
+                print("[RedisForwarder] Nickname could not be converted to string")
+                return
 
         nickname = nickname.strip()
         if not nickname:
+            print("[RedisForwarder] Nickname is empty after stripping")
             return
 
         device_id = signal.device_id or self.device_id
         self.latest_nicknames[device_id] = nickname
+        print(f"[RedisForwarder] Stored nickname in cache: {nickname} for device_id: {device_id}")
 
         if not self.redis_client and not self._connect_redis():
+            print("[RedisForwarder] Failed to connect to Redis - nickname not persisted")
             return
 
         if not self.redis_client:
+            print("[RedisForwarder] Redis client not available - nickname not persisted")
             return
 
         device_key = redis_keys.device_hash(device_id)
         fields = {"player_nickname": nickname}
         if confidence is not None:
             fields["player_nickname_confidence"] = str(confidence)
+        
+        print(f"[RedisForwarder] Writing nickname to Redis: key={device_key}, nickname={nickname}, confidence={confidence}")
         self.redis_client.hset(device_key, mapping=fields)
         self.redis_client.expire(device_key, self.ttl_seconds)
+        
+        # Verify what was written
+        written_data = self.redis_client.hgetall(device_key)
+        print(f"[RedisForwarder] ✅ Verified nickname in Redis: {written_data.get('player_nickname', 'NOT FOUND')}")
 
 
 # Global Redis forwarder instance
@@ -381,7 +432,7 @@ _redis_forwarder: RedisForwarder | None = None
 
 
 def init_redis_forwarder(redis_url: str | None, ttl_seconds: int | None, event_bus) -> RedisForwarder | None:
-    """Initialize Redis forwarder and subscribe to event bus (only batch reports)."""
+    """Initialize Redis forwarder and subscribe to event bus (handles batch reports and Player Name Detected signals)."""
     global _redis_forwarder
     if not redis_url:
         return None
@@ -393,6 +444,7 @@ def init_redis_forwarder(redis_url: str | None, ttl_seconds: int | None, event_b
                 _redis_forwarder.on_signal(signal)
 
             event_bus.subscribe("detection", _on_detection)
+            print("[RedisForwarder] ✅ Subscribed to 'detection' events - will receive Player Name Detected signals")
         else:
             _redis_forwarder = None
     return _redis_forwarder

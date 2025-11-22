@@ -1,7 +1,7 @@
 {
   "scan_type": "unified",
-  "batch_number": 0,
-  "bot_probability": 40,
+  "batch_number": 3,
+  "bot_probability": 35,
   "nickname": null,
   "device_id": "462a6a3a5c173a1ea54e05b355ea1790",
   "device_name": "JakobsDator",
@@ -10,21 +10,21 @@
     "hostname": "JakobsDator",
     "ip": "192.168.68.201"
   },
-  "timestamp": 1763788359.9198532,
-  "batch_sent_at": 1763788359.9198532,
+  "timestamp": 1763816552.8345373,
+  "batch_sent_at": 1763816552.8345373,
   "summary": {
     "critical": 0,
-    "alert": 4,
-    "warn": 0,
+    "alert": 3,
+    "warn": 1,
     "info": 0,
     "total_detections": 4,
     "total_threats": 4,
-    "threat_score": 40,
-    "raw_detection_score": 40
+    "threat_score": 35,
+    "raw_detection_score": 35
   },
   "categories": {
-    "auto": 3,
-    "programs": 1
+    "programs": 2,
+    "auto": 2
   },
   "active_threats": 4,
   "aggregated_threats": [
@@ -34,12 +34,12 @@
       "category": "auto",
       "status": "ALERT",
       "score": 10,
-      "age_seconds": 86,
+      "age_seconds": 2,
       "confidence": 1,
       "sources": [
         "auto/Python"
       ],
-      "detections": 1
+      "detections": 5
     },
     {
       "threat_id": "powershell",
@@ -47,25 +47,12 @@
       "category": "auto",
       "status": "ALERT",
       "score": 10,
-      "age_seconds": 86,
+      "age_seconds": 1,
       "confidence": 1,
       "sources": [
         "auto/PowerShell Core"
       ],
-      "detections": 1
-    },
-    {
-      "threat_id": "node",
-      "name": "Node.js",
-      "category": "auto",
-      "status": "ALERT",
-      "score": 10,
-      "age_seconds": 85,
-      "confidence": 1,
-      "sources": [
-        "auto/Node.js"
-      ],
-      "detections": 1
+      "detections": 5
     },
     {
       "threat_id": "memurai",
@@ -73,21 +60,34 @@
       "category": "programs",
       "status": "ALERT",
       "score": 10,
-      "age_seconds": 84,
+      "age_seconds": 0,
       "confidence": 1,
       "sources": [
         "programs/Suspicious Code: memurai.exe"
       ],
-      "detections": 1
+      "detections": 5
+    },
+    {
+      "threat_id": "telegram:43988",
+      "name": "Telegram",
+      "category": "programs",
+      "status": "WARN",
+      "score": 5,
+      "age_seconds": 88,
+      "confidence": 1,
+      "sources": [
+        "programs/Telegram"
+      ],
+      "detections": 4
     }
   ],
   "vm_probability": 0,
   "file_analysis_count": 0,
   "system": {
-    "cpu_percent": 15.5,
-    "mem_used_percent": 29.2,
+    "cpu_percent": 11.6,
+    "mem_used_percent": 30.3,
     "segments_running": 11,
-    "env": "DEV",
+    "env": "PROD",
     "host": "JakobsDator"
   },
   "metadata": {
@@ -182,15 +182,15 @@
       }
     },
     "configuration": {
-      "env": "DEV",
+      "env": "PROD",
       "web_enabled": false,
       "testing_json": true
     },
     "system_state": {
       "segments_running": 11,
-      "batch_count": 0,
-      "cpu_percent": 15.5,
-      "mem_used_percent": 29.2,
+      "batch_count": 3,
+      "cpu_percent": 11.6,
+      "mem_used_percent": 30.3,
       "host": "JakobsDator"
     }
   }

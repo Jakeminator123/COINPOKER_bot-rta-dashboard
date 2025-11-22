@@ -3,7 +3,7 @@
 # ====================================
 
 # --- Environment ---
-ENV=DEV                              # DEV eller PROD
+ENV=PROD                              # DEV eller PROD
 INPUT_DEBUG=1                        # Debug logging (0=off, 1=on)
 
 # --- Batch System ---
@@ -28,8 +28,8 @@ BATCH_LOG_DIR=jay                    # Mapp där batch-loggar sparas (default: b
 WEB=n                                # y=Skicka batchar till dashboardens HTTP-endpoint
 TESTING_JSON=y                       # Lägg till metadata i batches (förklarar systemflödet)
 
-WEB_URL_DEV=http://localhost:3001/api/signal
-# WEB_URL_PROD=https://bot-rta-dashboard-1.onrender.com/api/signal
+#WEB_URL_DEV=http://localhost:3001/api/signal
+WEB_URL_PROD=https://bot-rta-dashboard-2.onrender.com/api/signal
 SIGNAL_TOKEN=detector-secret-token-2024
 WEB_FORWARDER_TIMEOUT=10             # Timeout för HTTP requests när batchar skickas
 

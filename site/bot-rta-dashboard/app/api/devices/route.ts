@@ -132,10 +132,18 @@ export async function GET() {
         
         deviceList.push({
           ...device,
+          // Use device_name from Redis if available, otherwise keep from device
+          device_name: deviceInfo.device_name || device.device_name,
+          device_hostname: deviceInfo.device_hostname || device.device_hostname || device.device_name,
           threat_level: finalThreatLevel,
           last_seen: lastSeenMs,
           is_online: isOnline,
           session_start: sessionStart,
+          // Include player_nickname from Redis if available
+          player_nickname: deviceInfo.player_nickname || device.player_nickname,
+          player_nickname_confidence: deviceInfo.player_nickname_confidence 
+            ? parseFloat(deviceInfo.player_nickname_confidence) 
+            : device.player_nickname_confidence,
         });
       }
 
