@@ -1,0 +1,142 @@
+---
+description: Detailed monorepo structure guide - always read this when working in this repository
+alwaysApply: true
+---
+
+# MONOREPO STRUCTURE GUIDE
+
+This repository is a **MONOREPO** containing **TWO SEPARATE BUT RELATED PROJECTS**.
+
+## Project Overview
+
+```
+detector/                          # MONOREPO ROOT
+├── scanner.py                    # ← Detection Tool entry point
+├── core/                         # ← Detection Tool (Python)
+├── segments/                     # ← Detection Tool (Python)
+├── utils/                        # ← Detection Tool (Python)
+├── requirements.txt              # ← Detection Tool dependencies
+├── config.txt                    # ← Detection Tool config
+│
+└── site/
+    └── bot-rta-dashboard/        # ← Dashboard project (Next.js)
+        ├── app/                  # ← Dashboard (TypeScript)
+        ├── components/           # ← Dashboard (TypeScript)
+        ├── lib/                  # ← Dashboard (TypeScript)
+        └── package.json          # ← Dashboard dependencies
+```
+
+## Project 1: Detection Tool
+
+**Type**: Python application  
+**Location**: Root directory (`/`)  
+**Language**: Python 3.x  
+**Dependencies**: pip (`requirements.txt`)  
+**Entry Point**: `scanner.py`
+
+**Key Directories**:
+- `core/` - Core API, event bus, threat management
+- `segments/` - Detection modules (auto, behaviour, network, programs, screen, vm)
+- `utils/` - Utility functions (config loader, nickname detector, etc.)
+
+**What it does**:
+- Monitors CoinPoker processes
+- Detects suspicious activity (bots, RTAs, automation)
+- Sends detection signals to dashboard via HTTP API
+- Can run independently as standalone application
+
+**When working on Detection Tool**:
+- ✅ Edit Python files (`*.py`) in root, `core/`, `segments/`, `utils/`
+- ✅ Modify `requirements.txt` for Python dependencies
+- ✅ Update `config.txt` for detection tool settings
+- ❌ Do NOT modify files in `site/bot-rta-dashboard/`
+- ❌ Do NOT touch TypeScript/React files
+
+## Project 2: Dashboard
+
+**Type**: Next.js web application  
+**Location**: `site/bot-rta-dashboard/`  
+**Language**: TypeScript/JavaScript  
+**Dependencies**: npm (`package.json`)  
+**Entry Point**: `site/bot-rta-dashboard/app/page.tsx`
+
+**Key Directories**:
+- `app/` - Next.js app router (pages, API routes)
+- `components/` - React components
+- `lib/` - Utility libraries
+- `configs/` - Configuration files (served to detection tool)
+
+**What it does**:
+- Receives detection signals from detection tool via `/api/signal`
+- Visualizes detection data in real-time
+- Provides configuration management UI
+- Serves configurations to detection tool via `/api/configs`
+
+**When working on Dashboard**:
+- ✅ Edit TypeScript files (`*.ts`, `*.tsx`) in `site/bot-rta-dashboard/`
+- ✅ Modify `package.json` for Node.js dependencies
+- ✅ Update React components and API routes
+- ❌ Do NOT modify Python files in root/`core/`/`segments/`/`utils/`
+- ❌ Do NOT touch `requirements.txt` or Python code
+
+## Communication Between Projects
+
+**Detection Tool → Dashboard**:
+- HTTP POST to `http://localhost:3001/api/signal`
+- Sends batch reports with detection signals
+- Token-based authentication
+
+**Dashboard → Detection Tool**:
+- Detection tool fetches configs from `/api/configs`
+- Dashboard serves configuration files
+- Detection tool caches configs locally
+
+**Important**: They communicate via **HTTP API only**, not direct code imports.
+
+## Critical Rules for AI Agents
+
+1. **Always check file path before editing**:
+   - Path starts with `site/bot-rta-dashboard/` → Dashboard project
+   - Path is in root/`core/`/`segments/`/`utils/` → Detection Tool project
+
+2. **Never mix project types**:
+   - Python changes belong in Detection Tool directories
+   - TypeScript changes belong in Dashboard directories
+
+3. **Dependencies are separate**:
+   - Detection Tool: `pip install -r requirements.txt`
+   - Dashboard: `npm install` (in `site/bot-rta-dashboard/`)
+
+4. **Build processes are separate**:
+   - Detection Tool: Python scripts, PyInstaller for `.exe`
+   - Dashboard: `npm run build` (Next.js build)
+
+5. **They can be developed independently**:
+   - Changes to Detection Tool don't require Dashboard changes (unless API changes)
+   - Changes to Dashboard don't require Detection Tool changes (unless API changes)
+   - But they must maintain API compatibility
+
+## Examples
+
+**✅ CORRECT**:
+- Editing `scanner.py` → Detection Tool
+- Editing `core/api.py` → Detection Tool
+- Editing `site/bot-rta-dashboard/app/page.tsx` → Dashboard
+- Editing `site/bot-rta-dashboard/components/DetectionFeed.tsx` → Dashboard
+
+**❌ INCORRECT**:
+- Adding Python imports in Dashboard TypeScript files
+- Adding npm packages to Detection Tool
+- Modifying `requirements.txt` when working on Dashboard
+- Modifying `package.json` when working on Detection Tool
+
+## Summary
+
+- **One Git repository** (monorepo)
+- **Two separate projects** (Detection Tool + Dashboard)
+- **Different languages** (Python vs TypeScript)
+- **Different dependencies** (pip vs npm)
+- **Different build processes**
+- **Communicate via HTTP API**
+- **Can be developed independently**
+- **Must maintain API compatibility**

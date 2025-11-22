@@ -1,4 +1,76 @@
 ---
-description: When working in the subfolders of "site", remember that that is a subproject of the proejct - and will just receeve detections batches for the admin. The projects are separated, but have the same logic
-alwaysApply: false
+description: CRITICAL - This is a MONOREPO with TWO SEPARATE PROJECTS. Always check which project you're working on before making changes.
+alwaysApply: true
 ---
+
+# MONOREPO STRUCTURE - CRITICAL FOR AI AGENTS
+
+## ⚠️ THIS REPOSITORY CONTAINS TWO SEPARATE PROJECTS
+
+### Project 1: Detection Tool (Python)
+- **Location**: Root directory (`/`)
+- **Language**: Python
+- **Files**: `*.py`, `scanner.py`, `core/`, `segments/`, `utils/`, `requirements.txt`
+- **Purpose**: Bot detection system that monitors CoinPoker and sends detections to dashboard
+- **Entry Point**: `scanner.py`
+
+### Project 2: Dashboard (Next.js)
+- **Location**: `site/bot-rta-dashboard/`
+- **Language**: TypeScript/JavaScript
+- **Files**: `*.ts`, `*.tsx`, `app/`, `components/`, `lib/`, `package.json`
+- **Purpose**: Web dashboard that receives and visualizes detection data
+- **Entry Point**: `site/bot-rta-dashboard/app/page.tsx`
+
+## RULES FOR AI AGENTS
+
+1. **ALWAYS check file location before editing**:
+   - Files in root/`core/`/`segments/`/`utils/` = Detection Tool (Python)
+   - Files in `site/bot-rta-dashboard/` = Dashboard (Next.js)
+
+2. **Do NOT mix project types**:
+   - Do NOT modify Python files when working on dashboard features
+   - Do NOT modify TypeScript files when working on detection tool features
+
+3. **Communication between projects**:
+   - Detection Tool → Dashboard via HTTP API (`http://localhost:3001/api/signal`)
+   - Dashboard → Detection Tool via config API (`/api/configs`)
+   - They are architecturally SEPARATE but work together
+
+4. **Dependencies**:
+   - Detection Tool uses `pip` and `requirements.txt`
+   - Dashboard uses `npm` and `package.json`
+   - NEVER mix dependencies
+
+5. **When working in `site/bot-rta-dashboard/`**:
+   - This is a SEPARATE Next.js project
+   - It receives detection batches from the detection tool
+   - Focus on TypeScript/React files only
+   - Do NOT touch Python files
+
+6. **When working in root/`core/`/`segments/`/`utils/`**:
+   - This is the Detection Tool (Python)
+   - Focus on Python files only
+   - Do NOT touch TypeScript files in `site/`
+
+## File Path Patterns
+
+**Detection Tool (Python)**:
+- `/scanner.py`
+- `/core/*.py`
+- `/segments/**/*.py`
+- `/utils/*.py`
+- `/requirements.txt`
+
+**Dashboard (Next.js)**:
+- `/site/bot-rta-dashboard/app/**/*.ts`
+- `/site/bot-rta-dashboard/app/**/*.tsx`
+- `/site/bot-rta-dashboard/components/**/*.tsx`
+- `/site/bot-rta-dashboard/lib/**/*.ts`
+- `/site/bot-rta-dashboard/package.json`
+
+## Remember
+
+- **One repository, TWO separate projects**
+- **Different languages, different dependencies, different build processes**
+- **They communicate via HTTP API, not direct code imports**
+- **Always verify which project you're working on before making changes**

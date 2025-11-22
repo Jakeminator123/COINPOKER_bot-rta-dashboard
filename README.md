@@ -43,28 +43,55 @@ A Next.js web dashboard that receives and visualizes detection data from the det
 
 **Dependencies:** Node.js, see `site/bot-rta-dashboard/package.json`
 
-## Important Notes for AI Agents
+## ⚠️ CRITICAL FOR AI AGENTS
 
-⚠️ **CRITICAL**: These are **TWO SEPARATE PROJECTS** in a monorepo:
+**THIS IS A MONOREPO WITH TWO SEPARATE PROJECTS**
 
-1. **Detection Tool** (Python) - Standalone application that can run independently
-2. **Dashboard** (Next.js) - Web application that receives data from detection tool
+### 🔴 Detection Tool (Python)
+- **Location**: Root directory (`/`)
+- **Language**: Python
+- **Files**: `*.py` in root, `core/`, `segments/`, `utils/`
+- **Dependencies**: `pip` + `requirements.txt`
+- **Entry**: `scanner.py`
 
-**They communicate via HTTP API** (`http://localhost:3001/api/signal`), but are **architecturally separate**:
-- Different programming languages (Python vs TypeScript)
-- Different dependency systems (pip vs npm)
-- Different build processes
-- Can be developed, tested, and deployed independently
+### 🔵 Dashboard (Next.js)
+- **Location**: `site/bot-rta-dashboard/`
+- **Language**: TypeScript/JavaScript
+- **Files**: `*.ts`, `*.tsx` in `site/bot-rta-dashboard/`
+- **Dependencies**: `npm` + `package.json`
+- **Entry**: `site/bot-rta-dashboard/app/page.tsx`
 
-**However**, they share:
-- Configuration files (dashboard serves configs to detection tool)
-- Data flow (detection tool → dashboard)
-- Business logic (detection rules, scoring, etc.)
+### 🔗 Communication
+- **Detection Tool → Dashboard**: HTTP POST to `http://localhost:3001/api/signal`
+- **Dashboard → Detection Tool**: Config API at `/api/configs`
+- **They communicate via HTTP API only** - no direct code imports
 
-When working on this codebase:
-- **Detection tool changes** should primarily affect files in root, `core/`, `segments/`, `utils/`
-- **Dashboard changes** should primarily affect files in `site/bot-rta-dashboard/`
-- **Shared logic** may require changes in both projects
+### 📋 Rules for AI Agents
+
+1. **ALWAYS check file location before editing**:
+   - Files in `/`, `core/`, `segments/`, `utils/` = 🔴 Detection Tool (Python)
+   - Files in `site/bot-rta-dashboard/` = 🔵 Dashboard (TypeScript)
+
+2. **Do NOT mix project types**:
+   - ❌ Do NOT modify Python files when working on dashboard
+   - ❌ Do NOT modify TypeScript files when working on detection tool
+
+3. **Dependencies are separate**:
+   - Detection Tool: `pip install -r requirements.txt`
+   - Dashboard: `cd site/bot-rta-dashboard && npm install`
+
+4. **They are architecturally separate**:
+   - Different languages (Python vs TypeScript)
+   - Different dependency systems (pip vs npm)
+   - Different build processes
+   - Can be developed independently
+
+5. **But they work together**:
+   - Share configuration files (dashboard serves to detection tool)
+   - Share data flow (detection tool → dashboard)
+   - Share business logic (detection rules, scoring)
+
+**See `.cursor/rules/monorepo-structure.mdc` for detailed rules that AI agents always read.**
 
 ## Development
 
