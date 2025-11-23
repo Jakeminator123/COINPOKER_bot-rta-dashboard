@@ -518,10 +518,7 @@ def player_worker(
     )
 
     def increment_stat(key: str) -> None:
-        if stats_lock:
-            with stats_lock:
-                stats[key] = stats.get(key, 0) + 1
-        else:
+        with stats_lock:
             stats[key] = stats.get(key, 0) + 1
 
     while time.time() < stop_at:
@@ -592,37 +589,7 @@ def player_worker(
                         )
                     backoff = max(0.0, backoff * 0.5)
                     
-                    # ALSO send to API endpoint so dashboard sees devices as online
-                    # This ensures MemoryStore is updated which the dashboard reads from
-                    # The 'url' parameter contains the dashboard URL even in Redis-direct mode
-                    if url and url not in ["REDIS_DIRECT", ""]:
-                        try:
-                            headers_batch = dict(base_headers)
-                            if use_xforwarded:
-                                headers_batch["X-Forwarded-For"] = xfwd
-                            
-                            payload_array = [{
-                                "timestamp": int(batch_signal["timestamp"]),
-                                "category": batch_signal["category"],
-                                "name": batch_signal["name"],
-                                "status": batch_signal["status"],
-                                "details": batch_signal["details"],
-                                "device_id": batch_signal["device_id"],
-                                "device_name": batch_signal["device_name"],
-                                "device_ip": xfwd if use_xforwarded else None,
-                            }]
-                            
-                            resp_batch = session.post(
-                                url, data=json.dumps(payload_array), headers=headers_batch, timeout=10
-                            )
-                            if not quiet and 200 <= resp_batch.status_code < 300:
-                                print(f"[SIM-BATCH][API] {player.device_name}: Dashboard updated (online status)")
-                            elif not quiet and resp_batch.status_code >= 300:
-                                print(f"[SIM-BATCH][API] {player.device_name}: HTTP {resp_batch.status_code} (non-critical)")
-                        except Exception as e:
-                            # Non-critical - Redis write succeeded
-                            if not quiet:
-                                print(f"[SIM-BATCH][API] {player.device_name}: API update failed (non-critical): {e}")
+                    # No need to send to API - Redis has all the data needed
                     
                 except Exception as e:
                     increment_stat("fail")
