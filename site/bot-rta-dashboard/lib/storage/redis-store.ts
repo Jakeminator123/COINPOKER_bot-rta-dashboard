@@ -19,6 +19,7 @@ import { DEVICE_TIMEOUT_MS, type DeviceSessionState } from "./device-session";
 const TTL_SECONDS = redisTtl.batchSeconds();
 const TOP_PLAYERS_ZSET = redisKeys.topPlayers();
 const TOP_PLAYERS_CACHE_LIMIT = Number(process.env.TOP_PLAYERS_CACHE_LIMIT || 500);
+const DEVICE_CHUNK_SIZE = Number(process.env.REDIS_DEVICE_CHUNK_SIZE || 250);
 const REDIS_SNAPSHOT_BATCH_LIMIT = Number(
   process.env.REDIS_SNAPSHOT_BATCH_LIMIT || 5,
 );
@@ -1219,39 +1220,79 @@ export class RedisStore implements StorageAdapter {
     
     const devices = [];
     const now = Date.now();
+    const chunkSize = DEVICE_CHUNK_SIZE > 0 ? DEVICE_CHUNK_SIZE : 250;
+    const OPERATIONS_PER_DEVICE = 2; // hGetAll + get(threat)
 
-    for (const device_id of deviceIds) {
-      const data = await this.client.hGetAll(redisKeys.deviceHash(device_id));
-      if (data && data.device_id) {
-        const raw_last_seen = parseInt(data.last_seen || "0");
-        const last_seen_seconds =
-          raw_last_seen > 1_000_000_000_000
-            ? Math.floor(raw_last_seen / 1000)
-            : raw_last_seen;
-        const last_seen_ms = last_seen_seconds * 1000;
-        const is_online = now - last_seen_ms < DEVICE_TIMEOUT_MS;
-        
-        // Get threat_level from dedicated key (updated by batch reports) or fallback to hash
-        const threatKey = redisKeys.deviceThreat(device_id);
-        const threatFromKey = await this.client.get(threatKey);
-        const threatLevel = threatFromKey
-          ? parseFloat(threatFromKey)
-          : parseInt(data.threat_level || "0");
-        
+    for (let start = 0; start < deviceIds.length; start += chunkSize) {
+      const chunk = deviceIds.slice(start, start + chunkSize);
+      const pipeline = this.client.multi();
+
+      for (const device_id of chunk) {
+        pipeline.hGetAll(redisKeys.deviceHash(device_id));
+        pipeline.get(redisKeys.deviceThreat(device_id));
+      }
+
+      const results = await pipeline.exec();
+      if (!results) {
+        continue;
+      }
+
+      for (let i = 0; i < chunk.length; i++) {
+        const device_id = chunk[i];
+        const resultIndex = i * OPERATIONS_PER_DEVICE;
+
+        const deviceInfoEntry = results[resultIndex];
+        const threatInfoEntry = results[resultIndex + 1];
+
+        const deviceInfo =
+          Array.isArray(deviceInfoEntry) && deviceInfoEntry.length === 2
+            ? (deviceInfoEntry[1] as Record<string, string>)
+            : (deviceInfoEntry as Record<string, string> | undefined) ?? {};
+        const threatValue =
+          Array.isArray(threatInfoEntry) && threatInfoEntry.length === 2
+            ? (threatInfoEntry[1] as string | null)
+            : (threatInfoEntry as string | null) ?? null;
+
+        if (!deviceInfo.device_id) {
+          continue;
+        }
+
+        const rawLastSeen = parseInt(deviceInfo.last_seen || "0");
+        const lastSeenSeconds =
+          rawLastSeen > 1_000_000_000_000
+            ? Math.floor(rawLastSeen / 1000)
+            : rawLastSeen;
+        const lastSeenMs = lastSeenSeconds * 1000;
+        const loggedOut = deviceInfo.logged_out === "true";
+        const isOnline = !loggedOut && now - lastSeenMs < DEVICE_TIMEOUT_MS;
+
+        const threatLevel = threatValue
+          ? parseFloat(threatValue)
+          : deviceInfo.threat_level
+            ? parseFloat(deviceInfo.threat_level)
+            : 0;
+
         devices.push({
-          device_id: data.device_id,
-          device_name: data.device_name || device_id,
-          device_hostname: data.device_hostname || data.host || data.device_name,
-          player_nickname: data.player_nickname,
-          player_nickname_confidence: data.player_nickname_confidence
-            ? parseFloat(data.player_nickname_confidence)
+          device_id: deviceInfo.device_id,
+          device_name: deviceInfo.device_name || device_id,
+          device_hostname: deviceInfo.device_hostname || deviceInfo.host || deviceInfo.device_name,
+          player_nickname: deviceInfo.player_nickname,
+          player_nickname_confidence: deviceInfo.player_nickname_confidence
+            ? parseFloat(deviceInfo.player_nickname_confidence)
             : undefined,
-          last_seen: last_seen_ms,  // Return in milliseconds for UI consistency
-          signal_count: 0,
-          unique_detection_count: 0,
-          threat_level: threatLevel,
-          is_online,
-          ip_address: data.ip_address,  // Include IP address if available
+          last_seen: lastSeenMs,
+          signal_count: deviceInfo.signal_count ? parseInt(deviceInfo.signal_count) : 0,
+          unique_detection_count: deviceInfo.unique_detection_count
+            ? parseInt(deviceInfo.unique_detection_count)
+            : 0,
+          threat_level: Number.isFinite(threatLevel) ? threatLevel : 0,
+          is_online: isOnline,
+          ip_address: deviceInfo.ip_address,
+          session_start: deviceInfo.session_start
+            ? parseInt(deviceInfo.session_start) < 10_000_000_000
+              ? parseInt(deviceInfo.session_start) * 1000
+              : parseInt(deviceInfo.session_start)
+            : undefined,
         });
       }
     }
