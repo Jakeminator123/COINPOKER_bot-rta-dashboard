@@ -374,6 +374,14 @@ class RedisForwarder:
             # Update threat key
             threat_key = redis_keys.device_threat(device_id)
             self.redis_client.set(threat_key, str(int(threat_level)), ex=self.ttl_seconds)
+            
+            # Store historical max threat for offline sorting
+            if threat_level > 0:
+                max_threat_key = f"device:{device_id}:max_threat"
+                current_max = self.redis_client.get(max_threat_key)
+                if not current_max or float(current_max) < threat_level:
+                    self.redis_client.set(max_threat_key, str(threat_level))
+                    self.redis_client.expire(max_threat_key, self.ttl_seconds)
 
             # Add to device indexes
             self.redis_client.zadd(redis_keys.device_index(), {device_id: now_seconds * 1000})

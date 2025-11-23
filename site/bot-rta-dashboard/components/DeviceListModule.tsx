@@ -68,7 +68,7 @@ export default function DeviceListModule({
   devices = [],
   isLoading = false,
   onDeviceSelect,
-  showInactive = true,
+  showInactive: _showInactive = true,
 }: DeviceListModuleProps) {
   const [hoveredDevice, setHoveredDevice] = useState<string | null>(null);
   const [hourMap, setHourMap] = useState<Record<string, HourStats>>({});
@@ -110,35 +110,45 @@ export default function DeviceListModule({
     });
   }, [devices, searchQuery, threatFilter]);
 
-  const { activeDevices, inactiveDevices } = useMemo(() => {
+  // Combine and sort devices: online first (by threat), then offline (by threat)
+  const sortedDevices = useMemo(() => {
     const now = Date.now();
-    const active: DeviceRecord[] = [];
-    const inactive: DeviceRecord[] = [];
+    const online: DeviceRecord[] = [];
+    const offline: DeviceRecord[] = [];
 
     for (const device of filteredDevices) {
       if (now - device.last_seen < ACTIVE_DEVICE_THRESHOLD_MS) {
-        active.push(device);
+        online.push(device);
       } else {
-        inactive.push(device);
+        offline.push(device);
       }
     }
 
-    // Sort inactive devices by threat_level (highest first)
-    inactive.sort((a, b) => (b.threat_level || 0) - (a.threat_level || 0));
+    // Sort online by current threat_level (highest first)
+    online.sort((a, b) => (b.threat_level || 0) - (a.threat_level || 0));
+    
+    // Sort offline by threat_level (highest first) - this should be historical max from Redis
+    offline.sort((a, b) => (b.threat_level || 0) - (a.threat_level || 0));
 
-    return {
-      activeDevices: active,
-      inactiveDevices: inactive.slice(0, DEVICES_PAGE_SIZE),
-    };
+    // Combine: online first, then offline
+    return [...online, ...offline];
   }, [filteredDevices]);
 
-  const totalActivePages = Math.max(
-    1,
-    Math.ceil(activeDevices.length / DEVICES_PAGE_SIZE),
-  );
+  // For backward compatibility, keep these variables
+  const activeDevices = sortedDevices.filter(d => {
+    const now = Date.now();
+    return now - d.last_seen < ACTIVE_DEVICE_THRESHOLD_MS;
+  });
+  const inactiveDevices = sortedDevices.filter(d => {
+    const now = Date.now();
+    return now - d.last_seen >= ACTIVE_DEVICE_THRESHOLD_MS;
+  });
+
+  // Pagination for combined list
+  const totalPages = Math.max(1, Math.ceil(sortedDevices.length / DEVICES_PAGE_SIZE));
   const startIdx = (currentPage - 1) * DEVICES_PAGE_SIZE;
   const endIdx = startIdx + DEVICES_PAGE_SIZE;
-  const pagedActiveDevices = activeDevices.slice(startIdx, endIdx);
+  const pagedDevices = sortedDevices.slice(startIdx, endIdx);
 
   const handleSelect = useCallback(
     (deviceId: string) => {
@@ -260,57 +270,63 @@ export default function DeviceListModule({
         </div>
       </div>
 
-      {activeDevices.length > 0 && (
+      {sortedDevices.length > 0 && (
         <section className="space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <h2 className="text-2xl font-semibold flex items-center gap-3">
-              <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500" />
-              </span>
-              Active Devices
+              All Devices
               <span className="text-base text-slate-400 font-normal ml-2">
-                ({activeDevices.length} filtered)
+                ({activeDevices.length} online, {inactiveDevices.length} offline)
               </span>
             </h2>
-            {totalActivePages > 1 && (
+            {totalPages > 1 && (
               <div className="text-sm text-slate-400">
-                Page {currentPage} of {totalActivePages}
+                Page {currentPage} of {totalPages}
               </div>
             )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {pagedActiveDevices.map((device, idx) => (
-              <div
-                key={device.device_id}
-                className="glass-card p-6 cursor-pointer animate-slide-up hover:scale-105 transition-all duration-300"
-                style={{
-                  animationDelay: `${idx * 50}ms`,
-                  boxShadow:
-                    hoveredDevice === device.device_id
-                      ? `0 12px 24px ${getThreatColor(device.threat_level || 0)}40`
-                      : undefined,
-                }}
-                onClick={() => handleSelect(device.device_id)}
-                onMouseEnter={() => {
-                  setHoveredDevice(device.device_id);
-                  if (!hourMap[device.device_id]) {
-                    void loadHourStats(device.device_id);
-                  }
-                }}
-                onMouseLeave={() => setHoveredDevice(null)}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div>
-                        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                          {device.player_nickname ?? device.device_name}
-                          <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-                          </span>
+            {pagedDevices.map((device, idx) => {
+              const isOnline = Date.now() - device.last_seen < ACTIVE_DEVICE_THRESHOLD_MS;
+              return (
+                <div
+                  key={device.device_id}
+                  className={`glass-card p-6 cursor-pointer animate-slide-up hover:scale-105 transition-all duration-300 ${
+                    !isOnline ? 'opacity-75' : ''
+                  }`}
+                  style={{
+                    animationDelay: `${idx * 50}ms`,
+                    boxShadow:
+                      hoveredDevice === device.device_id
+                        ? `0 12px 24px ${getThreatColor(device.threat_level || 0)}40`
+                        : undefined,
+                  }}
+                  onClick={() => handleSelect(device.device_id)}
+                  onMouseEnter={() => {
+                    setHoveredDevice(device.device_id);
+                    if (!hourMap[device.device_id] && isOnline) {
+                      void loadHourStats(device.device_id);
+                    }
+                  }}
+                  onMouseLeave={() => setHoveredDevice(null)}
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div>
+                          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                            {device.player_nickname ?? device.device_name}
+                            <span className={`relative flex h-2 w-2`}>
+                              {isOnline ? (
+                                <>
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                                </>
+                              ) : (
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-slate-500" />
+                              )}
+                            </span>
                         </h3>
                         {(device.device_hostname || device.device_name) && (
                           <p className="text-xs text-slate-500">
@@ -434,10 +450,11 @@ export default function DeviceListModule({
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
 
-          {totalActivePages > 1 && (
+          {totalPages > 1 && (
             <div className="flex justify-center items-center gap-2">
               <button
                 onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
@@ -447,14 +464,14 @@ export default function DeviceListModule({
                 Previous
               </button>
               <div className="flex gap-2 flex-wrap">
-                {Array.from({ length: Math.min(5, totalActivePages) }, (_, i) => {
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                   let pageNum: number;
-                  if (totalActivePages <= 5) {
+                  if (totalPages <= 5) {
                     pageNum = i + 1;
                   } else if (currentPage <= 3) {
                     pageNum = i + 1;
-                  } else if (currentPage >= totalActivePages - 2) {
-                    pageNum = totalActivePages - 4 + i;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
                   } else {
                     pageNum = currentPage - 2 + i;
                   }
@@ -475,8 +492,8 @@ export default function DeviceListModule({
                 })}
               </div>
               <button
-                onClick={() => setCurrentPage(Math.min(totalActivePages, currentPage + 1))}
-                disabled={currentPage === totalActivePages}
+                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
                 className="glass-card px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-700 transition-colors"
               >
                 Next
@@ -486,76 +503,7 @@ export default function DeviceListModule({
         </section>
       )}
 
-      {showInactive && inactiveDevices.length > 0 && activeDevices.length === 0 && (
-        <section>
-          <h2 className="text-2xl font-semibold mb-6 text-slate-400">
-            Inactive Devices - Highest Threat
-            {inactiveDevices.length > 12 && (
-              <span className="text-sm ml-2 text-slate-500">
-                (showing top 12 of {inactiveDevices.length} by threat score)
-              </span>
-            )}
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {inactiveDevices.slice(0, 12).map((device, idx) => (
-              <div
-                key={device.device_id}
-                className="glass-card p-6 opacity-60 animate-slide-up cursor-pointer hover:opacity-80 transition-opacity"
-                style={{ animationDelay: `${idx * 50}ms` }}
-                onClick={() => handleSelect(device.device_id)}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-slate-300 flex items-center gap-2">
-                      {device.device_name}
-                      <span className="w-2 h-2 rounded-full bg-slate-500" />
-                    </h3>
-                    <p className="text-sm text-slate-500 mt-1">
-                      ID: {device.device_id.slice(0, 8)}...
-                    </p>
-                    {device.player_nickname && (
-                      <p className="text-xs text-slate-500 mt-1">
-                        Nickname: {device.player_nickname}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-500">Threat Score</span>
-                    <span className="text-sm font-mono text-slate-400">
-                      {device.threat_level || 0}%
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-500">Last Seen</span>
-                    <span className="text-sm font-mono text-slate-500">
-                      {new Date(device.last_seen).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <div className="text-xs text-slate-600 italic">
-                    Click to view historical data
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-          {inactiveDevices.length > 12 && (
-            <div className="mt-6 text-center">
-              <button
-                onClick={() => {
-                  // Could implement "Show all" functionality here
-                  alert(`Total inactive devices: ${inactiveDevices.length}. Showing only the 12 most recent.`);
-                }}
-                className="text-sm text-cyan-400 hover:text-cyan-300 underline"
-              >
-                View all {inactiveDevices.length} inactive devices
-              </button>
-            </div>
-          )}
-        </section>
-      )}
+      {/* Inactive devices are now shown in the main list above, sorted by threat score */}
     </div>
   );
 }
