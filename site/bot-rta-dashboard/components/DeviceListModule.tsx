@@ -490,8 +490,12 @@ export default function DeviceListModule({
             {inactiveDevices.map((device, idx) => (
               <div
                 key={device.device_id}
-                className="glass-card p-6 opacity-60 animate-slide-up"
+                className="glass-card p-6 opacity-60 animate-slide-up cursor-pointer hover:opacity-80 transition-opacity"
                 style={{ animationDelay: `${idx * 50}ms` }}
+                onClick={() => {
+                  setSelectedDeviceData(device);
+                  setSegmentModalOpen(true);
+                }}
               >
                 <div className="flex items-start justify-between mb-4">
                   <div>
@@ -502,6 +506,11 @@ export default function DeviceListModule({
                     <p className="text-sm text-slate-500 mt-1">
                       ID: {device.device_id.slice(0, 8)}...
                     </p>
+                    {device.nickname && (
+                      <p className="text-xs text-slate-500 mt-1">
+                        Nickname: {device.nickname}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -511,6 +520,9 @@ export default function DeviceListModule({
                     <span className="text-sm font-mono text-slate-500">
                       {new Date(device.last_seen).toLocaleDateString()}
                     </span>
+                  </div>
+                  <div className="text-xs text-slate-600 italic">
+                    Click to view historical data
                   </div>
                 </div>
               </div>
