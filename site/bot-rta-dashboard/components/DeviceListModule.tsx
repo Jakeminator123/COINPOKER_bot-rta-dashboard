@@ -503,9 +503,9 @@ export default function DeviceListModule({
                     <p className="text-sm text-slate-500 mt-1">
                       ID: {device.device_id.slice(0, 8)}...
                     </p>
-                    {device.nickname && (
+                    {device.player_nickname && (
                       <p className="text-xs text-slate-500 mt-1">
-                        Nickname: {device.nickname}
+                        Nickname: {device.player_nickname}
                       </p>
                     )}
                   </div>

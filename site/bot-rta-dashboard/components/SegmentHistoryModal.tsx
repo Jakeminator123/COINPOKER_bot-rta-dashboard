@@ -111,30 +111,6 @@ export default function SegmentHistoryModal({
     }
   }
 
-  async function loadHour() {
-    if (!deviceId) return;
-    setHourLoading(true);
-    try {
-      const res = await fetch(`/api/history/hour?device=${encodeURIComponent(deviceId)}&window=3600`);
-      const json = await res.json();
-      if (json.ok) {
-        setHourAvg(typeof json.avg === 'number' ? json.avg : 0);
-        setHourTotal(typeof json.total === 'number' ? json.total : 0);
-        setHourActiveMin(typeof json.activeMinutes === 'number' ? json.activeMinutes : 0);
-      } else {
-        setHourAvg(0);
-        setHourTotal(0);
-        setHourActiveMin(0);
-      }
-    } catch {
-      setHourAvg(0);
-      setHourTotal(0);
-      setHourActiveMin(0);
-    } finally {
-      setHourLoading(false);
-    }
-  }
-
   async function exportXLSX() {
     if (!deviceId) return;
     try {
@@ -149,7 +125,6 @@ export default function SegmentHistoryModal({
   useEffect(() => {
     if (isOpen) {
       load();
-      loadHour();
     }
   }, [isOpen, days, months]);
 
@@ -292,7 +267,6 @@ export default function SegmentHistoryModal({
             <button onClick={mode === 'segments' ? loadSegments : load} className="ml-auto px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm">
               Refresh
             </button>
-            <button onClick={loadHour} className="px-3 py-2 bg-blue-700/60 hover:bg-blue-600 rounded text-sm">Last hour</button>
             <button onClick={exportXLSX} className="px-3 py-2 bg-green-700/60 hover:bg-green-600 rounded text-sm">Export XLSX</button>
           </div>
 
