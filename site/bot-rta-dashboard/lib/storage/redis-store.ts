@@ -1246,12 +1246,12 @@ export class RedisStore implements StorageAdapter {
 
         const deviceInfo =
           Array.isArray(deviceInfoEntry) && deviceInfoEntry.length === 2
-            ? (deviceInfoEntry[1] as Record<string, string>)
-            : (deviceInfoEntry as Record<string, string> | undefined) ?? {};
+            ? ((deviceInfoEntry[1] ?? {}) as unknown as Record<string, string>)
+            : ((deviceInfoEntry ?? {}) as unknown as Record<string, string>);
         const threatValue =
           Array.isArray(threatInfoEntry) && threatInfoEntry.length === 2
-            ? (threatInfoEntry[1] as string | null)
-            : (threatInfoEntry as string | null) ?? null;
+            ? ((threatInfoEntry[1] ?? null) as unknown as string | null)
+            : ((threatInfoEntry ?? null) as unknown as string | null);
 
         if (!deviceInfo.device_id) {
           continue;
