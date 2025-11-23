@@ -488,19 +488,29 @@ def player_worker(
     session = requests.Session()
     xfwd = stable_fake_ip(player.device_id)
     backoff = 0.0
-    per_player_interval = apply_interval_spread(batch_interval, interval_spread)
-    # Option to start all players together or spread them out
-    if player.device_id.endswith("0001"):  # First player
-        print(f"[SIM] Batch interval: {per_player_interval:.1f}s, Spread: {interval_spread:.1f}")
     
-    # For initial burst testing, you can set this to 0 to start all players immediately
-    # Or use random.uniform(0, per_player_interval) for realistic spread
-    if hasattr(player, 'burst_start') and player.burst_start:
-        initial_delay = 0  # Start immediately
+    # Calculate per-player interval with spread (for subsequent batches)
+    per_player_interval = apply_interval_spread(batch_interval, interval_spread)
+    
+    # For burst mode: ensure first batch is sent immediately, within batch_interval
+    # For spread mode: random delay within batch_interval
+    burst_mode = hasattr(player, 'burst_start') and player.burst_start
+    if burst_mode:
+        # In burst mode, send first batch immediately (within first second)
+        initial_delay = random.uniform(0, 1.0)  # Small random delay to avoid exact simultaneity
+        # Use base batch_interval for first batch to ensure it's within 92s
+        first_batch_interval = batch_interval
     else:
-        initial_delay = random.uniform(0, per_player_interval)
-    last_batch = time.time() - per_player_interval + initial_delay
+        # In spread mode, random delay within the batch interval
+        initial_delay = random.uniform(0, batch_interval)
+        first_batch_interval = batch_interval
+    
+    # Set last_batch so first batch triggers quickly
+    # For burst: triggers almost immediately (within 1s)
+    # For spread: triggers within batch_interval
+    last_batch = time.time() - first_batch_interval + initial_delay
     batch_no = 0
+    first_batch_sent = False
 
     # Calculate how many detections to generate per batch based on rate
     detections_per_batch = max(1, int((rate_per_min / 60.0) * batch_interval))
@@ -532,7 +542,8 @@ def player_worker(
                     float(logout_config.get("max_online", 1800)),
                 )
                 next_state_change = now + duration
-                last_batch = now - per_player_interval  # trigger immediate batch
+                # Trigger immediate batch after login, use base interval
+                last_batch = now - batch_interval
                 if not quiet:
                     print(
                         f"[SIM] {player.device_name}: LOGIN (online for {duration/60:.1f} min)"
@@ -554,8 +565,13 @@ def player_worker(
             continue
 
         # Check if it's time to send a batch
-        if (now - last_batch) >= per_player_interval:
+        # Use first_batch_interval for first batch, then per_player_interval for subsequent batches
+        current_interval = first_batch_interval if not first_batch_sent else per_player_interval
+        
+        if (now - last_batch) >= current_interval:
             batch_no += 1
+            if not first_batch_sent:
+                first_batch_sent = True
             
             # Generate detections for this batch period
             batch_detections: list[dict[str, object]] = []
@@ -641,8 +657,10 @@ def player_worker(
             last_batch = now
         
         # Sleep with jitter until next batch time
-        time_until_next = per_player_interval - (time.time() - last_batch)
-        jitter = per_player_interval * random.uniform(-jitter_frac, jitter_frac)
+        # Use the interval that will be used for the next batch
+        next_interval = per_player_interval if first_batch_sent else first_batch_interval
+        time_until_next = next_interval - (time.time() - last_batch)
+        jitter = next_interval * random.uniform(-jitter_frac, jitter_frac)
         sleep_time = max(0.5, time_until_next + jitter + backoff)
         actual_sleep = min(sleep_time, stop_at - time.time())
         if actual_sleep > 0:
@@ -959,6 +977,13 @@ def main() -> None:
 
     redis_writer: Optional[RedisBatchWriter] = None
     dashboard_url = args.url  # Save the dashboard URL for dual-mode sending
+    
+    # Auto-enable burst_start for Redis-direct mode to ensure fast initial batches
+    if args.redis_direct and not args.burst_start:
+        args.burst_start = True
+        if not args.quiet:
+            print("[SIM] Auto-enabled --burst-start for Redis-direct mode")
+    
     if args.redis_direct:
         redis_url = (args.redis_url or config_values.get("REDIS_URL", "")).strip()
         if not redis_url:
@@ -1044,7 +1069,8 @@ def main() -> None:
         print(f"[SIM] Batch interval: {batch_int}s per player")
         print(f"[SIM] With {args.players} players spread over {batch_int}s = ~{expected_batches_per_sec:.1f} batches/sec average")
         if args.burst_start:
-            print(f"[SIM] BURST MODE: All players will send first batch immediately!")
+            print("[SIM] BURST MODE: All players will send first batch within 1 second!")
+            print(f"[SIM] First batch from all {args.players} players will complete within {batch_int}s")
         else:
             print(f"[SIM] SPREAD MODE: Players start randomly within first {batch_int}s")
 
