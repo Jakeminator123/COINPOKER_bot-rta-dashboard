@@ -1,127 +1,165 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
 
-/* CSS Variables for theme colors - not used directly */
-
-@layer base {
-  body {
-    @apply bg-slate-900 text-slate-100;
-  }
-}
-
-/* Professional Security Theme */
-@layer components {
-  /* Glass effect - subtle version */
-  .glass-card {
-    @apply bg-slate-800/40 backdrop-blur-sm border border-slate-700/50 rounded-lg shadow-lg;
-  }
-
-  /* Text gradient - professional version */
-  .text-gradient {
-    @apply bg-gradient-to-r from-indigo-400 to-indigo-600 bg-clip-text text-transparent;
-  }
-
-  /* Professional button styles */
-  .btn-primary {
-    @apply px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium transition-colors;
-  }
-
-  .btn-secondary {
-    @apply px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors;
-  }
-
-  .btn-danger {
-    @apply px-4 py-2 bg-red-600/80 hover:bg-red-500/80 text-white rounded-lg font-medium transition-colors;
-  }
-
-  /* Status indicators */
-  .status-active {
-    @apply bg-green-500/20 text-green-400 border border-green-500/30;
-  }
-
-  .status-warning {
-    @apply bg-yellow-500/20 text-yellow-400 border border-yellow-500/30;
-  }
-
-  .status-error {
-    @apply bg-red-500/20 text-red-400 border border-red-500/30;
-  }
-
-  .status-info {
-    @apply bg-blue-500/20 text-blue-400 border border-blue-500/30;
-  }
-
-  /* Professional hover states */
-  .hover-lift {
-    @apply transition-transform hover:-translate-y-0.5;
-  }
-
-  /* Subtle animations */
-  .animate-pulse-slow {
-    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-
-  .animate-spin-slow {
-    animation: spin 3s linear infinite;
-  }
-
-  /* Security-focused color palette */
-  .security-gradient {
-    @apply bg-gradient-to-r from-slate-800 to-slate-900;
-  }
-
-  .threat-low {
-    @apply text-green-400;
-  }
-
-  .threat-medium {
-    @apply text-yellow-400;
-  }
-
-  .threat-high {
-    @apply text-orange-400;
-  }
-
-  .threat-critical {
-    @apply text-red-400;
-  }
-}
-
-/* Custom scrollbar for professional look */
+/* Custom scrollbar styles for consistency */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-slate-900;
+  @apply bg-slate-800;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-700 rounded;
+  @apply bg-slate-600 rounded;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-slate-600;
+  @apply bg-slate-500;
 }
 
-/* Remove excessive glow effects */
-.no-glow {
-  text-shadow: none !important;
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1) !important;
+/* Glass morphism effects */
+.glass-card {
+  @apply bg-slate-800/40 backdrop-blur-md rounded-xl border border-slate-700/50;
 }
 
-/* Professional focus states */
-:focus-visible {
-  @apply outline-none ring-2 ring-indigo-500/50 ring-offset-2 ring-offset-slate-900;
+/* Smooth animations */
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-/* Select dropdowns - ensure dark background and readable text */
-select {
-  @apply bg-slate-800/80 text-white;
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-select option {
-  @apply bg-slate-800 text-white;
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.5s ease-out forwards;
+}
+
+.animate-slide-down {
+  animation: slide-down 0.5s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+/* MOBILE TABLE OPTIMIZATION - NEW */
+@layer components {
+  /* Responsive table wrapper */
+  .table-responsive {
+    @apply overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Mobile-optimized table */
+  @media (max-width: 768px) {
+    /* Force table to not be responsive on very small screens */
+    .table-responsive table {
+      min-width: 600px;
+    }
+
+    /* Stack table cells on mobile for better readability */
+    .mobile-stack {
+      @apply block;
+    }
+
+    .mobile-stack thead {
+      @apply hidden;
+    }
+
+    .mobile-stack tbody,
+    .mobile-stack tr,
+    .mobile-stack td {
+      @apply block;
+    }
+
+    .mobile-stack tr {
+      @apply mb-4 border border-slate-700 rounded-lg p-3;
+    }
+
+    .mobile-stack td {
+      @apply flex justify-between items-center py-2;
+      text-align: right;
+    }
+
+    .mobile-stack td:before {
+      content: attr(data-label);
+      @apply font-medium text-slate-400 mr-2;
+      text-align: left;
+      flex: 1;
+    }
+  }
+
+  /* Horizontal scroll indicator for tables */
+  .scroll-indicator {
+    position: relative;
+  }
+
+  .scroll-indicator:after {
+    content: "→ Scroll for more";
+    @apply absolute right-0 top-1/2 -translate-y-1/2 text-xs text-slate-400 bg-gradient-to-l from-slate-900 to-transparent px-4 py-1 pointer-events-none;
+    display: none;
+  }
+
+  @media (max-width: 768px) {
+    .scroll-indicator:after {
+      display: block;
+    }
+  }
+
+  /* Touch-friendly table cells on mobile */
+  @media (max-width: 768px) {
+    table td,
+    table th {
+      @apply py-3 px-2;
+      min-height: 44px; /* Touch target size */
+    }
+  }
+}
+
+/* Loading states */
+.skeleton {
+  @apply animate-pulse bg-slate-700/50 rounded;
+}
+
+/* Focus states for accessibility */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  @apply outline outline-2 outline-offset-2 outline-cyan-500;
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  body {
+    @apply bg-white text-black;
+  }
 }

@@ -9,6 +9,8 @@ import {
   parseJsonBody,
   getClientIP,
 } from "@/lib/utils/api-utils";
+import { signalLimiter } from "@/lib/rate-limiter";
+import { validateSignalPayload } from "@/lib/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -69,6 +71,17 @@ export async function OPTIONS() {
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limiting check
+    const clientIP = getClientIP(req) || "unknown";
+    if (!signalLimiter.isAllowed(clientIP)) {
+      return errorResponse("Rate limit exceeded. Max 100 requests per minute.", 429, {
+        "Retry-After": "60",
+        "X-RateLimit-Limit": "100",
+        "X-RateLimit-Remaining": "0",
+        "X-RateLimit-Reset": new Date(Date.now() + 60000).toISOString(),
+      });
+    }
+    
     // Check bearer token if SIGNAL_TOKEN is set
     const signalToken = process.env.SIGNAL_TOKEN;
     const tokenValidation = validateToken(req, signalToken);
