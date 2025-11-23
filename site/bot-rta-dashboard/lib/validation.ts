@@ -66,7 +66,7 @@ export function sanitizeInput(input: string | undefined | null): string {
   let sanitized = input.replace(/<[^>]*>/g, '');
   
   // Remove dangerous characters
-  sanitized = sanitized.replace(/[<>\"\']/g, '');
+  sanitized = sanitized.replace(/[<>"']/g, '');
   
   // Trim whitespace
   sanitized = sanitized.trim();

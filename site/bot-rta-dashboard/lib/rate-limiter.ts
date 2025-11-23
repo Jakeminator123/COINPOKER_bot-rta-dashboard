@@ -121,8 +121,10 @@ export { signalLimiter, generalLimiter };
 /**
  * Express-style rate limit middleware for Next.js API routes
  */
+type RouteHandler = (req: Request) => Response | Promise<Response>;
+
 export function withRateLimit(
-  handler: Function,
+  handler: RouteHandler,
   options: { limiter?: RateLimiter; identifierFn?: (req: Request) => string } = {}
 ) {
   const limiter = options.limiter || generalLimiter;

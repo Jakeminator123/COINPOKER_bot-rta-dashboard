@@ -10,7 +10,6 @@ import {
   getClientIP,
 } from "@/lib/utils/api-utils";
 import { signalLimiter } from "@/lib/rate-limiter";
-import { validateSignalPayload } from "@/lib/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

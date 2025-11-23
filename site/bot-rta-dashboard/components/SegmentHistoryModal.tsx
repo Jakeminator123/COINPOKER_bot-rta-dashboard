@@ -39,10 +39,6 @@ export default function SegmentHistoryModal({
   const [monthly, setMonthly] = useState<Monthly[]>([]);
   const [segmentData, setSegmentData] = useState<SegmentDataPoint[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [hourAvg, setHourAvg] = useState<number | null>(null);
-  const [hourTotal, setHourTotal] = useState<number | null>(null);
-  const [hourLoading, setHourLoading] = useState(false);
-  const [hourActiveMin, setHourActiveMin] = useState<number | null>(null);
 
   async function load() {
     if (!deviceId) return;
