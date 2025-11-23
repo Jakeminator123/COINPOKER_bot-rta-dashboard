@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import Providers from "@/components/Providers";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Modern typography: Inter for body text, JetBrains Mono for code/numbers
 const inter = Inter({
@@ -43,7 +44,9 @@ export default function RootLayout({
       className={`${inter.variable} ${jetbrainsMono.variable}`}
     >
       <body className="font-sans antialiased">
-        <Providers>{children}</Providers>
+        <ErrorBoundary>
+          <Providers>{children}</Providers>
+        </ErrorBoundary>
       </body>
     </html>
   );

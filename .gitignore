@@ -57,3 +57,7 @@ node_modules
 
 # Multi-agent pipeline artifacts
 artifacts/
+
+# Batch log directories
+jay/
+batch_logs/
