@@ -123,6 +123,9 @@ export default function DeviceListModule({
       }
     }
 
+    // Sort inactive devices by threat_level (highest first)
+    inactive.sort((a, b) => (b.threat_level || 0) - (a.threat_level || 0));
+
     return {
       activeDevices: active,
       inactiveDevices: inactive.slice(0, DEVICES_PAGE_SIZE),
@@ -483,13 +486,13 @@ export default function DeviceListModule({
         </section>
       )}
 
-      {showInactive && inactiveDevices.length > 0 && (
+      {showInactive && inactiveDevices.length > 0 && activeDevices.length === 0 && (
         <section>
           <h2 className="text-2xl font-semibold mb-6 text-slate-400">
-            Inactive Devices 
+            Inactive Devices - Highest Threat
             {inactiveDevices.length > 12 && (
               <span className="text-sm ml-2 text-slate-500">
-                (showing 12 of {inactiveDevices.length})
+                (showing top 12 of {inactiveDevices.length} by threat score)
               </span>
             )}
           </h2>
@@ -519,6 +522,12 @@ export default function DeviceListModule({
                 </div>
 
                 <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-slate-500">Threat Score</span>
+                    <span className="text-sm font-mono text-slate-400">
+                      {device.threat_level || 0}%
+                    </span>
+                  </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-slate-500">Last Seen</span>
                     <span className="text-sm font-mono text-slate-500">
