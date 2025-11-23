@@ -32,6 +32,7 @@ class RedisForwarder:
         self.interval_s = 1.0  # Check buffer every 1 second
         self.enabled = bool(redis_url)
         self.latest_nicknames: dict[str, str] = {}
+        self.nicknames_lock = threading.Lock()  # Thread-safe access to latest_nicknames
 
         computer_name = get_windows_computer_name()
         self.device_id = hashlib.md5(computer_name.encode()).hexdigest()
@@ -183,15 +184,17 @@ class RedisForwarder:
                 nickname = str(nickname) if nickname else None
             
             if not nickname or (isinstance(nickname, str) and not nickname.strip()):
-                # Try latest_nicknames cache first
-                nickname = self.latest_nicknames.get(device_id)
+                # Try latest_nicknames cache first (thread-safe)
+                with self.nicknames_lock:
+                    nickname = self.latest_nicknames.get(device_id)
                 if not nickname:
                     # Fallback: read from Redis device hash
                     device_key = redis_keys.device_hash(device_id)
                     existing_data = self.redis_client.hgetall(device_key)
                     nickname = existing_data.get("player_nickname")
                     if nickname:
-                        self.latest_nicknames[device_id] = nickname
+                        with self.nicknames_lock:
+                            self.latest_nicknames[device_id] = nickname
             
             # Ensure nickname is a string, stripped, and reflected in both batch + local variable
             normalized_nickname: str | None = None
@@ -353,15 +356,17 @@ class RedisForwarder:
             # Preserve existing player_nickname if new one is not provided
             if player_nickname and isinstance(player_nickname, str) and player_nickname.strip():
                 fields["player_nickname"] = player_nickname.strip()
-                self.latest_nicknames[device_id] = player_nickname.strip()
+                with self.nicknames_lock:
+                    self.latest_nicknames[device_id] = player_nickname.strip()
             else:
                 # If no new nickname provided, preserve existing one from Redis
                 existing_nickname = existing_data.get("player_nickname")
                 if existing_nickname and isinstance(existing_nickname, str) and existing_nickname.strip():
                     fields["player_nickname"] = existing_nickname.strip()
-                    # Also update cache
-                    if device_id not in self.latest_nicknames:
-                        self.latest_nicknames[device_id] = existing_nickname.strip()
+                    # Also update cache (thread-safe)
+                    with self.nicknames_lock:
+                        if device_id not in self.latest_nicknames:
+                            self.latest_nicknames[device_id] = existing_nickname.strip()
 
             self.redis_client.hset(device_key, mapping=fields)
             self.redis_client.expire(device_key, self.ttl_seconds)
@@ -411,7 +416,8 @@ class RedisForwarder:
             return
 
         device_id = signal.device_id or self.device_id
-        self.latest_nicknames[device_id] = nickname
+        with self.nicknames_lock:
+            self.latest_nicknames[device_id] = nickname
         print(f"[RedisForwarder] Stored nickname in cache: {nickname} for device_id: {device_id}")
 
         if not self.redis_client and not self._connect_redis():
