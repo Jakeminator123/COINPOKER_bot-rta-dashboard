@@ -591,6 +591,39 @@ def player_worker(
                             f"[SIM-BATCH][REDIS] {player.device_name}: Batch #{batch_no} stored (bot_probability={bot_prob}%, detections={len(batch_detections)})"
                         )
                     backoff = max(0.0, backoff * 0.5)
+                    
+                    # ALSO send to API endpoint so dashboard sees devices as online
+                    # This ensures MemoryStore is updated which the dashboard reads from
+                    # The 'url' parameter contains the dashboard URL even in Redis-direct mode
+                    if url and url not in ["REDIS_DIRECT", ""]:
+                        try:
+                            headers_batch = dict(base_headers)
+                            if use_xforwarded:
+                                headers_batch["X-Forwarded-For"] = xfwd
+                            
+                            payload_array = [{
+                                "timestamp": int(batch_signal["timestamp"]),
+                                "category": batch_signal["category"],
+                                "name": batch_signal["name"],
+                                "status": batch_signal["status"],
+                                "details": batch_signal["details"],
+                                "device_id": batch_signal["device_id"],
+                                "device_name": batch_signal["device_name"],
+                                "device_ip": xfwd if use_xforwarded else None,
+                            }]
+                            
+                            resp_batch = session.post(
+                                url, data=json.dumps(payload_array), headers=headers_batch, timeout=10
+                            )
+                            if not quiet and 200 <= resp_batch.status_code < 300:
+                                print(f"[SIM-BATCH][API] {player.device_name}: Dashboard updated (online status)")
+                            elif not quiet and resp_batch.status_code >= 300:
+                                print(f"[SIM-BATCH][API] {player.device_name}: HTTP {resp_batch.status_code} (non-critical)")
+                        except Exception as e:
+                            # Non-critical - Redis write succeeded
+                            if not quiet:
+                                print(f"[SIM-BATCH][API] {player.device_name}: API update failed (non-critical): {e}")
+                    
                 except Exception as e:
                     increment_stat("fail")
                     if not quiet:
@@ -851,6 +884,11 @@ def main() -> None:
         elif dest_choice in ("d", "redis", "direct"):
             args.redis_direct = True
             args.render = False
+            # Keep the dashboard URL for dual-mode sending (Redis + API for online status)
+            # If no specific URL was set, use Render production if available
+            if args.url == DEFAULT_LOCAL_URL and render_url_from_config:
+                args.url = render_url_from_config
+                print(f"[SIM] Will also update dashboard at {args.url} for online status")
         else:
             # Direct URL typed
             args.url = dest_choice
@@ -953,6 +991,7 @@ def main() -> None:
         args.url = render_url_from_config
 
     redis_writer: Optional[RedisBatchWriter] = None
+    dashboard_url = args.url  # Save the dashboard URL for dual-mode sending
     if args.redis_direct:
         redis_url = (args.redis_url or config_values.get("REDIS_URL", "")).strip()
         if not redis_url:
@@ -964,6 +1003,9 @@ def main() -> None:
             redis_writer = RedisBatchWriter(redis_url, ttl_seconds)
             if not args.quiet:
                 print(f"[SIM] Direct Redis mode enabled (TTL={ttl_seconds}s, url={redis_url})")
+                # Also show where API signals will be sent for online status
+                if dashboard_url and dashboard_url != DEFAULT_LOCAL_URL:
+                    print(f"[SIM] Also sending to dashboard API for online status: {dashboard_url}")
         except Exception as exc:
             print(f"[SIM] Failed to initialize Redis direct writer: {exc}")
             sys.exit(1)
