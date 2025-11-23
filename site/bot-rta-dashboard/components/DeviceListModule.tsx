@@ -492,10 +492,7 @@ export default function DeviceListModule({
                 key={device.device_id}
                 className="glass-card p-6 opacity-60 animate-slide-up cursor-pointer hover:opacity-80 transition-opacity"
                 style={{ animationDelay: `${idx * 50}ms` }}
-                onClick={() => {
-                  setSelectedDeviceData(device);
-                  setSegmentModalOpen(true);
-                }}
+                onClick={() => handleSelect(device.device_id)}
               >
                 <div className="flex items-start justify-between mb-4">
                   <div>
