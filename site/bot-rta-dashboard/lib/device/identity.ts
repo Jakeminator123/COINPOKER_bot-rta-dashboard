@@ -3,6 +3,20 @@ import path from "node:path";
 
 import { sanitizeDeviceName } from "./device-name-utils";
 
+/**
+ * Device name resolution sources with priority order.
+ * 
+ * Priority order (from highest to lowest):
+ * 1. batchHost - Computer name (e.g., "JakobsDator")
+ * 2. batchDevice - Device name from batch
+ * 3. batchDeviceHostname - Device hostname from batch
+ * 4. signalDeviceName - Device name from signal
+ * 5. batchMetaHostname - Metadata hostname
+ * 6. batchNickname - Player nickname (e.g., "FastCarsss") - LOW priority so it's only used for nickname field
+ * 7. deviceId - MD5 hash fallback
+ * 
+ * This ensures "Device" field shows computer name and "Nickname" field shows player name separately.
+ */
 export interface DeviceNameSources {
   deviceId: string;
   batchNickname?: string | null;
@@ -14,12 +28,12 @@ export interface DeviceNameSources {
 }
 
 const DEFAULT_PRIORITY: Array<keyof DeviceNameSources> = [
-  "batchNickname",
-  "batchDevice",
   "batchHost",
+  "batchDevice",
   "batchDeviceHostname",
-  "batchMetaHostname",
   "signalDeviceName",
+  "batchMetaHostname",
+  "batchNickname",
   "deviceId",
 ];
 

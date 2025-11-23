@@ -382,20 +382,6 @@ export default function DeviceListModule({
                       </span>
                     </div>
                   )}
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-400">Last hour avg</span>
-                    <span className="text-sm font-semibold text-white">
-                      {hourMap[device.device_id]?.loading
-                        ? "…"
-                        : `${(hourMap[device.device_id]?.avg ?? 0).toFixed(1)} pts`}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-400">Total Signals</span>
-                    <span className="text-sm font-semibold text-cyan-400">
-                      {device.signal_count}
-                    </span>
-                  </div>
 
                   {device.score_per_hour !== undefined && (
                     <div className="pt-2 border-t border-slate-700/50 space-y-2">
@@ -525,10 +511,6 @@ export default function DeviceListModule({
                     <span className="text-sm font-mono text-slate-500">
                       {new Date(device.last_seen).toLocaleDateString()}
                     </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-500">Last hour avg</span>
-                    <span className="text-sm font-semibold text-slate-400">—</span>
                   </div>
                 </div>
               </div>

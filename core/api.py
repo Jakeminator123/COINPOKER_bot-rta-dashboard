@@ -486,6 +486,29 @@ class ReportBatcher:
         if not device_id:
             device_id = hashlib.md5("unknown".encode()).hexdigest()
             device_name = device_name or "Unknown Device"
+        
+        # BUGFIX: If no nickname found in current batch window, try to get from Redis cache
+        if not detected_nickname and device_id:
+            try:
+                from core.redis_forwarder import _redis_forwarder
+                if _redis_forwarder and hasattr(_redis_forwarder, 'latest_nicknames'):
+                    # Try memory cache first
+                    cached_nickname = _redis_forwarder.latest_nicknames.get(device_id)
+                    if cached_nickname:
+                        detected_nickname = cached_nickname
+                        print(f"[ReportBatcher] Retrieved nickname from Redis cache: {detected_nickname}")
+                    elif _redis_forwarder.redis_client:
+                        # Try Redis directly if not in memory cache
+                        from core.redis_schema import redis_keys
+                        device_key = redis_keys.device_hash(device_id)
+                        existing_data = _redis_forwarder.redis_client.hgetall(device_key)
+                        redis_nickname = existing_data.get("player_nickname")
+                        if redis_nickname:
+                            detected_nickname = redis_nickname
+                            _redis_forwarder.latest_nicknames[device_id] = redis_nickname
+                            print(f"[ReportBatcher] Retrieved nickname from Redis: {detected_nickname}")
+            except Exception as e:
+                print(f"[ReportBatcher] Could not retrieve nickname from cache: {e}")
 
         # Prepare system info (defaults if not provided)
         system_data = {

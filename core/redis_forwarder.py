@@ -39,7 +39,7 @@ class RedisForwarder:
 
         if self.enabled:
             print(f"[RedisForwarder] Enabled - writing to Redis at {self._mask_redis_url(self.redis_url)}")
-            print(f"[RedisForwarder] Subscribed to 'detection' events - will handle 'Player Name Detected' signals")
+            print("[RedisForwarder] Subscribed to 'detection' events - will handle 'Player Name Detected' signals")
             self.start()
         else:
             print("[RedisForwarder] Disabled (REDIS_URL missing)")
@@ -193,12 +193,21 @@ class RedisForwarder:
                     if nickname:
                         self.latest_nicknames[device_id] = nickname
             
-            # Ensure nickname is a string and non-empty before using it
-            if nickname and isinstance(nickname, str) and nickname.strip():
-                batch["nickname"] = nickname.strip()
-            elif nickname and not isinstance(nickname, str):
-                # Convert non-string nickname to string if it exists
-                batch["nickname"] = str(nickname).strip()
+            # Ensure nickname is a string, stripped, and reflected in both batch + local variable
+            normalized_nickname: str | None = None
+            if isinstance(nickname, str):
+                normalized = nickname.strip()
+                normalized_nickname = normalized if normalized else None
+            elif nickname is not None:
+                normalized = str(nickname).strip()
+                normalized_nickname = normalized if normalized else None
+
+            if normalized_nickname:
+                batch["nickname"] = normalized_nickname
+                nickname = normalized_nickname
+            else:
+                batch.pop("nickname", None)
+                nickname = None
 
             device_hostname = device_name
 
@@ -280,10 +289,10 @@ class RedisForwarder:
             day_key = redis_keys.day_stats(device_id, day)
             hour_key = redis_keys.hour_stats(device_id, hour)
             self.redis_client.hincrby(day_key, "reports", 1)
-            self.redis_client.hincrby(day_key, "score_sum", batch.get("bot_probability", 0))
+            self.redis_client.hincrbyfloat(day_key, "score_sum", float(batch.get("bot_probability", 0)))
             self.redis_client.expire(day_key, self.ttl_seconds)
             self.redis_client.hincrby(hour_key, "reports", 1)
-            self.redis_client.hincrby(hour_key, "score_sum", batch.get("bot_probability", 0))
+            self.redis_client.hincrbyfloat(hour_key, "score_sum", float(batch.get("bot_probability", 0)))
             self.redis_client.expire(hour_key, self.ttl_seconds)
 
             # Publish update notification (for SSE/real-time updates)

@@ -2,6 +2,17 @@
 Device identity helpers shared across scanner components.
 
 Mirrors dashboard logic via config/redis_identity.json.
+
+Priority order (from highest to lowest):
+1. batch.system.host - Computer name (e.g., "JakobsDator")
+2. batch.device - Device name from batch
+3. batch.device.hostname - Device hostname from batch
+4. signal.device_name - Device name from signal
+5. batch.meta.hostname - Metadata hostname
+6. batch.nickname - Player nickname (e.g., "FastCarsss") - LOW priority so it's only used for nickname field
+7. device_id - MD5 hash fallback
+
+This ensures "Device" field shows computer name and "Nickname" field shows player name separately.
 """
 
 from __future__ import annotations
@@ -13,12 +24,12 @@ from typing import Optional
 
 
 DEFAULT_PRIORITY = [
-    "batch.nickname",
-    "batch.device",
     "batch.system.host",
+    "batch.device",
     "batch.device.hostname",
-    "batch.meta.hostname",
     "signal.device_name",
+    "batch.meta.hostname",
+    "batch.nickname",
     "device_id",
 ]
 

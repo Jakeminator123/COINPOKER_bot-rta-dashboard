@@ -12,6 +12,8 @@ Usage examples:
       python simulator.py --url https://your-app.onrender.com/api/signal --token detector-secret-token-2024
   - Against Render with system batches and X-Forwarded-For per player:
       python simulator.py --render --players 50 --duration 300 --rate 8 --burst 5
+  - Direct to Redis (bypass HTTP):
+      python simulator.py --redis-direct --players 2000 --duration 600
 """
 
 import argparse
@@ -19,11 +21,16 @@ import json
 import os
 import random
 import string
+import sys
 import threading
 import time
 import uuid
 from dataclasses import dataclass
+from typing import Any, Optional
+
 import requests
+
+from core.redis_forwarder import RedisForwarder
 
 STATUS_POINTS = {
     "CRITICAL": 15,
@@ -141,6 +148,27 @@ class PlayerProfile:
     device_name: str
     nickname: str
     is_special: bool = False
+
+
+class RedisBatchWriter:
+    """Thin wrapper around RedisForwarder to reuse the exact storage logic."""
+
+    def __init__(self, redis_url: str, ttl_seconds: int):
+        self.forwarder = RedisForwarder(redis_url, ttl_seconds)
+        if not self.forwarder.enabled or not self.forwarder.redis_client:
+            raise RuntimeError("Unable to connect to Redis with the provided URL")
+        self.lock = threading.Lock()
+
+    def store_batch(self, player: PlayerProfile, batch: dict[str, Any]) -> None:
+        """Store a batch using the same logic as the scanner's Redis forwarder."""
+        timestamp = int(batch.get("timestamp") or time.time())
+        with self.lock:
+            self.forwarder._store_batch_report(
+                player.device_id,
+                player.device_name,
+                batch,
+                timestamp,
+            )
 
 
 def bounded_random_duration(min_seconds: float, max_seconds: float) -> float:
@@ -446,6 +474,7 @@ def player_worker(
     logouts_enabled: bool,
     player_is_special: bool,
     use_xforwarded: bool = True,
+    redis_writer: Optional[RedisBatchWriter] = None,
 ):
     """
     Simulate a single player sending batch reports (mimics real scanner).
@@ -519,7 +548,7 @@ def player_worker(
                 batch_detections.append(signal)
             
             # Build unified batch report
-            payload = build_unified_batch(
+            batch_signal = build_unified_batch(
                 player,
                 batch_detections,
                 batch_no,
@@ -529,46 +558,64 @@ def player_worker(
                 batch_interval,
             )
             
-            try:
-                headers_batch = dict(base_headers)
-                if use_xforwarded:
-                    headers_batch["X-Forwarded-For"] = xfwd
-                
-                # Match scanner.py format: payload must be an array with one object
-                # Also convert timestamp to int like scanner.py does
-                payload_array = [{
-                    "timestamp": int(payload["timestamp"]),
-                    "category": payload["category"],
-                    "name": payload["name"],
-                    "status": payload["status"],
-                    "details": payload["details"],
-                    "device_id": payload["device_id"],
-                    "device_name": payload["device_name"],
-                    "device_ip": xfwd if use_xforwarded else None,
-                }]
-                
-                resp_batch = session.post(
-                    url, data=json.dumps(payload_array), headers=headers_batch, timeout=10
-                )
-                if 200 <= resp_batch.status_code < 300:
+            batch_details = json.loads(batch_signal["details"])
+
+            if redis_writer:
+                try:
+                    redis_writer.store_batch(player, batch_details)
                     stats["ok"] += 1
                     if not quiet:
-                        bot_prob = json.loads(payload["details"]).get("bot_probability", 0)
+                        bot_prob = batch_details.get("bot_probability", 0)
                         print(
-                            f"[SIM-BATCH] {player.device_name}: Batch #{batch_no} sent (bot_probability={bot_prob}%, detections={len(batch_detections)})"
+                            f"[SIM-BATCH][REDIS] {player.device_name}: Batch #{batch_no} stored (bot_probability={bot_prob}%, detections={len(batch_detections)})"
                         )
                     backoff = max(0.0, backoff * 0.5)
-                else:
+                except Exception as e:
                     stats["fail"] += 1
                     if not quiet:
-                        print(f"[SIM-BATCH] {player.device_name}: HTTP {resp_batch.status_code}")
-                    if resp_batch.status_code in (429, 500, 502, 503, 504):
-                        backoff = min(5.0, max(0.5, (backoff or 0.5) * 1.5))
-            except Exception as e:
-                stats["fail"] += 1
-                if not quiet:
-                    print(f"[SIM-BATCH] {player.device_name}: Error: {e}")
-                backoff = min(5.0, max(0.5, (backoff or 0.5) * 1.5))
+                        print(f"[SIM-BATCH][REDIS] {player.device_name}: Error storing batch: {e}")
+                    backoff = min(5.0, max(0.5, (backoff or 0.5) * 1.5))
+            else:
+                try:
+                    headers_batch = dict(base_headers)
+                    if use_xforwarded:
+                        headers_batch["X-Forwarded-For"] = xfwd
+                    
+                    # Match scanner.py format: payload must be an array with one object
+                    # Also convert timestamp to int like scanner.py does
+                    payload_array = [{
+                        "timestamp": int(batch_signal["timestamp"]),
+                        "category": batch_signal["category"],
+                        "name": batch_signal["name"],
+                        "status": batch_signal["status"],
+                        "details": batch_signal["details"],
+                        "device_id": batch_signal["device_id"],
+                        "device_name": batch_signal["device_name"],
+                        "device_ip": xfwd if use_xforwarded else None,
+                    }]
+                    
+                    resp_batch = session.post(
+                        url, data=json.dumps(payload_array), headers=headers_batch, timeout=10
+                    )
+                    if 200 <= resp_batch.status_code < 300:
+                        stats["ok"] += 1
+                        if not quiet:
+                            bot_prob = batch_details.get("bot_probability", 0)
+                            print(
+                                f"[SIM-BATCH] {player.device_name}: Batch #{batch_no} sent (bot_probability={bot_prob}%, detections={len(batch_detections)})"
+                            )
+                        backoff = max(0.0, backoff * 0.5)
+                    else:
+                        stats["fail"] += 1
+                        if not quiet:
+                            print(f"[SIM-BATCH] {player.device_name}: HTTP {resp_batch.status_code}")
+                        if resp_batch.status_code in (429, 500, 502, 503, 504):
+                            backoff = min(5.0, max(0.5, (backoff or 0.5) * 1.5))
+                except Exception as e:
+                    stats["fail"] += 1
+                    if not quiet:
+                        print(f"[SIM-BATCH] {player.device_name}: Error: {e}")
+                    backoff = min(5.0, max(0.5, (backoff or 0.5) * 1.5))
 
             last_batch = now
         
@@ -644,6 +691,22 @@ def main() -> None:
         help="Send unified system batch reports (default: on)",
     )
     parser.add_argument(
+        "--redis-direct",
+        action="store_true",
+        help="Store batches directly in Redis instead of sending HTTP requests",
+    )
+    parser.add_argument(
+        "--redis-url",
+        default="",
+        help="Override Redis URL when using --redis-direct (defaults to REDIS_URL in config.txt)",
+    )
+    parser.add_argument(
+        "--redis-ttl",
+        type=int,
+        default=0,
+        help="Override Redis TTL seconds when using --redis-direct (defaults to REDIS_TTL_SECONDS)",
+    )
+    parser.add_argument(
         "--batch-interval",
         type=float,
         default=92.0,
@@ -716,7 +779,10 @@ def main() -> None:
         print("Press Enter to accept defaults in [brackets].\n")
 
         # Destination choice
-        dest_default = "render" if args.render else ("custom" if args.url != DEFAULT_LOCAL_URL else "local")
+        if args.redis_direct:
+            dest_default = "redis"
+        else:
+            dest_default = "render" if args.render else ("custom" if args.url != DEFAULT_LOCAL_URL else "local")
         print("Destination options:")
         print(f"  [L] Local dashboard ({DEFAULT_LOCAL_URL})")
         if render_url_from_config:
@@ -724,6 +790,7 @@ def main() -> None:
         else:
             print("  [R] Render production (set WEB_URL_PROD in config.txt)")
         print(f"  [C] Custom URL ({args.url})")
+        print("  [D] Direct Redis (use REDIS_URL from config.txt)")
         try:
             dest_choice = input(f"Destination [L/R/C] ({dest_default[0].upper()}): ").strip().lower()
         except EOFError:
@@ -731,14 +798,17 @@ def main() -> None:
 
         if not dest_choice or dest_choice in ("l", "local"):
             args.render = False
+            args.redis_direct = False
             args.url = DEFAULT_LOCAL_URL
         elif dest_choice in ("r", "render"):
             args.render = True
+            args.redis_direct = False
             if render_url_from_config:
                 args.url = render_url_from_config
             else:
                 print("[SIM] Render URL not set in config.txt; keeping current URL.")
         elif dest_choice in ("c", "custom"):
+            args.redis_direct = False
             try:
                 custom_url = input(f"Custom URL [{args.url}]: ").strip()
             except EOFError:
@@ -746,10 +816,14 @@ def main() -> None:
             if custom_url:
                 args.url = custom_url
             args.render = False
+        elif dest_choice in ("d", "redis", "direct"):
+            args.redis_direct = True
+            args.render = False
         else:
             # Direct URL typed
             args.url = dest_choice
             args.render = False
+            args.redis_direct = False
 
         # Players
         try:
@@ -846,6 +920,22 @@ def main() -> None:
     if args.render and args.url == DEFAULT_LOCAL_URL and render_url_from_config:
         args.url = render_url_from_config
 
+    redis_writer: Optional[RedisBatchWriter] = None
+    if args.redis_direct:
+        redis_url = (args.redis_url or config_values.get("REDIS_URL", "")).strip()
+        if not redis_url:
+            print("[SIM] --redis-direct requested but REDIS_URL is not set (pass --redis-url or update config.txt).")
+            sys.exit(1)
+        ttl_config = config_values.get("REDIS_TTL_SECONDS")
+        ttl_seconds = args.redis_ttl or (int(ttl_config) if ttl_config and ttl_config.isdigit() else 604800)
+        try:
+            redis_writer = RedisBatchWriter(redis_url, ttl_seconds)
+            if not args.quiet:
+                print(f"[SIM] Direct Redis mode enabled (TTL={ttl_seconds}s, url={redis_url})")
+        except Exception as exc:
+            print(f"[SIM] Failed to initialize Redis direct writer: {exc}")
+            sys.exit(1)
+
     # Build players
     players: list[PlayerProfile] = []
     special_ratio = max(0.0, min(1.0, args.special_player_ratio))
@@ -915,6 +1005,7 @@ def main() -> None:
                 args.enable_logouts,
                 p.is_special,
                 args.xforwarded,
+                redis_writer,
             ),
             daemon=False,
         )

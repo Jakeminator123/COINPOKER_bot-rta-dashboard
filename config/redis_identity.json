@@ -1,12 +1,11 @@
 {
   "name_priority": [
-    "batch.nickname",
-    "batch.device",
     "batch.system.host",
+    "batch.device",
     "batch.device.hostname",
-    "batch.meta.hostname",
     "signal.device_name",
+    "batch.meta.hostname",
+    "batch.nickname",
     "device_id"
   ]
 }
-

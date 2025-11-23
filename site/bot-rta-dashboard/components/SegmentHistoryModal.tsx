@@ -300,33 +300,6 @@ export default function SegmentHistoryModal({
             <button onClick={exportXLSX} className="px-3 py-2 bg-green-700/60 hover:bg-green-600 rounded text-sm">Export XLSX</button>
           </div>
 
-          {/* Last hour summary */}
-          <div className="bg-gradient-to-r from-slate-700/40 to-slate-800/40 rounded-lg p-4 border border-slate-600/30">
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <div className="text-xs text-slate-400 mb-1">Last Hour Avg</div>
-                <div className="text-2xl font-bold text-white">
-                  {hourLoading ? '...' : `${(hourAvg ?? 0).toFixed(1)}`}
-                  <span className="text-sm text-slate-400 ml-1">pts</span>
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-slate-400 mb-1">Score/Hour Rate</div>
-                <div className="text-2xl font-bold text-cyan-400">
-                  {hourLoading ? '...' : hourActiveMin ? `${((hourAvg ?? 0) / Math.max(hourActiveMin / 60, 0.1)).toFixed(1)}` : '0.0'}
-                  <span className="text-sm text-slate-400 ml-1">pts/h</span>
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-slate-400 mb-1">Active Time</div>
-                <div className="text-2xl font-bold text-green-400">
-                  {hourLoading ? '...' : hourActiveMin ?? 0}
-                  <span className="text-sm text-slate-400 ml-1">min</span>
-                </div>
-                <div className="text-xs text-slate-500 mt-1">{hourTotal ?? 0} samples</div>
-              </div>
-            </div>
-          </div>
 
           {/* Chart or Segment Visualization */}
           {mode === 'segments' ? (

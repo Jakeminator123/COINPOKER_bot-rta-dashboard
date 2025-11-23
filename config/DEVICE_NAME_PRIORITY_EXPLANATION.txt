@@ -1,0 +1,49 @@
+DEVICE NAME PRIORITY CONFIGURATION - CRITICAL FOR CONSISTENCY
+=============================================================
+
+This configuration ensures consistent device name resolution across all data paths:
+- Path 1: Scanner → Redis directly (FORWARDER_MODE=redis)
+- Path 2: Scanner → Website → Redis (FORWARDER_MODE=web)
+
+PRIORITY ORDER (from highest to lowest)
+========================================
+1. batch.system.host      - Computer name (e.g., "JakobsDator")
+2. batch.device          - Device name from batch
+3. batch.device.hostname - Device hostname from batch
+4. signal.device_name    - Device name from signal
+5. batch.meta.hostname   - Metadata hostname
+6. batch.nickname        - Player nickname (e.g., "FastCarsss") - LOW priority
+7. device_id            - MD5 hash fallback
+
+WHY THIS PRIORITY?
+==================
+- Computer name (batch.system.host) is prioritized FIRST for the "Device" field
+- Nickname (batch.nickname) is prioritized LAST (before fallback) so it's ONLY used for "Nickname" field
+- This ensures proper separation: Device="JakobsDator", Nickname="FastCarsss"
+
+FILES THAT MUST BE IN SYNC
+===========================
+1. config/redis_identity.json         - Configuration file (source of truth)
+2. core/device_identity.py            - Python fallback (scanner side)
+3. site/.../lib/device/identity.ts    - TypeScript fallback (dashboard side)
+
+All three files MUST have the same priority order to ensure consistency.
+If redis_identity.json fails to load, the hardcoded fallbacks will be used,
+so they MUST match to avoid different behavior in failure scenarios.
+
+TESTING
+=======
+After any changes to priority:
+1. Stop scanner.py
+2. Start scanner.py
+3. Check dashboard shows:
+   - Device: "JakobsDator" (or your computer name)
+   - Nickname: "FastCarsss" (or detected player name)
+4. Verify in both Redis paths (direct and via web API)
+
+IMPORTANT
+=========
+ANY change to priority order must be made in ALL THREE locations:
+- config/redis_identity.json
+- core/device_identity.py (DEFAULT_PRIORITY)
+- site/bot-rta-dashboard/lib/device/identity.ts (DEFAULT_PRIORITY)

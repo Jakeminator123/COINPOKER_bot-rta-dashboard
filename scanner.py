@@ -471,9 +471,11 @@ class CoinPokerScanner:
                 print("[Scanner] CoinPoker detected - Starting detection scanner...")
                 print("-" * 60)
 
+                # Initialize forwarder before nickname detection so Redis/Web subscribers are ready
+                self.service = ForwarderService()
+
                 self._wait_for_lobby_window_and_warmup()
 
-                self.service = ForwarderService()
                 self.service.start(segments_base_dir=self.segments_dir)
                 self._coinpoker_active = True
 
@@ -491,6 +493,11 @@ class CoinPokerScanner:
             except Exception as e:
                 print(f"[Scanner] ERROR: Failed to start scanner: {e}")
                 # Clean up on failure
+                if self.service:
+                    try:
+                        self.service.stop()
+                    except Exception:
+                        pass
                 self.service = None
                 self._coinpoker_active = False
 

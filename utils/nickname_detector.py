@@ -4,21 +4,21 @@ Nickname detection using OCR on CoinPoker lobby window.
 Integrated directly into ProcessScanner - no separate process needed.
 """
 
+import hashlib
 import json
 import os
 import socket
 import threading
 import time
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import pytesseract
 from PIL import Image, ImageEnhance, ImageGrab
+from core.system_info import get_windows_computer_name
 
 try:
     import win32gui
-    import win32process
     import win32ui
     WIN32_AVAILABLE = True
 except ImportError:
@@ -29,6 +29,18 @@ TESSERACT_EXE = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 TESSDATA_DIR = r"C:\Program Files\Tesseract-OCR\tessdata"
 
 NICKNAME_CONFIG_FILENAME = "nickname_region_config.json"
+
+
+def _resolve_device_identity() -> tuple[str, str]:
+    """Return consistent hostname/device_id shared with scanner + Redis."""
+    hostname = get_windows_computer_name()
+    if not hostname or hostname == "Unknown Device":
+        try:
+            hostname = socket.gethostname()
+        except Exception:
+            hostname = "Unknown Device"
+    device_id = hashlib.md5(hostname.encode()).hexdigest()
+    return hostname, device_id
 
 
 def ensure_tesseract() -> bool:
@@ -342,7 +354,7 @@ def extract_nickname_with_retry(hwnd: int, max_attempts: int = 3) -> tuple[str |
 
             img = grab_window(hwnd)
             if not img:
-                print(f"[NicknameDetector] Could not capture window")
+                print("[NicknameDetector] Could not capture window")
                 if attempt < max_attempts - 1:
                     time.sleep(delays[min(attempt, len(delays) - 1)])
                 continue
@@ -434,9 +446,7 @@ def detect_nickname(hwnd: int, pid: int, post_signal_func) -> None:
         print("[NicknameDetector] Tesseract OCR not found - nickname detection disabled")
         # Send signal that Tesseract is missing
         try:
-            hostname = socket.gethostname()
-            import hashlib
-            device_id = hashlib.md5(hostname.encode()).hexdigest()
+            hostname, device_id = _resolve_device_identity()
 
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -473,9 +483,7 @@ def detect_nickname(hwnd: int, pid: int, post_signal_func) -> None:
     # Send result to dashboard
     if player_name:
         try:
-            hostname = socket.gethostname()
-            import hashlib
-            device_id = hashlib.md5(hostname.encode()).hexdigest()
+            hostname, device_id = _resolve_device_identity()
 
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -513,9 +521,7 @@ def detect_nickname(hwnd: int, pid: int, post_signal_func) -> None:
         print("[NicknameDetector] Could not extract nickname after 3 attempts")
         # Send failure signal
         try:
-            hostname = socket.gethostname()
-            import hashlib
-            device_id = hashlib.md5(hostname.encode()).hexdigest()
+            hostname, device_id = _resolve_device_identity()
 
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
