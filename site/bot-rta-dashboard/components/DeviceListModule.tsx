@@ -485,9 +485,16 @@ export default function DeviceListModule({
 
       {showInactive && inactiveDevices.length > 0 && (
         <section>
-          <h2 className="text-2xl font-semibold mb-6 text-slate-400">Inactive Devices</h2>
+          <h2 className="text-2xl font-semibold mb-6 text-slate-400">
+            Inactive Devices 
+            {inactiveDevices.length > 12 && (
+              <span className="text-sm ml-2 text-slate-500">
+                (showing 12 of {inactiveDevices.length})
+              </span>
+            )}
+          </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {inactiveDevices.map((device, idx) => (
+            {inactiveDevices.slice(0, 12).map((device, idx) => (
               <div
                 key={device.device_id}
                 className="glass-card p-6 opacity-60 animate-slide-up cursor-pointer hover:opacity-80 transition-opacity"
@@ -525,6 +532,19 @@ export default function DeviceListModule({
               </div>
             ))}
           </div>
+          {inactiveDevices.length > 12 && (
+            <div className="mt-6 text-center">
+              <button
+                onClick={() => {
+                  // Could implement "Show all" functionality here
+                  alert(`Total inactive devices: ${inactiveDevices.length}. Showing only the 12 most recent.`);
+                }}
+                className="text-sm text-cyan-400 hover:text-cyan-300 underline"
+              >
+                View all {inactiveDevices.length} inactive devices
+              </button>
+            </div>
+          )}
         </section>
       )}
     </div>

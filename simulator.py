@@ -14,6 +14,8 @@ Usage examples:
       python simulator.py --render --players 50 --duration 300 --rate 8 --burst 5
   - Direct to Redis (bypass HTTP):
       python simulator.py --redis-direct --players 2000 --duration 600
+  - High player counts with limited worker pool:
+      python simulator.py --players 4000 --max-workers 800 --duration 600
 """
 
 import argparse
@@ -25,6 +27,7 @@ import sys
 import threading
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -466,6 +469,7 @@ def player_worker(
     stop_at: float,
     quiet: bool,
     stats: dict[str, int],
+    stats_lock: threading.Lock,
     jitter_frac: float,
     enable_batches: bool,
     batch_interval: float,
@@ -485,7 +489,17 @@ def player_worker(
     xfwd = stable_fake_ip(player.device_id)
     backoff = 0.0
     per_player_interval = apply_interval_spread(batch_interval, interval_spread)
-    last_batch = time.time() - random.uniform(0, per_player_interval)
+    # Option to start all players together or spread them out
+    if player.device_id.endswith("0001"):  # First player
+        print(f"[SIM] Batch interval: {per_player_interval:.1f}s, Spread: {interval_spread:.1f}")
+    
+    # For initial burst testing, you can set this to 0 to start all players immediately
+    # Or use random.uniform(0, per_player_interval) for realistic spread
+    if hasattr(player, 'burst_start') and player.burst_start:
+        initial_delay = 0  # Start immediately
+    else:
+        initial_delay = random.uniform(0, per_player_interval)
+    last_batch = time.time() - per_player_interval + initial_delay
     batch_no = 0
 
     # Calculate how many detections to generate per batch based on rate
@@ -502,6 +516,13 @@ def player_worker(
         if allow_logouts
         else float("inf")
     )
+
+    def increment_stat(key: str) -> None:
+        if stats_lock:
+            with stats_lock:
+                stats[key] = stats.get(key, 0) + 1
+        else:
+            stats[key] = stats.get(key, 0) + 1
 
     while time.time() < stop_at:
         now = time.time()
@@ -563,7 +584,7 @@ def player_worker(
             if redis_writer:
                 try:
                     redis_writer.store_batch(player, batch_details)
-                    stats["ok"] += 1
+                    increment_stat("ok")
                     if not quiet:
                         bot_prob = batch_details.get("bot_probability", 0)
                         print(
@@ -571,7 +592,7 @@ def player_worker(
                         )
                     backoff = max(0.0, backoff * 0.5)
                 except Exception as e:
-                    stats["fail"] += 1
+                    increment_stat("fail")
                     if not quiet:
                         print(f"[SIM-BATCH][REDIS] {player.device_name}: Error storing batch: {e}")
                     backoff = min(5.0, max(0.5, (backoff or 0.5) * 1.5))
@@ -598,7 +619,7 @@ def player_worker(
                         url, data=json.dumps(payload_array), headers=headers_batch, timeout=10
                     )
                     if 200 <= resp_batch.status_code < 300:
-                        stats["ok"] += 1
+                        increment_stat("ok")
                         if not quiet:
                             bot_prob = batch_details.get("bot_probability", 0)
                             print(
@@ -606,13 +627,13 @@ def player_worker(
                             )
                         backoff = max(0.0, backoff * 0.5)
                     else:
-                        stats["fail"] += 1
+                        increment_stat("fail")
                         if not quiet:
                             print(f"[SIM-BATCH] {player.device_name}: HTTP {resp_batch.status_code}")
                         if resp_batch.status_code in (429, 500, 502, 503, 504):
                             backoff = min(5.0, max(0.5, (backoff or 0.5) * 1.5))
                 except Exception as e:
-                    stats["fail"] += 1
+                    increment_stat("fail")
                     if not quiet:
                         print(f"[SIM-BATCH] {player.device_name}: Error: {e}")
                     backoff = min(5.0, max(0.5, (backoff or 0.5) * 1.5))
@@ -644,6 +665,17 @@ def main() -> None:
     parser.add_argument("--players", type=int, default=10, help="Number of simulated players")
     parser.add_argument("--rate", type=float, default=6.0, help="Signals per player per minute")
     parser.add_argument("--burst", type=int, default=5, help="Signals per POST (batch size)")
+    parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=0,
+        help="Maximum concurrent player threads (0 = match --players, default)",
+    )
+    parser.add_argument(
+        "--burst-start",
+        action="store_true",
+        help="Start all players immediately instead of spreading them over the batch interval",
+    )
     parser.add_argument(
         "--duration",
         type=int,
@@ -952,14 +984,15 @@ def main() -> None:
         name_prefix = special_prefix if is_special else args.device_prefix
         device_name = f"{name_prefix}-{i + 1}-{suffix}"
         nickname = f"{'VIP' if is_special else 'Player'}{i + 1}"
-        players.append(
-            PlayerProfile(
-                device_id=device_id,
-                device_name=device_name,
-                nickname=nickname,
-                is_special=is_special,
-            )
+        p = PlayerProfile(
+            device_id=device_id,
+            device_name=device_name,
+            nickname=nickname,
+            is_special=is_special,
         )
+        # Add burst_start flag to control initial delay
+        p.burst_start = args.burst_start  # type: ignore
+        players.append(p)
 
     headers = {"Content-Type": "application/json"}
     if args.token:
@@ -967,6 +1000,7 @@ def main() -> None:
 
     stop_at = time.time() + max(1, args.duration)
     stats = {"ok": 0, "fail": 0}
+    stats_lock = threading.Lock()
     batch_spread = max(0.0, min(0.9, args.batch_spread))
     logout_min = max(360.0, float(args.logout_min_seconds))
     logout_max = max(logout_min, float(args.logout_max_seconds))
@@ -979,12 +1013,36 @@ def main() -> None:
         "max_online": login_max,
     }
 
-    # Run workers
-    threads: list[threading.Thread] = []
-    for p in players:
-        t = threading.Thread(
-            target=player_worker,
-            args=(
+    def resolve_max_workers(player_count: int) -> int:
+        if args.max_workers and args.max_workers > 0:
+            return max(1, args.max_workers)
+        return max(1, player_count)
+
+    max_workers = resolve_max_workers(args.players)
+    if max_workers < args.players and not args.quiet:
+        print(
+            f"[SIM] Warning: {args.players} players requested but max {max_workers} worker threads available. Players will be queued."
+        )
+    elif max_workers >= 1000 and not args.quiet:
+        print(
+            f"[SIM] High concurrency: launching {max_workers} worker threads. Ensure your system/Redis can handle the load."
+        )
+    
+    # Show batch timing info
+    if not args.quiet:
+        batch_int = float(args.batch_interval)
+        expected_batches_per_sec = args.players / batch_int
+        print(f"[SIM] Batch interval: {batch_int}s per player")
+        print(f"[SIM] With {args.players} players spread over {batch_int}s = ~{expected_batches_per_sec:.1f} batches/sec average")
+        if args.burst_start:
+            print(f"[SIM] BURST MODE: All players will send first batch immediately!")
+        else:
+            print(f"[SIM] SPREAD MODE: Players start randomly within first {batch_int}s")
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [
+            executor.submit(
+                player_worker,
                 p,
                 args.url,
                 headers,
@@ -997,6 +1055,7 @@ def main() -> None:
                 stop_at,
                 args.quiet,
                 stats,
+                stats_lock,
                 max(0.0, min(0.9, args.jitter)),
                 args.system_batches,
                 float(args.batch_interval),
@@ -1006,17 +1065,18 @@ def main() -> None:
                 p.is_special,
                 args.xforwarded,
                 redis_writer,
-            ),
-            daemon=False,
-        )
-        threads.append(t)
-        t.start()
+            )
+            for p in players
+        ]
 
-    try:
-        for t in threads:
-            t.join()
-    except KeyboardInterrupt:
-        pass
+        try:
+            for future in futures:
+                future.result()
+        except KeyboardInterrupt:
+            if not args.quiet:
+                print("[SIM] Interrupted by user. Cancelling remaining workers...")
+            for future in futures:
+                future.cancel()
 
     total_posts = stats["ok"] + stats["fail"]
     if not args.quiet:

@@ -6,7 +6,8 @@
     }
   ],
   "settings": {
-    "terminal.integrated.cwd": "${workspaceFolder:Detector (Main)}"
+    "terminal.integrated.cwd": "${workspaceFolder:Detector (Main)}",
+    "python.languageServer": "None"
   }
 }
 
