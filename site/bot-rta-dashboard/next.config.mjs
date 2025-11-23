@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  
+  // QUICK WIN: Performance & Security improvements
+  compress: true,              // Enable gzip compression
+  poweredByHeader: false,      // Remove X-Powered-By header for security
 
   // Allow cross-origin dev access from local network devices
   allowedDevOrigins: [
