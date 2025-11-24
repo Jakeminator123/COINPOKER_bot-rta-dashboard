@@ -35,7 +35,7 @@ from typing import List, Tuple
 # Just update these URLs to match your production environment:
 
 # Your Render/production site URL (change to your actual URL)
-DEFAULT_SITE_URL = "https://bot-rta-dashboard-1.onrender.com/api/players"
+DEFAULT_SITE_URL = "https://bot-rta-dashboard-2.onrender.com/api/players"
 
 # Your Redis connection URL (already configured)
 DEFAULT_REDIS_URL = "redis://default:RmJmzvxtcg4PpDPCEly7ap7sHdpgQhmR@redis-12756.c44.us-east-1-2.ec2.redns.redis-cloud.com:12756"

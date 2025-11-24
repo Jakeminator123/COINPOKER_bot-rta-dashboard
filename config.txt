@@ -28,6 +28,10 @@ BATCH_LOG_DIR=jay                    # Mapp där batch-loggar sparas (default: b
 WEB=n                                # y=Skicka batchar till dashboardens HTTP-endpoint
 TESTING_JSON=y                       # Lägg till metadata i batches (förklarar systemflödet)
 
+# Dashboard URL för att hämta detection configs (alltid aktiv)
+DASHBOARD_URL=https://bot-rta-dashboard-2.onrender.com/api
+
+# Web forwarder settings (endast om WEB=y)
 #WEB_URL_DEV=http://localhost:3001/api/signal
 WEB_URL_PROD=https://bot-rta-dashboard-2.onrender.com/api/signal
 SIGNAL_TOKEN=detector-secret-token-2024

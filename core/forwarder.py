@@ -22,6 +22,7 @@ from core.segment_loader import SegmentLoader
 from core.system_info import get_windows_computer_name
 from utils.config_loader import get_config_loader
 from utils.config_reader import get_signal_token, get_web_url, read_config
+from utils.network_info import format_public_ip_log, get_public_ip_info
 
 
 class ForwarderService:
@@ -71,6 +72,12 @@ class ForwarderService:
             s.close()
         except Exception:
             self.local_ip = "127.0.0.1"
+
+        self.public_ip_info = get_public_ip_info()
+        self.device_ip = self.public_ip_info.get("ip") or self.local_ip
+        log_msg = format_public_ip_log(self.public_ip_info)
+        print(f"[Forwarder] {log_msg}")
+
         # Optional bearer token for dashboard API auth
         self.signal_token = get_signal_token(self.cfg)
 
@@ -317,8 +324,9 @@ class ForwarderService:
                         "segments_running": len(self.loader.segments) if self.loader else 0,
                         "env": self.env,
                         "host": host_name,  # Windows Computer Name (preserves spaces)
-                        "device_ip": self.local_ip,  # Local IP address for device identification
+                        "device_ip": self.device_ip,  # Public IP address for identification
                         "local_ip": self.local_ip,  # Alias for device_ip
+                        "public_ip_info": self.public_ip_info,
                     }
                     # Add CPU/RAM if psutil is available
                     try:

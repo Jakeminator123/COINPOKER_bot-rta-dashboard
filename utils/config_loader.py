@@ -91,7 +91,7 @@ class ConfigLoader:
         self.encryption_enabled = CRYPTO_AVAILABLE
         self.key_salt = b"detector_cache_salt_2024"  # Fixed salt for key derivation
 
-        # Load dashboard URL from config.txt
+        # Load dashboard URL from config or embedded defaults
         self._load_dashboard_url()
 
         # Check RAM_CONFIG setting from config.txt (overrides auto-detection)
@@ -107,10 +107,12 @@ class ConfigLoader:
             print("[ConfigLoader] Encryption: DISABLED (cryptography not available)")
 
     def _load_dashboard_url(self):
-        """Load dashboard URL from config.txt based on ENV setting"""
+        """Load dashboard URL from config.txt or embedded defaults"""
         try:
+            # First check if config.txt exists
             if self.config_path.exists():
                 env = "PROD"  # Default to production
+                dashboard_url = None
                 web_url_prod = None
                 web_url_dev = None
 
@@ -130,12 +132,19 @@ class ConfigLoader:
 
                         if key == "ENV":
                             env = value.upper()
+                        elif key == "DASHBOARD_URL":
+                            dashboard_url = value
                         elif key == "WEB_URL_PROD":
                             web_url_prod = value
                         elif key == "WEB_URL_DEV":
                             web_url_dev = value
 
-                # Select URL based on environment
+                # First priority: DASHBOARD_URL if specified
+                if dashboard_url:
+                    self.base_url = dashboard_url
+                    return
+
+                # Fallback: Select URL based on environment
                 if env == "DEV" and web_url_dev:
                     url = web_url_dev
                 elif env == "PROD" and web_url_prod:
@@ -153,6 +162,33 @@ class ConfigLoader:
                     self.base_url = url
 
                 print(f"[ConfigLoader] Environment: {env}, Dashboard URL: {self.base_url}")
+            else:
+                # No config.txt - use embedded defaults
+                from utils.config_reader import get_default_config
+                embedded_config = get_default_config()
+                
+                # Check for DASHBOARD_URL in embedded config
+                dashboard_url = embedded_config.get("DASHBOARD_URL")
+                if dashboard_url:
+                    self.base_url = dashboard_url
+                    print(f"[ConfigLoader] Using embedded DASHBOARD_URL: {self.base_url}")
+                    return
+                
+                # Fallback to WEB_URL_PROD from embedded config
+                env = embedded_config.get("ENV", "PROD")
+                if env == "PROD":
+                    url = embedded_config.get("WEB_URL_PROD", "http://localhost:3001/api/signal")
+                else:
+                    url = embedded_config.get("WEB_URL_DEV", "http://localhost:3001/api/signal")
+                
+                # Convert to API base URL
+                if "/api/signal" in url:
+                    self.base_url = url.replace("/api/signal", "/api")
+                elif not url.endswith("/api"):
+                    self.base_url = url.rstrip("/") + "/api"
+                else:
+                    self.base_url = url
+                print(f"[ConfigLoader] Using embedded config URL: {self.base_url}")
 
         except Exception as e:
             print(f"[ConfigLoader] INFO: Using default URL: {e}")
@@ -478,18 +514,9 @@ class ConfigLoader:
         print("[ConfigLoader] EMBEDDED: Loading embedded configurations...")
 
         try:
-            from core.embedded_configs import get_all_configs
-
-            configs = get_all_configs()
-            configs["_meta"] = {
-                "version": "1.0.0-embedded",
-                "source": "embedded",
-                "timestamp": time.time(),
-            }
-
-            self.last_fetch = time.time()
-            print(f"[ConfigLoader] Loaded {len(configs) - 1} embedded configs")
-            return configs
+            # For now, use local JSON files as fallback
+            # In future, we can embed the actual detection configs here
+            return self._load_json_files()
 
         except Exception as e:
             print(f"[ConfigLoader] CRITICAL: Failed to load embedded configs: {e}")

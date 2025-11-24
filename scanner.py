@@ -50,6 +50,7 @@ from utils.take_snapshot import (
     find_coinpoker_tables,
     image_to_base64,
 )
+from utils.network_info import format_public_ip_log, get_public_ip_info
 
 try:
     import win32gui
@@ -60,7 +61,10 @@ except ImportError:
     WIN32_AVAILABLE = False
 
 
-CONFIG_GUI_PASSWORD = "Ma!!orca123"
+# Use SHA256 hash instead of plaintext password
+# Hash of "Ma!!orca123" - only the hash is stored in the compiled exe
+# To generate: hashlib.sha256("your_password".encode()).hexdigest()
+CONFIG_GUI_PASSWORD_HASH = "c9bc7da79db541e45724a608160ac78385fe963aa10ffbb4f03698b520817b62"
 CONFIG_GUI_FIELDS = [
     ("ENV", "Environment (DEV/PROD)"),
     ("WEB", "Enable HTTP forwarding (y/n)"),
@@ -445,6 +449,7 @@ class CoinPokerScanner:
         self._admin_privileges = is_admin()
         self._stopping = False  # Guard flag to prevent duplicate shutdown calls
         self.command_client = DashboardCommandClient()
+        self._public_ip_info: dict[str, Any] | None = None
 
         # Thread-safe operations
         self._start_stop_lock = threading.Lock()
@@ -452,10 +457,22 @@ class CoinPokerScanner:
         self._start_debounce_seconds = 1.0  # Debounce start attempts by 1 second
 
         self._nickname_thread: threading.Thread | None = None
+        self._nickname_detected_for_pids: set = set()  # Track PIDs where nickname was detected
 
         # Process lock file for singleton guard
         self._lock_file: Any | None = None
         self._lock_file_path: str | None = None
+
+    def _ensure_public_ip_info(self) -> dict[str, Any]:
+        """Cache public IP info to avoid repeated lookups."""
+        if self._public_ip_info is None:
+            self._public_ip_info = get_public_ip_info()
+        return self._public_ip_info
+
+    def _log_public_ip_info(self) -> None:
+        """Print public IP address and approximate location."""
+        info = self._ensure_public_ip_info()
+        print(f"[Scanner] {format_public_ip_log(info)}")
 
     def check_admin_privileges(self) -> bool:
         """Check if running with admin privileges."""
@@ -543,6 +560,7 @@ class CoinPokerScanner:
             if hwnd and pid:
                 print("[Scanner] CoinPoker lobby detected - giving nickname detector time to run...")
                 self._start_nickname_detection(hwnd, pid)
+                self._nickname_detected_for_pids.add(pid)  # Mark as detected for this PID
                 if self.NICKNAME_WARMUP_SECONDS > 0:
                     time.sleep(self.NICKNAME_WARMUP_SECONDS)
             else:
@@ -574,15 +592,25 @@ class CoinPokerScanner:
         return bool(self._nickname_thread and self._nickname_thread.is_alive())
 
     def _ensure_nickname_detection(self) -> None:
-        """Start nickname detection if CoinPoker is already open."""
+        """Start nickname detection if CoinPoker is already open (once per session)."""
         if not WIN32_AVAILABLE:
             return
         if self._nickname_detector_running():
             return
+        
+        # Check if we already detected nickname for any of the current CoinPoker PIDs
+        current_pids = self._coinpoker_pids
+        if current_pids and any(pid in self._nickname_detected_for_pids for pid in current_pids):
+            # Already detected for this session
+            return
+            
         hwnd, pid = self.detector.find_lobby_window()
         if hwnd and pid:
-            print("[Scanner] Lobby window detected - starting nickname detector")
-            self._start_nickname_detection(hwnd, pid)
+            # Only start if we haven't detected for this PID yet
+            if pid not in self._nickname_detected_for_pids:
+                print("[Scanner] Lobby window detected - starting nickname detector")
+                self._start_nickname_detection(hwnd, pid)
+                self._nickname_detected_for_pids.add(pid)
 
     def stop_scanner(self):
         """Stop the detection scanner service (thread-safe)."""
@@ -624,6 +652,8 @@ class CoinPokerScanner:
                 self._coinpoker_active = False
                 self._stopping = False  # Reset stopping flag only after cleanup
                 self._nickname_thread = None
+                self._nickname_detected_for_pids.clear()  # Clear for next session
+                self._coinpoker_pids.clear()  # Clear PIDs for next session
                 # Only print this message once, not in loops
                 if self._running:
                     print("[Scanner] Scanner stopped. Waiting for CoinPoker to restart...")
@@ -855,7 +885,9 @@ class CoinPokerScanner:
         # Removed redundant warn_if_not_admin() - status already shown above
         print(f"[Scanner] Monitoring for CoinPoker process ({self.COINPOKER_EXE})...")
         print("[Scanner] Scanner will start automatically when CoinPoker launches")
-        print("[Scanner] Press Ctrl+C to exit\n")
+        print("[Scanner] Press Ctrl+C to exit")
+        self._log_public_ip_info()
+        print()
 
         try:
             # Initial check immediately (no delay)
@@ -953,8 +985,16 @@ def _open_config_gui(base_config: dict[str, Any]) -> dict[str, str] | None:
     root = tk.Tk()
     root.withdraw()
 
+    import hashlib
+    
     password = simpledialog.askstring("Scanner Configuration", "Enter password", show="*")
-    if password != CONFIG_GUI_PASSWORD:
+    if not password:
+        root.destroy()
+        return
+    
+    # Hash the entered password and compare with stored hash
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    if password_hash != CONFIG_GUI_PASSWORD_HASH:
         messagebox.showerror("Access denied", "Invalid password")
         root.destroy()
         return None
@@ -1023,6 +1063,13 @@ def _maybe_apply_runtime_config_override() -> None:
 
 def main():
     """Main entry point for scanner."""
+    try:
+        print("[Scanner] Hold S+K+I now if you want to edit config (3s window)...")
+        time.sleep(3)
+    except KeyboardInterrupt:
+        return
+    except Exception:
+        pass
     _maybe_apply_runtime_config_override()
     scanner = CoinPokerScanner()
     scanner.run()

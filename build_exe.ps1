@@ -1,6 +1,8 @@
 # build_exe.ps1 - Build scanner.py to standalone .exe file
 # PowerShell script for building CoinPoker Scanner executable
 
+Set-Location -Path (Split-Path -Parent $MyInvocation.MyCommand.Path)
+
 Write-Host "===================================================================" -ForegroundColor Cyan
 Write-Host "  BUILDING COINPOKER SCANNER - STANDALONE EXE" -ForegroundColor Cyan
 Write-Host "===================================================================" -ForegroundColor Cyan
@@ -48,6 +50,27 @@ Write-Host "[Build] Building standalone executable..." -ForegroundColor Yellow
 Write-Host "[Build] This may take a few minutes..." -ForegroundColor Yellow
 Write-Host ""
 
+# Embed runtime config
+Write-Host "[Build] Embedding runtime config snapshot..." -ForegroundColor Yellow
+python tools/embed_runtime_config.py
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[ERROR] Failed to embed runtime config" -ForegroundColor Red
+    Read-Host "Press Enter to exit"
+    exit 1
+}
+
+# Verify the embedded config contains the correct URL
+$embeddedFile = "core/runtime_config_embedded.py"
+if (Test-Path $embeddedFile) {
+    $content = Get-Content $embeddedFile -Raw
+    if ($content -match "DASHBOARD_URL=https://bot-rta-dashboard-2.onrender.com/api") {
+        Write-Host "[Build] Verified: Embedded config has correct Render URL" -ForegroundColor Green
+    } else {
+        Write-Host "[WARNING] Embedded config may not have correct URL!" -ForegroundColor Yellow
+        Write-Host "[WARNING] Please check config.txt has DASHBOARD_URL set correctly" -ForegroundColor Yellow
+    }
+}
+
 # Check if icon exists
 $iconFile = "CoinPoker_cropped.ico"
 if (Test-Path $iconFile) {
@@ -79,10 +102,13 @@ else {
         # Core modules
         "core.api", "core.command_client", "core.forwarder", "core.segment_loader",
         "core.redis_forwarder", "core.redis_schema", "core.system_info",
+        "core.device_identity", "core.models", "core.web_forwarder",
+        "core.runtime_config_embedded",
         # Utils modules
         "utils.admin_check", "utils.config_loader", "utils.config_reader", "utils.file_encryption",
         "utils.kill_coinpoker", "utils.signal_logger", "utils.take_snapshot",
         "utils.nickname_detector", "utils.detection_keepalive", "utils.runtime_flags",
+        "utils.network_info",
         # Segment modules (dynamically loaded but need to be discoverable)
         "segments.programs.process_scanner", "segments.programs.hash_and_signature_scanner",
         "segments.programs.content_analyzer", "segments.programs.obfuscation_detector",
@@ -103,10 +129,8 @@ else {
         "config_cache;config_cache"
     )
     
-    # Add config.txt if it exists
-    if (Test-Path "config.txt") {
-        $addData += "config.txt;."
-    }
+    # Note: config.txt is embedded via tools/embed_runtime_config.py
+    # No need to include it as external file
     
     $addDataStr = ($addData | ForEach-Object { "--add-data `"$_`"" }) -join " "
     

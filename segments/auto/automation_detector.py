@@ -78,52 +78,26 @@ def _load_ignored_programs():
         try:
             # Try lightweight ignore endpoint first
             import requests
+            from utils.config_reader import read_config
 
-            # Get web URL from config.txt based on ENV setting
-            web_url = "http://localhost:3001"
-            env = "PROD"
-            web_url_prod = None
-            web_url_dev = None
-
-            config_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                "config.txt",
-            )
-            if os.path.exists(config_path):
-                with open(config_path, encoding="utf-8") as f:
-                    for line in f:
-                        line = line.strip()
-                        if not line or line.startswith("#") or "=" not in line:
-                            continue
-
-                        key, value = line.split("=", 1)
-                        key = key.strip().upper()
-                        value = value.strip()
-
-                        # Remove inline comments
-                        if "#" in value:
-                            value = value.split("#")[0].strip()
-
-                        if key == "ENV":
-                            env = value.upper()
-                        elif key == "WEB_URL_PROD":
-                            web_url_prod = value
-                        elif key == "WEB_URL_DEV":
-                            web_url_dev = value
-                        elif key == "WEB_URL" and value:
-                            # Backward compatibility
-                            web_url_prod = value
-
-            # Select URL based on environment
-            if env == "DEV" and web_url_dev:
-                web_url = web_url_dev.replace("/api/signal", "")
-            elif env == "PROD" and web_url_prod:
-                web_url = web_url_prod.replace("/api/signal", "")
+            # Get dashboard URL from config (or embedded defaults)
+            cfg = read_config()
+            
+            # First check for DASHBOARD_URL (highest priority)
+            dashboard_url = cfg.get("DASHBOARD_URL")
+            if dashboard_url:
+                # Remove /api suffix if present
+                web_url = dashboard_url.rstrip("/api").rstrip("/")
             else:
-                # Fallback
-                web_url = (web_url_prod or web_url_dev or "http://localhost:3001").replace(
-                    "/api/signal", ""
-                )
+                # Fallback to WEB_URL_PROD/DEV based on ENV
+                env = cfg.get("ENV", "PROD")
+                if env == "DEV":
+                    url = cfg.get("WEB_URL_DEV", "https://bot-rta-dashboard-2.onrender.com/api/signal")
+                else:
+                    url = cfg.get("WEB_URL_PROD", "https://bot-rta-dashboard-2.onrender.com/api/signal")
+                
+                # Remove /api/signal suffix to get base URL
+                web_url = url.replace("/api/signal", "")
 
             ignore_url = f"{web_url}/api/configs/ignore"
             response = requests.get(ignore_url, timeout=2)

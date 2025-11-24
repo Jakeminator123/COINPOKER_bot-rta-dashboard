@@ -9,6 +9,12 @@ import os
 import sys
 from typing import Any, Dict, Optional
 
+try:
+    from core.runtime_config_embedded import CONFIG_TEXT as EMBEDDED_CONFIG_TEXT
+except ImportError:
+    EMBEDDED_CONFIG_TEXT = None
+
+
 DEFAULT_CONFIG_TEXT = """# ====================================
 # Bot Detection System Configuration
 # ====================================
@@ -39,6 +45,10 @@ BATCH_LOG_DIR=jay                    # Mapp där batch-loggar sparas (default: b
 WEB=n                                # y=Skicka batchar till dashboardens HTTP-endpoint
 TESTING_JSON=y                       # Lägg till metadata i batches (förklarar systemflödet)
 
+# Dashboard URL för att hämta detection configs (alltid aktiv)
+DASHBOARD_URL=https://bot-rta-dashboard-2.onrender.com/api
+
+# Web forwarder settings (endast om WEB=y)
 #WEB_URL_DEV=http://localhost:3001/api/signal
 WEB_URL_PROD=https://bot-rta-dashboard-2.onrender.com/api/signal
 SIGNAL_TOKEN=detector-secret-token-2024
@@ -104,7 +114,8 @@ def get_default_config() -> dict[str, Any]:
         "ENV": "TEST",
         "HEARTBEAT_SECONDS": 30,
     }
-    for line in DEFAULT_CONFIG_TEXT.splitlines():
+    config_text = EMBEDDED_CONFIG_TEXT or DEFAULT_CONFIG_TEXT
+    for line in config_text.splitlines():
         _apply_config_line(cfg, line)
     return cfg
 
