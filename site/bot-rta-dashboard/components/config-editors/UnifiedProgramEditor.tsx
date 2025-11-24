@@ -229,13 +229,6 @@ export default function UnifiedProgramEditor({ programs, categoryDefinitions, on
       return;
     }
 
-    const token = localStorage.getItem('adminToken');
-    if (!token) {
-      setSaveMessage({ type: 'error', text: 'Admin token required to reset configurations' });
-      setTimeout(() => setSaveMessage(null), 5000);
-      return;
-    }
-
     setIsSaving(true);
     setSaveMessage(null);
 
@@ -244,7 +237,6 @@ export default function UnifiedProgramEditor({ programs, categoryDefinitions, on
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ category: 'programs_registry' })
       });

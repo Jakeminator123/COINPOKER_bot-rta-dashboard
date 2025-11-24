@@ -51,18 +51,9 @@ export default function SHADatabaseViewer() {
       return;
     }
 
-    const token = localStorage.getItem("adminToken");
-    if (!token) {
-      alert("Admin token required to delete entries");
-      return;
-    }
-
     try {
       const response = await fetch(`/api/sha-database?sha256=${sha256}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
       });
 
       if (!response.ok) {

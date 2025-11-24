@@ -6,6 +6,7 @@ import {
   errorResponse,
   corsOptions,
   validateToken,
+  requireAuth,
 } from "@/lib/utils/api-utils";
 
 export const runtime = "nodejs";
@@ -225,16 +226,16 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE: Remove SHA entry
+// DELETE: Remove SHA entry (requires NextAuth session or SIGNAL_TOKEN)
 export async function DELETE(req: NextRequest) {
   try {
+    // First check for SIGNAL_TOKEN (for scanner)
     const tokenValidation = validateToken(req, process.env.SIGNAL_TOKEN);
     if (!tokenValidation.valid) {
-      // Also check admin token
-      const authHeader = req.headers.get("authorization");
-      const adminToken = process.env.ADMIN_TOKEN || "admin-secret-token-2024";
-      if (authHeader !== `Bearer ${adminToken}`) {
-        return errorResponse("Unauthorized", 401);
+      // Check NextAuth session (for dashboard users)
+      const auth = await requireAuth();
+      if (!auth.authenticated) {
+        return auth.response;
       }
     }
 

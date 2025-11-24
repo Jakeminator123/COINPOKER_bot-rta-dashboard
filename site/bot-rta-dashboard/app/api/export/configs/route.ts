@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import * as fs from "fs/promises";
 import path from "path";
-import { successResponse, errorResponse } from "@/lib/utils/api-utils";
+import { successResponse, errorResponse, requireAuth } from "@/lib/utils/api-utils";
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -62,12 +62,10 @@ export async function GET(_request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Import configurations (requires admin token)
-    const token = request.headers.get("Authorization")?.replace("Bearer ", "");
-    const adminToken = process.env.ADMIN_TOKEN || "admin";
-    
-    if (token !== adminToken) {
-      return errorResponse("Unauthorized", 401);
+    // Import configurations (requires authentication)
+    const auth = await requireAuth();
+    if (!auth.authenticated) {
+      return auth.response;
     }
     
     const body = await request.json();

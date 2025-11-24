@@ -1,20 +1,17 @@
 import { NextRequest } from 'next/server';
 import * as fs from 'fs/promises';
 import path from 'path';
-import { successResponse, errorResponse, validateToken, parseJsonBody, type ConfigResetRequest } from '@/lib/utils/api-utils';
+import { successResponse, errorResponse, requireAuth, parseJsonBody, type ConfigResetRequest } from '@/lib/utils/api-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Admin token (should be in environment variable in production)
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'admin-secret-2024';
-
 export async function POST(request: NextRequest) {
   try {
-    // Check authorization
-    const tokenValidation = validateToken(request, ADMIN_TOKEN);
-    if (!tokenValidation.valid) {
-      return errorResponse(tokenValidation.error || 'Unauthorized', 401);
+    // Check authentication via NextAuth session
+    const auth = await requireAuth();
+    if (!auth.authenticated) {
+      return auth.response;
     }
 
     // Parse request body safely

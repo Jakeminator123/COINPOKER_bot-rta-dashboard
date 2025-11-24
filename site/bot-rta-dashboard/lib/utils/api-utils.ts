@@ -185,3 +185,34 @@ export function getClientIP(request: Request): string {
   return 'unknown';
 }
 
+/**
+ * Validate NextAuth session for API routes
+ * Returns the session if valid, null otherwise
+ */
+export async function getServerSession() {
+  // Dynamic import to avoid issues with server components
+  const { getServerSession: getSession } = await import('next-auth');
+  const { authConfig } = await import('@/lib/utils/auth');
+  return getSession(authConfig);
+}
+
+/**
+ * Require authentication for API route
+ * Returns error response if not authenticated
+ */
+export async function requireAuth(): Promise<{ authenticated: true; user: string } | { authenticated: false; response: NextResponse }> {
+  const session = await getServerSession();
+  
+  if (!session?.user?.name) {
+    return {
+      authenticated: false,
+      response: errorResponse('Authentication required. Please log in.', 401),
+    };
+  }
+  
+  return {
+    authenticated: true,
+    user: session.user.name,
+  };
+}
+

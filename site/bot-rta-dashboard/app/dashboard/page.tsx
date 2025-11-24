@@ -1040,20 +1040,11 @@ function EnhancedDashboardContent() {
 
   // Ignore detection function
   const handleIgnoreDetection = useCallback(async (detection: any) => {
-    const token = localStorage.getItem("adminToken");
-    if (!token) {
-      alert(
-        "Admin token required. Please go to Settings and log in as admin first."
-      );
-      return;
-    }
-
     try {
       const response = await fetch("/api/configs/update", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           category: "programs",
@@ -1066,11 +1057,11 @@ function EnhancedDashboardContent() {
 
       if (response.ok) {
         console.log(`Added ${detection.name} to ignore list`);
-        // Show success feedback
         alert(`Added "${detection.name}" to ignore list`);
       } else {
-        console.error("Failed to add to ignore list");
-        alert("Failed to add to ignore list. Please check admin token.");
+        const data = await response.json();
+        console.error("Failed to add to ignore list:", data.error);
+        alert(`Failed to add to ignore list: ${data.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error("Error adding to ignore list:", error);

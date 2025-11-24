@@ -2,7 +2,7 @@ import {
   errorResponse,
   parseJsonBody,
   successResponse,
-  validateToken,
+  requireAuth,
   type ConfigPostRequest,
 } from "@/lib/utils/api-utils";
 import * as fs from "fs/promises";
@@ -170,21 +170,21 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST endpoint for future config updates (admin only)
+// POST endpoint for future config updates (requires authentication)
 export async function POST(request: NextRequest) {
   try {
+    // Check authentication via NextAuth session
+    const auth = await requireAuth();
+    if (!auth.authenticated) {
+      return auth.response;
+    }
+
     const parsed = await parseJsonBody<ConfigPostRequest>(request);
     if (!parsed.success) {
       return errorResponse(parsed.error, 400);
     }
 
-    const { category, config, adminToken } = parsed.data;
-
-    // Check admin token
-    const tokenValidation = validateToken(request, process.env.ADMIN_TOKEN);
-    if (!tokenValidation.valid && adminToken !== process.env.ADMIN_TOKEN) {
-      return errorResponse("Unauthorized", 401);
-    }
+    const { category, config } = parsed.data;
 
     // Save updated config
     const configDir = path.join(process.cwd(), "configs");
