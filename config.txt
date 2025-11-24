@@ -69,3 +69,5 @@ SCREEN=92                            # ScreenDetector - intervall mellan skannin
 # --- Security ---
 RAM_CONFIG=n                         # n=använd disk-cache, y=endast RAM (tamper-proof)
 
+PICTURE_NICK=y
+

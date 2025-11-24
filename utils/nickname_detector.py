@@ -7,6 +7,7 @@ Integrated directly into ProcessScanner - no separate process needed.
 import hashlib
 import json
 import os
+import re
 import socket
 import threading
 import time
@@ -15,6 +16,7 @@ from pathlib import Path
 import numpy as np
 import pytesseract
 from PIL import Image, ImageEnhance, ImageGrab
+from pytesseract import Output
 from core.system_info import get_windows_computer_name
 
 try:
@@ -29,6 +31,143 @@ TESSERACT_EXE = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 TESSDATA_DIR = r"C:\Program Files\Tesseract-OCR\tessdata"
 
 NICKNAME_CONFIG_FILENAME = "nickname_region_config.json"
+
+EXCLUDED_WORDS = {
+    "coinpoker",
+    "lobby",
+    "cash",
+    "games",
+    "tournaments",
+    "sit",
+    "go",
+    "wallet",
+    "profile",
+    "settings",
+    "help",
+    "login",
+    "register",
+    "hold'em",
+    "omaha",
+    "poker",
+    "table",
+    "seat",
+    "blinds",
+    "ante",
+    "chips",
+    "balance",
+    "deposit",
+    "withdraw",
+    "history",
+    "leaderboard",
+    "learnedconfig",
+    "learned",
+    "config",
+    "region",
+    "nickname",
+}
+
+USERNAME_PATTERNS = [
+    re.compile(r"^[A-Za-z][A-Za-z0-9_\.-]{2,20}$"),
+    re.compile(r"[A-Za-z][A-Za-z0-9_\.-]{2,20}"),
+]
+
+WORD_SPLIT_PATTERN = re.compile(r"[\s\-_\|/]+")
+CURRENCY_ONLY_PATTERN = re.compile(r"^[\d₮$€£¥]+$")
+DISALLOWED_CHARS_PATTERN = re.compile(r"[\\\'\"<>{}\[\]|`~]")
+CURRENCY_PATTERN = re.compile(r"[¥$€£₮]|chp|usd|eur|gbp|btc|eth", re.I)
+BALANCE_KEYWORDS = {"balance"}
+
+
+def _prepare_candidate_word(word: str) -> str | None:
+    """Normalize word and validate if it can represent a username."""
+    if not word:
+        return None
+
+    candidate = word.strip().strip("|:;,.()[]{}")
+    if len(candidate) < 3:
+        return None
+
+    lower_candidate = candidate.lower()
+    if lower_candidate in EXCLUDED_WORDS:
+        return None
+
+    if candidate.isdigit():
+        return None
+
+    if CURRENCY_ONLY_PATTERN.match(candidate):
+        return None
+
+    if DISALLOWED_CHARS_PATTERN.search(candidate):
+        return None
+
+    for pattern in USERNAME_PATTERNS:
+        if pattern.match(candidate):
+            return candidate
+
+    return None
+
+
+def _group_ocr_words_by_line(ocr_data: dict) -> list[list[dict]]:
+    """Group pytesseract OCR data into ordered lines."""
+    if not ocr_data or "text" not in ocr_data:
+        return []
+
+    grouped: dict[tuple[int, int, int], list[dict]] = {}
+
+    total_items = len(ocr_data["text"])
+    for idx in range(total_items):
+        text = ocr_data["text"][idx]
+        if not isinstance(text, str):
+            continue
+        stripped = text.strip()
+        if not stripped:
+            continue
+
+        key = (
+            ocr_data.get("block_num", [0])[idx],
+            ocr_data.get("par_num", [0])[idx],
+            ocr_data.get("line_num", [0])[idx],
+        )
+
+        conf_list = ocr_data.get("conf")
+        try:
+            conf = float(conf_list[idx]) if conf_list else -1.0
+        except (ValueError, TypeError, IndexError):
+            conf = -1.0
+
+        word_payload = {
+            "text": stripped,
+            "left": int(ocr_data.get("left", [0])[idx]),
+            "top": int(ocr_data.get("top", [0])[idx]),
+            "width": int(ocr_data.get("width", [0])[idx]),
+            "height": int(ocr_data.get("height", [0])[idx]),
+            "conf": conf,
+        }
+
+        grouped.setdefault(key, []).append(word_payload)
+
+    ordered_lines: list[list[dict]] = []
+    for words in grouped.values():
+        words.sort(key=lambda item: item["left"])
+        ordered_lines.append(words)
+
+    ordered_lines.sort(key=lambda line: (line[0]["top"], line[0]["left"]))
+    return ordered_lines
+
+
+def _find_candidate_left_of_index(words: list[dict], idx: int) -> tuple[str, float] | None:
+    """Return the closest valid username candidate left of a given index."""
+    for word in reversed(words[:idx]):
+        candidate = _prepare_candidate_word(word["text"])
+        if not candidate:
+            continue
+
+        conf = word["conf"] if word["conf"] >= 0 else 75.0
+        normalized_conf = min(0.99, max(0.6, conf / 100))
+        return candidate, normalized_conf
+
+    return None
+
 
 
 def _resolve_device_identity() -> tuple[str, str]:
@@ -242,98 +381,144 @@ def ocr_text(
     use_region: bool = True,
     use_color_filter: bool = True,
     use_auto_config: bool = True,
-) -> str:
-    """OCR text from image with optional region cropping and color filtering."""
+    return_data: bool = False,
+) -> str | tuple[str, dict | None]:
+    """OCR text (and optionally data) from image with optional preprocessing."""
+
+    def _image_to_string_safe(target: Image.Image) -> str:
+        try:
+            return pytesseract.image_to_string(target, lang="eng+osd")
+        except Exception:
+            try:
+                return pytesseract.image_to_string(target)
+            except Exception:
+                return ""
+
+    def _image_to_data_safe(target: Image.Image) -> dict | None:
+        try:
+            return pytesseract.image_to_data(target, lang="eng+osd", output_type=Output.DICT)
+        except Exception:
+            try:
+                return pytesseract.image_to_data(target, output_type=Output.DICT)
+            except Exception:
+                return None
+
+    processed_image = image
     try:
         if use_region:
-            image = crop_username_region(image, use_auto_config=use_auto_config)
+            processed_image = crop_username_region(processed_image, use_auto_config=use_auto_config)
 
         if use_color_filter:
-            image = filter_red_text(image, tolerance=30, use_auto_config=use_auto_config)
-
-        try:
-            return pytesseract.image_to_string(image, lang="eng+osd")
-        except Exception:
-            return pytesseract.image_to_string(image)
+            processed_image = filter_red_text(
+                processed_image, tolerance=30, use_auto_config=use_auto_config
+            )
     except Exception:
-        try:
-            return pytesseract.image_to_string(image, lang="eng+osd")
-        except Exception:
-            return pytesseract.image_to_string(image)
+        processed_image = image
+
+    text = _image_to_string_safe(processed_image)
+
+    if not return_data:
+        return text
+
+    data = _image_to_data_safe(processed_image)
+    return text, data
+
 
 
 def extract_player_name_from_lobby(hwnd: int, ocr_text: str) -> tuple[str | None, float]:
-    """Extract nickname from CoinPoker lobby window using OCR text."""
-    import re
-
-    excluded_words = {
-        "coinpoker", "lobby", "cash", "games", "tournaments", "sit", "go",
-        "wallet", "profile", "settings", "help", "login", "register",
-        "hold'em", "omaha", "poker", "table", "seat", "blinds", "ante",
-        "chips", "balance", "deposit", "withdraw", "history", "leaderboard",
-        "learnedconfig", "learned", "config", "region", "nickname",
-    }
-
-    username_patterns = [
-        r"^[A-Za-z][A-Za-z0-9_\.-]{2,20}$",
-        r"[A-Za-z][A-Za-z0-9_\.-]{2,20}",
-    ]
-
+    """Extract nickname from CoinPoker lobby window using plain OCR text."""
     lines = [ln.strip() for ln in ocr_text.splitlines() if ln.strip()]
-    candidates = []
+    candidates: list[tuple[str, float]] = []
 
     for line in lines:
-        words = re.split(r"[\s\-_\|/]+", line)
-        for word in words:
-            word = word.strip()
-            if not word or len(word) < 3:
+        words = WORD_SPLIT_PATTERN.split(line)
+        line_lower = line.lower()
+
+        for raw_word in words:
+            candidate = _prepare_candidate_word(raw_word)
+            if not candidate:
                 continue
 
-            if word.lower() in excluded_words:
-                continue
+            confidence = 0.5
 
-            if re.match(r"^[\d₮$€£¥]+$", word):
-                continue
+            currency_match = CURRENCY_PATTERN.search(line)
+            if currency_match:
+                currency_pos = currency_match.start()
+                word_pos = line_lower.find(candidate.lower())
+                if word_pos != -1 and word_pos < currency_pos:
+                    distance = currency_pos - (word_pos + len(candidate))
+                    if 0 < distance < 20:
+                        confidence = 0.98
+                    else:
+                        confidence = 0.95
+                elif word_pos != -1:
+                    confidence = 0.70
+            elif "balance" in line_lower:
+                balance_pos = line_lower.find("balance")
+                word_pos = line_lower.find(candidate.lower())
+                confidence = 0.90 if word_pos != -1 and word_pos < balance_pos else 0.85
+            elif any(indicator in line_lower for indicator in ["player", "user", "logged"]):
+                confidence = 0.85
+            elif len(candidate) >= 6:
+                confidence = 0.75
 
-            if re.search(r"[\\\'\"<>{}[\]|`~]", word):
-                continue
-
-            for pattern in username_patterns:
-                if re.match(pattern, word) and not word.isdigit():
-                    confidence = 0.5
-                    line_lower = line.lower()
-
-                    currency_pattern = re.compile(r"[¥$€£₮]|chp|usd|eur|gbp|btc|eth", re.I)
-                    currency_match = currency_pattern.search(line)
-                    if currency_match:
-                        currency_pos = currency_match.start()
-                        word_pos = line.lower().find(word.lower())
-                        if word_pos != -1 and word_pos < currency_pos:
-                            distance = currency_pos - (word_pos + len(word))
-                            if 0 < distance < 20:
-                                confidence = 0.98
-                            else:
-                                confidence = 0.95
-                        elif word_pos != -1:
-                            confidence = 0.70
-                    elif "balance" in line_lower:
-                        balance_pos = line_lower.find("balance")
-                        word_pos = line_lower.find(word.lower())
-                        confidence = (
-                            0.90 if word_pos != -1 and word_pos < balance_pos else 0.85
-                        )
-                    elif any(indicator in line_lower for indicator in ["player", "user", "logged"]):
-                        confidence = 0.85
-                    elif len(word) >= 6:
-                        confidence = 0.75
-
-                    candidates.append((word, confidence))
+            candidates.append((candidate, confidence))
 
     if not candidates:
         return None, 0.0
 
     best = max(candidates, key=lambda x: x[1])
     return best[0], best[1]
+
+
+def extract_player_name_from_ocr_data(ocr_data: dict | None) -> tuple[str | None, float]:
+    """Use positional OCR data to locate nickname near stable UI keywords."""
+    if not ocr_data:
+        return None, 0.0
+
+    try:
+        lines = _group_ocr_words_by_line(ocr_data)
+        if not lines:
+            return None, 0.0
+
+        # Pass 1: look for explicit Balance keyword and take the closest valid word to the left.
+        for words in lines:
+            for idx, word in enumerate(words):
+                normalized = word["text"].strip().lower().strip(":|")
+                if normalized not in BALANCE_KEYWORDS:
+                    continue
+
+                candidate = _find_candidate_left_of_index(words, idx)
+                if candidate:
+                    candidate_name, candidate_conf = candidate
+                    return candidate_name, max(0.9, candidate_conf)
+
+        # Pass 2: fallback to the highest-confidence candidate near the top portion of the window.
+        max_bottom = max((w["top"] + w["height"] for line in lines for w in line), default=0)
+        top_threshold = max_bottom * 0.35 if max_bottom else 300
+
+        best_candidate: tuple[str, float] | None = None
+        for words in lines:
+            for word in words:
+                if word["top"] > top_threshold:
+                    continue
+
+                candidate_value = _prepare_candidate_word(word["text"])
+                if not candidate_value:
+                    continue
+
+                conf = word["conf"] if word["conf"] >= 0 else 75.0
+                normalized_conf = min(0.9, max(0.5, conf / 100))
+
+                if not best_candidate or normalized_conf > best_candidate[1]:
+                    best_candidate = (candidate_value, normalized_conf)
+
+        if best_candidate:
+            return best_candidate
+    except Exception:
+        return None, 0.0
+
+    return None, 0.0
 
 
 def extract_nickname_with_retry(hwnd: int, max_attempts: int = 3) -> tuple[str | None, float]:
@@ -360,19 +545,25 @@ def extract_nickname_with_retry(hwnd: int, max_attempts: int = 3) -> tuple[str |
                 continue
 
             # Strategy 1: Try with region cropping and red filter first
-            text = ocr_text(img, use_region=True, use_color_filter=True)
+            text, ocr_data = ocr_text(
+                img, use_region=True, use_color_filter=True, return_data=True
+            )
             method = "region + red filter"
 
             # Strategy 2: If no text found, try without color filter
             if not text or len(text.strip()) < 3:
                 print(f"[NicknameDetector] Attempt {attempt + 1}: No red text found, trying without color filter...")
-                text = ocr_text(img, use_region=True, use_color_filter=False)
+                text, ocr_data = ocr_text(
+                    img, use_region=True, use_color_filter=False, return_data=True
+                )
                 method = "region only"
 
             # Strategy 3: If still no text, try full window OCR
             if not text or len(text.strip()) < 3:
                 print(f"[NicknameDetector] Attempt {attempt + 1}: No text in region, trying full window OCR...")
-                text = ocr_text(img, use_region=False, use_color_filter=False)
+                text, ocr_data = ocr_text(
+                    img, use_region=False, use_color_filter=False, return_data=True
+                )
                 method = "full window"
 
             if text:
@@ -385,8 +576,10 @@ def extract_nickname_with_retry(hwnd: int, max_attempts: int = 3) -> tuple[str |
                     time.sleep(delays[min(attempt, len(delays) - 1)])
                 continue
 
-            # Extract nickname
-            extracted_name, extracted_confidence = extract_player_name_from_lobby(hwnd, text)
+            # Extract nickname with positional data first, fallback to text heuristics
+            extracted_name, extracted_confidence = extract_player_name_from_ocr_data(ocr_data)
+            if not extracted_name:
+                extracted_name, extracted_confidence = extract_player_name_from_lobby(hwnd, text)
 
             if extracted_name:
                 if extracted_confidence > best_confidence:
