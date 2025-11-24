@@ -83,7 +83,38 @@ export default function UnifiedProgramEditor({ programs, categoryDefinitions, on
 
   const typeOptions = ['bot', 'rta', 'solver', 'macro', 'script', 'hud', 'messenger', 'clicker', 'rpa', 'bot_framework'];
 
+  // Validate that key is a valid .exe process name, not a website
+  const validateProcessName = (key: string): { valid: boolean; error?: string } => {
+    const keyLower = key.toLowerCase().trim();
+    
+    // Check for web URLs
+    if (keyLower.includes('.com') || keyLower.includes('.net') || keyLower.includes('.org') || 
+        keyLower.includes('.io') || keyLower.includes('://') || keyLower.includes('www.')) {
+      return { 
+        valid: false, 
+        error: '⚠️ This looks like a website URL. Websites should be added in "Network Threats" section, not here. This section is for .exe programs only.' 
+      };
+    }
+    
+    // Check for valid process name format
+    if (!/^[a-zA-Z0-9_\-.]+$/.test(keyLower)) {
+      return { 
+        valid: false, 
+        error: 'Process name can only contain letters, numbers, underscores, hyphens, and dots.' 
+      };
+    }
+    
+    return { valid: true };
+  };
+
   const handleAdd = () => {
+    // Validate process name first
+    const validation = validateProcessName(formData.key);
+    if (!validation.valid) {
+      setSaveMessage({ type: 'error', text: validation.error || 'Invalid process name' });
+      return;
+    }
+    
     if (formData.key && formData.label && formData.categories.length > 0) {
       const newPrograms = {
         ...programs,
@@ -456,7 +487,7 @@ export default function UnifiedProgramEditor({ programs, categoryDefinitions, on
                 />
               </div>
               <div>
-                <label className="block text-sm text-slate-400 mb-1 flex items-center gap-1.5">
+                <label className="text-sm text-slate-400 mb-1 flex items-center gap-1.5">
                   Threat Level
                   <Tooltip
                     content="Points assigned to detected programs: 0 (INFO) = informational only, 5 (WARN) = suspicious tools, 10 (ALERT) = RTA tools/macros, 15 (CRITICAL) = known bots/high-risk automation. Higher points = higher threat score."

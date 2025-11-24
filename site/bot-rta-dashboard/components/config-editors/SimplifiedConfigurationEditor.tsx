@@ -18,13 +18,17 @@ interface SimplifiedConfigurationEditorProps {
 }
 
 // Mapping from Simplified Configuration presets to Advanced Configuration sections
+// NOTE: Group IDs must match SETTINGS_GROUPS in AdvancedSettingsEditor.tsx:
+//   - "threats" (was "detection_rules") - Threat Database
+//   - "detection_methods" (was "detection_settings") - Detection Methods
+//   - "system" - System Reference
 const ADVANCED_SECTION_MAP: Record<string, { group: string; section: string }> = {
-  detection_sensitivity: { group: "detection_settings", section: "behaviour" },
-  program_detection: { group: "detection_rules", section: "programs_registry" },
-  behaviour_detection: { group: "detection_settings", section: "behaviour" },
-  network_detection: { group: "detection_settings", section: "network" },
-  screen_detection: { group: "detection_settings", section: "screen" },
-  vm_detection: { group: "detection_settings", section: "vm" },
+  detection_sensitivity: { group: "detection_methods", section: "behaviour" },
+  program_detection: { group: "threats", section: "programs_registry" },
+  behaviour_detection: { group: "detection_methods", section: "behaviour" },
+  network_detection: { group: "threats", section: "network_threats" },
+  screen_detection: { group: "detection_methods", section: "screen" },
+  vm_detection: { group: "detection_methods", section: "vm" },
 };
 
 // Simplified presets - easy to understand settings

@@ -54,12 +54,20 @@ class TrafficMonitor(BaseSegment):
         self._group_window = apply_cooldown(30.0)  # Group similar alerts within scaled window
 
         # Suspicious ports and services from config
-        self.suspicious_ports = {
-            int(k): v for k, v in self.config["traffic_monitoring"]["suspicious_ports"].items()
-        }
+        # Handle both old format (string) and new format (dict with label/description)
+        raw_ports = self.config["traffic_monitoring"]["suspicious_ports"]
+        self.suspicious_ports = {}
+        for k, v in raw_ports.items():
+            port = int(k)
+            if isinstance(v, dict):
+                # New format: {"label": "RTMP", "description": "Streaming protocol"}
+                self.suspicious_ports[port] = v.get("label", str(port))
+            else:
+                # Old format: "RTMP (Streaming)"
+                self.suspicious_ports[port] = v
 
-        # Suspicious remote IPs/domains from config
-        self.suspicious_domains = self.config["traffic_monitoring"]["suspicious_domains"]
+        # Suspicious remote IPs/domains from config (optional, may not exist in new structure)
+        self.suspicious_domains = self.config["traffic_monitoring"].get("suspicious_domains", {})
 
         # Load poker sites from shared config
         poker_config = self.shared_config.get("poker_sites", {})
@@ -93,58 +101,34 @@ class TrafficMonitor(BaseSegment):
         except Exception as e:
             print(f"[TrafficMonitor] WARNING: Config load failed: {e}")
 
-        # Return default config
+        # Return default config matching new structure
         return {
             "traffic_monitoring": {
                 "interval_s": 92.0,
                 "alert_cooldown": 30.0,
                 "connections_cache_ttl": 3.0,
-                "protected_poker_process": "game.exe",
-                "other_poker_processes": [
-                    "pokerstars",
-                    "ggpoker",
-                    "888poker",
-                    "partypoker",
-                    "winamax",
-                    "pokerbros",
-                    "wsop",
-                ],
                 "suspicious_ports": {
-                    "3389": "RDP (Remote Desktop)",
-                    "5900": "VNC",
-                    "8291": "TeamViewer",
-                    "7070": "AnyDesk",
-                    "1935": "RTMP (Streaming)",
-                    "5960": "NDI (Video)",
-                    "5961": "NDI (Video)",
-                    "3478": "STUN/WebRTC",
-                    "19302": "Google STUN",
-                    "25565": "Minecraft (bot hosting)",
-                    "27015": "Source Engine",
-                },
-                "suspicious_domains": {
-                    "telegram": "Telegram API",
-                    "discord": "Discord API",
-                    "teamviewer": "TeamViewer",
-                    "anydesk": "AnyDesk",
-                    "api.openai": "AI Service",
-                    "googleapis": "Google API",
-                    ".ru": "Russian Domain",
-                    ".cn": "Chinese Domain",
-                    "tor2web": "Tor Gateway",
-                    "ngrok": "Tunnel Service",
-                    "serveo": "Tunnel Service",
+                    "1935": {"label": "RTMP", "description": "Streaming protocol"},
+                    "3389": {"label": "RDP", "description": "Remote Desktop Protocol"},
+                    "3478": {"label": "STUN/WebRTC", "description": "WebRTC signaling"},
+                    "5900": {"label": "VNC", "description": "Virtual Network Computing"},
+                    "5960": {"label": "NDI", "description": "Network Device Interface video"},
+                    "5961": {"label": "NDI", "description": "Network Device Interface video"},
+                    "7070": {"label": "AnyDesk", "description": "AnyDesk remote access"},
+                    "8291": {"label": "TeamViewer", "description": "TeamViewer remote access"},
                 },
                 "communication_apps": {
                     "telegram.exe": {
-                        "name": "Telegram",
-                        "risk": "WARN",
-                        "desc": "Bot control channel?",
+                        "label": "Telegram",
+                        "status": "WARN",
+                        "points": 5,
+                        "description": "Potential bot control channel",
                     },
                     "discord.exe": {
-                        "name": "Discord",
-                        "risk": "INFO",
-                        "desc": "Communication app",
+                        "label": "Discord",
+                        "status": "INFO",
+                        "points": 0,
+                        "description": "Communication app",
                     },
                 },
             }
@@ -357,7 +341,7 @@ class TrafficMonitor(BaseSegment):
                     status = "INFO"
                     desc = "Communication apps detected"
 
-                app_names = ", ".join(app["name"] for _, app in active_comm_apps)
+                app_names = ", ".join(app.get("label", app.get("name", "Unknown")) for _, app in active_comm_apps)
                 self._emit_grouped_alert(
                     "Communication Apps", status, f"{app_names} | {desc}", "communication"
                 )

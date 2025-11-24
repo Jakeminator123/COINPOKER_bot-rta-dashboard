@@ -27,6 +27,14 @@ try:
 except ImportError:
     requests = None
 
+# Try to import VT Redis cache
+try:
+    from utils.virustotal_cache import get_vt_cache
+    VT_CACHE_AVAILABLE = True
+except ImportError:
+    VT_CACHE_AVAILABLE = False
+    get_vt_cache = None
+
 
 # Read settings from config.txt
 def _load_config_txt_settings():
@@ -212,13 +220,46 @@ class HashAndSignatureScanner(BaseSegment):
         self._process_cooldown = apply_cooldown(15.0)  # Scaled process spam guard
 
         # VirusTotal integration with improved rate limiting
+        # Load VT settings from programs_config.json
+        vt_config = _config.get("virustotal", {})
+        self._vt_enabled = vt_config.get("enabled", True)
         self._vt_checked_hashes: dict[str, float] = {}  # hash -> last_check_time
-        self._vt_cache_duration = apply_cooldown(86400.0)  # Scaled VT cache duration
+        
+        # Cache duration from config (default 24 hours)
+        cache_hours = vt_config.get("cache", {}).get("duration_hours", 24)
+        self._vt_cache_duration = apply_cooldown(cache_hours * 3600.0)
+        
         self._last_vt_request = 0.0
+        
+        # Rate limiting from config (default 20 seconds for free tier)
+        rate_config = vt_config.get("rate_limiting", {})
+        min_interval = rate_config.get("min_interval_seconds", 20)
         self._min_vt_interval = apply_cooldown(
-            20.0, minimum=5.0, allow_zero=False
-        )  # Guard for VT rate limiting
+            float(min_interval), minimum=15.0, allow_zero=False
+        )  # Guard for VT rate limiting - minimum 15s to be safe
+        
+        # Detection thresholds from config
+        threshold_config = vt_config.get("detection_thresholds", {})
+        self._vt_malware_threshold = threshold_config.get("malware_critical", 5)
+        self._vt_suspicious_threshold = threshold_config.get("suspicious_warn", 2)
+        
+        # Poker keywords from config
+        poker_kw_config = vt_config.get("poker_keywords", {})
+        self._vt_poker_keywords = poker_kw_config.get("terms", [
+            "poker", "bot", "rta", "solver", "gto", "holdem", "cardbot", "pokerbot"
+        ])
+        
         self._vt_priority_queue = []  # Queue for high-priority processes (bots/RTAs)
+
+        # Redis cache for sharing VT results with dashboard
+        self._vt_redis_cache = None
+        if VT_CACHE_AVAILABLE:
+            try:
+                self._vt_redis_cache = get_vt_cache()
+                if self._vt_redis_cache and self._vt_redis_cache.enabled:
+                    print("[HashAndSignatureScanner] Redis VT cache enabled - sharing results with dashboard")
+            except Exception as e:
+                print(f"[HashAndSignatureScanner] Redis VT cache unavailable: {e}")
 
         # Online reputation cache
         self._online_cache: dict[str, tuple[float, dict]] = {}
@@ -249,12 +290,15 @@ class HashAndSignatureScanner(BaseSegment):
         print(
             f"[HashAndSignatureScanner] Initialized with {len(self._ioc)} bad hashes from config, {len(self._allowlist)} allowlisted"
         )
-        if self._vt_api_key:
+        if self._vt_api_key and self._vt_enabled:
             print(
-                f"[HashAndSignatureScanner] VirusTotal API configured - {self._min_vt_interval}s rate limit"
+                f"[HashAndSignatureScanner] VirusTotal API ENABLED - {self._min_vt_interval}s rate limit, "
+                f"cache {self._vt_cache_duration/3600:.0f}h, malware threshold: {self._vt_malware_threshold}+ detections"
             )
+        elif not self._vt_enabled:
+            print("[HashAndSignatureScanner] VirusTotal API disabled in config")
         else:
-            print("[HashAndSignatureScanner] VirusTotal API disabled (no key)")
+            print("[HashAndSignatureScanner] VirusTotal API disabled (no key in config.txt)")
 
     def _load_config(self):
         """Load configuration from config.txt"""
@@ -634,22 +678,69 @@ class HashAndSignatureScanner(BaseSegment):
         )
 
     def _check_virustotal_hash(self, sha256: str, process_name: str) -> dict[str, Any] | None:
-        """Check hash against VirusTotal database with strict 20-second rate limiting"""
+        """Check hash against VirusTotal database with configurable rate limiting.
+        
+        Cache hierarchy:
+        1. Redis cache (shared with dashboard) - checked first
+        2. Local file cache - fallback
+        3. VirusTotal API - if not cached
+        
+        Rate limiting: Free tier allows 4 requests/minute (15s between requests).
+        We use 20s by default for safety margin. Rate limit is shared via Redis.
+        
+        Returns detection info dict or None if clean/cached/rate-limited.
+        """
         now = time.time()
 
-        # STRICT rate limiting - 20 seconds minimum between ANY VT requests
-        if now - self._last_vt_request < self._min_vt_interval:
-            print(
-                f"[VT] Rate limit: {self._min_vt_interval - (now - self._last_vt_request):.1f}s remaining"
-            )
+        # Check if VT is enabled
+        if not self._vt_enabled:
             return None
 
-        # Check if already scanned recently (longer cache for efficiency)
-        if sha256 in self._vt_checked_hashes:
-            if now - self._vt_checked_hashes[sha256] < self._vt_cache_duration:
+        # Check Redis cache first (shared with dashboard)
+        if self._vt_redis_cache and self._vt_redis_cache.enabled:
+            cached = self._vt_redis_cache.get_cached_result(sha256)
+            if cached:
+                status = cached.get("status", "")
+                if status in ("malicious", "suspicious"):
+                    print(f"[VT] Redis cache hit: {process_name} -> {status}")
+                    self._vt_redis_cache.update_stats(cached, from_cache=True)
+                    return {
+                        "label": cached.get("label", process_name),
+                        "points": cached.get("points", 5),
+                        "reason": f"(cached) {cached.get('reason', '')}",
+                    }
+                elif status == "clean":
+                    if input_debug == "1":
+                        print(f"[VT] Redis cache hit: {process_name} -> clean")
+                    self._vt_redis_cache.update_stats(cached, from_cache=True)
+                    return None
+                # For unknown/error, we might want to retry
+
+        # Check shared rate limiting via Redis
+        if self._vt_redis_cache and self._vt_redis_cache.enabled:
+            can_request, wait_time = self._vt_redis_cache.can_make_request()
+            if not can_request:
+                if input_debug == "1":
+                    print(f"[VT] Shared rate limit: {wait_time:.1f}s remaining")
+                return None
+        else:
+            # Fallback to local rate limiting
+            time_since_last = now - self._last_vt_request
+            if time_since_last < self._min_vt_interval:
+                remaining = self._min_vt_interval - time_since_last
+                if input_debug == "1":
+                    print(f"[VT] Local rate limit: {remaining:.1f}s remaining")
                 return None
 
-        print(f"[VT] Checking {process_name} (hash: {sha256[:12]}...) - ONE process per detection")
+        # Check local cache (fallback)
+        if sha256 in self._vt_checked_hashes:
+            cache_age = now - self._vt_checked_hashes[sha256]
+            if cache_age < self._vt_cache_duration:
+                if input_debug == "1":
+                    print(f"[VT] Local cache hit for {process_name} (cached {cache_age/3600:.1f}h ago)")
+                return None
+
+        print(f"[VT] Checking {process_name} (hash: {sha256[:16]}...)")
 
         try:
             headers = {"x-apikey": self._vt_api_key, "Accept": "application/json"}
@@ -663,15 +754,34 @@ class HashAndSignatureScanner(BaseSegment):
             self._last_vt_request = now
             self._vt_checked_hashes[sha256] = now
             self._save_vt_cache()
+            
+            # Record request in shared Redis rate limiter
+            if self._vt_redis_cache and self._vt_redis_cache.enabled:
+                self._vt_redis_cache.record_request()
+
+            if response.status_code == 429:
+                # Rate limited by VT - back off
+                print("[VT] WARNING: Rate limited by VirusTotal! Backing off...")
+                self._last_vt_request = now + 60  # Extra 60s backoff
+                return None
 
             if response.status_code == 404:
-                # File not in VirusTotal database
-                print(f"[VT] {process_name} not found in VT database (could be custom/new)")
-                return {
+                # File not in VirusTotal database - could be custom malware
+                print(f"[VT] {process_name} NOT FOUND in VT database (could be custom/new malware)")
+                result = {
+                    "hash": sha256,
+                    "status": "unknown",
+                    "severity": "WARN",
                     "label": f"Unknown File: {process_name}",
                     "points": 5,
-                    "reason": "Not in VirusTotal database",
+                    "reason": "Not in VirusTotal database - unknown file",
+                    "checkedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 }
+                # Cache in Redis for dashboard
+                if self._vt_redis_cache and self._vt_redis_cache.enabled:
+                    self._vt_redis_cache.cache_result(result)
+                    self._vt_redis_cache.update_stats(result, from_cache=False)
+                return result
 
             if response.status_code == 200:
                 data = response.json()
@@ -681,43 +791,98 @@ class HashAndSignatureScanner(BaseSegment):
                 stats = attributes.get("last_analysis_stats", {})
                 malicious = stats.get("malicious", 0)
                 suspicious = stats.get("suspicious", 0)
-                total = sum(stats.values())
+                harmless = stats.get("harmless", 0)
+                undetected = stats.get("undetected", 0)
+                total = malicious + suspicious + harmless + undetected
 
-                # Get meaningful names
+                # Get meaningful names and tags
                 names = attributes.get("meaningful_name", process_name)
+                tags = attributes.get("tags", [])
+                all_names = attributes.get("names", [])
 
-                # Determine threat level with logging
-                if malicious >= 5:
-                    print(f"[VT] MALWARE DETECTED: {process_name} ({malicious}/{total} detections)")
-                    return {
+                # Build result for Redis cache
+                result = {
+                    "hash": sha256,
+                    "stats": {
+                        "malicious": malicious,
+                        "suspicious": suspicious,
+                        "harmless": harmless,
+                        "undetected": undetected,
+                        "total": total,
+                    },
+                    "names": all_names[:5] if all_names else [names],
+                    "tags": tags[:10] if tags else [],
+                    "checkedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                }
+
+                # Determine threat level using configurable thresholds
+                if malicious >= self._vt_malware_threshold:
+                    print(f"[VT] 🚨 MALWARE DETECTED: {process_name} ({malicious}/{total} AV engines)")
+                    result.update({
+                        "status": "malicious",
+                        "severity": "CRITICAL",
                         "label": f"MALWARE: {process_name}",
                         "points": 15,
-                        "reason": f"VT: {malicious}/{total} detect as malware",
-                    }
-                elif malicious >= 2 or suspicious >= 3:
-                    print(
-                        f"[VT] Suspicious file: {process_name} ({malicious + suspicious}/{total} detections)"
-                    )
-                    return {
+                        "reason": f"VT: {malicious}/{total} AV engines detect as malware",
+                    })
+                elif malicious >= self._vt_suspicious_threshold or suspicious >= 3:
+                    print(f"[VT] ⚠️ Suspicious: {process_name} ({malicious}+{suspicious}/{total} detections)")
+                    result.update({
+                        "status": "suspicious",
+                        "severity": "ALERT",
                         "label": f"Suspicious: {process_name}",
                         "points": 10,
-                        "reason": f"VT: {malicious + suspicious}/{total} detections",
-                    }
-                elif any(
-                    keyword in names.lower()
-                    for keyword in ["poker", "bot", "rta", "solver", "gto", "holdem"]
-                ):
-                    print(f"[VT] Poker tool identified: {process_name} as {names}")
-                    return {
+                        "reason": f"VT: {malicious} malicious + {suspicious} suspicious/{total}",
+                    })
+                elif any(keyword in names.lower() for keyword in self._vt_poker_keywords):
+                    print(f"[VT] 🎰 Poker tool identified: {process_name} as '{names}'")
+                    result.update({
+                        "status": "suspicious",
+                        "severity": "WARN",
                         "label": f"Poker Tool: {process_name}",
                         "points": 5,
                         "reason": f"Identified as: {names}",
-                    }
+                    })
+                elif any(keyword in str(tags).lower() for keyword in self._vt_poker_keywords):
+                    print(f"[VT] 🎰 Poker-related tags found: {process_name} tags={tags}")
+                    result.update({
+                        "status": "suspicious",
+                        "severity": "WARN",
+                        "label": f"Poker Related: {process_name}",
+                        "points": 5,
+                        "reason": f"VT tags: {', '.join(tags[:3])}",
+                    })
                 else:
-                    print(f"[VT] {process_name} clean in VirusTotal ({total} engines checked)")
+                    print(f"[VT] ✅ {process_name} CLEAN ({total} AV engines, 0 detections)")
+                    result.update({
+                        "status": "clean",
+                        "severity": "INFO",
+                        "label": names,
+                        "points": 0,
+                        "reason": f"Clean ({total} AV engines checked)",
+                    })
+                
+                # Cache in Redis for dashboard
+                if self._vt_redis_cache and self._vt_redis_cache.enabled:
+                    self._vt_redis_cache.cache_result(result)
+                    self._vt_redis_cache.update_stats(result, from_cache=False)
+                
+                # Only return detection result if it's suspicious/malicious
+                if result.get("status") in ("malicious", "suspicious"):
+                    return result
+                return None  # Clean file, no detection needed
 
+            elif response.status_code == 401:
+                print("[VT] ERROR: Invalid API key! Check config.txt VirusTotalAPIKey")
+            else:
+                print(f"[VT] ERROR: Unexpected status {response.status_code}")
+
+        except requests.exceptions.Timeout:
+            print(f"[VT] Timeout checking {process_name}")
+        except requests.exceptions.RequestException as e:
+            print(f"[VT] Network error: {e}")
         except Exception as e:
-            print(f"[HashAndSignatureScanner] VirusTotal error: {e}")
+            print(f"[VT] Unexpected error: {e}")
 
         return None
 

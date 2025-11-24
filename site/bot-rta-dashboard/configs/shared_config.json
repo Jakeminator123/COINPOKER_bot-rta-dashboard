@@ -1,22 +1,26 @@
 {
-  "schema_version": "1.0.1",
-  "last_updated": "2025-10-29T00:00:00Z",
+  "_meta": {
+    "version": "2.0.0",
+    "description": "Shared reference data used by all detection modules"
+  },
+  "schema_version": "2.0.0",
+  "last_updated": "2025-01-24T00:00:00Z",
   "_points_mapping": {
     "0": {
       "status": "INFO",
-      "description": "Informational"
+      "description": "Informational - no threat"
     },
     "5": {
       "status": "WARN",
-      "description": "Suspicious activity"
+      "description": "Suspicious activity - monitor"
     },
     "10": {
       "status": "ALERT",
-      "description": "Serious threats"
+      "description": "Serious threat - investigate"
     },
     "15": {
       "status": "CRITICAL",
-      "description": "Critical threats"
+      "description": "Critical threat - immediate action"
     }
   },
   "poker_sites": {
@@ -39,12 +43,13 @@
       "betfair",
       "unibet",
       "bwin",
-      "pokerstars.eu",
-      "fulltilt"
+      "fulltilt",
+      "acr",
+      "americas cardroom",
+      "ignition",
+      "bovada",
+      "betonline"
     ]
-  },
-  "_deprecated": {
-    "automation_tools": "DEPRECATED: All automation tools have been moved to programs_registry.json (Detection Rules). Use programs_registry.json to manage all program definitions including automation tools like AutoHotkey, AutoIt, Python, etc."
   },
   "browser_processes": [
     "chrome.exe",
@@ -54,7 +59,10 @@
     "opera.exe",
     "vivaldi.exe",
     "safari.exe",
-    "iexplore.exe"
+    "iexplore.exe",
+    "chromium.exe",
+    "waterfox.exe",
+    "librewolf.exe"
   ],
   "communication_apps": [
     "telegram.exe",
@@ -65,6 +73,7 @@
     "skype.exe",
     "whatsapp.exe",
     "signal.exe",
-    "zoom.exe"
+    "zoom.exe",
+    "webex.exe"
   ]
 }

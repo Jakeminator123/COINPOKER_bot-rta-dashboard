@@ -120,29 +120,138 @@ class BehaviourDetector(BaseSegment):
     name = "BehaviourDetector"
     category = "behaviour"
 
+    @staticmethod
+    def _flatten_thresholds(raw: dict) -> dict:
+        """Flatten nested threshold structure to flat dict for backward compatibility.
+        
+        New format:
+            bot_detection_thresholds:
+                keyboard_timing: {cv_critical: 0.07, cv_suspicious: 0.10}
+                click_timing: {cv_critical: 0.07, cv_suspicious: 0.10}
+                mouse_movement: {constant_velocity_critical: 0.75, ...}
+                ...
+        
+        Old format:
+            thresholds:
+                iki_cv_alert: 0.07
+                iki_cv_warn: 0.10
+                ...
+        """
+        flat = {}
+        
+        # If already flat (old format), return as-is
+        if "iki_cv_alert" in raw or "iki_cv_warn" in raw:
+            return raw
+        
+        # Map new nested format to old flat format
+        keyboard = raw.get("keyboard_timing", {})
+        flat["iki_cv_alert"] = keyboard.get("cv_critical", 0.07)
+        flat["iki_cv_warn"] = keyboard.get("cv_suspicious", 0.10)
+        
+        click = raw.get("click_timing", {})
+        flat["ici_cv_alert"] = click.get("cv_critical", 0.07)
+        flat["ici_cv_warn"] = click.get("cv_suspicious", 0.10)
+        
+        mouse = raw.get("mouse_movement", {})
+        flat["const_velocity_alert"] = mouse.get("constant_velocity_critical", 0.75)
+        flat["const_velocity_warn"] = mouse.get("constant_velocity_suspicious", 0.50)
+        flat["const_velocity_tolerance"] = mouse.get("constant_velocity_tolerance", 0.10)
+        flat["dir_variability_alert"] = mouse.get("straight_line_critical", 0.045)
+        flat["dir_variability_warn"] = mouse.get("straight_line_suspicious", 0.09)
+        
+        reaction = raw.get("reaction_time", {})
+        flat["min_reaction_ms"] = reaction.get("min_reaction_ms", 140)
+        
+        click_pos = raw.get("click_position", {})
+        flat["repeated_pixel_radius_px"] = click_pos.get("pixel_radius_px", 2)
+        flat["repeated_pixel_threshold"] = click_pos.get("repeat_threshold", 3)
+        flat["repeated_pixel_fraction"] = click_pos.get("repeat_fraction", 0.30)
+        
+        jitter = raw.get("jitter", {})
+        flat["jitter_rms_alert"] = jitter.get("rms_critical", 0.25)
+        
+        return flat
+
+    @staticmethod
+    def _flatten_weights(raw: dict) -> dict:
+        """Flatten nested weights structure to flat dict for backward compatibility.
+        
+        New format:
+            scoring_weights:
+                keyboard: {very_consistent_timing: 12, consistent_timing: 6}
+                click: {very_consistent_timing: 12, consistent_timing: 6}
+                mouse: {constant_velocity_high: 20, ...}
+                ...
+        
+        Old format:
+            scoring_weights:
+                iki_very_low_variance: 12
+                iki_low_variance: 6
+                ...
+        """
+        flat = {}
+        
+        # If already flat (old format), return as-is
+        if "iki_very_low_variance" in raw or "iki_low_variance" in raw:
+            return raw
+        
+        # Map new nested format to old flat format
+        keyboard = raw.get("keyboard", {})
+        flat["iki_very_low_variance"] = keyboard.get("very_consistent_timing", 12)
+        flat["iki_low_variance"] = keyboard.get("consistent_timing", 6)
+        
+        click = raw.get("click", {})
+        flat["ici_very_low_variance"] = click.get("very_consistent_timing", 12)
+        flat["ici_low_variance"] = click.get("consistent_timing", 6)
+        
+        mouse = raw.get("mouse", {})
+        flat["constant_velocity_high"] = mouse.get("constant_velocity_high", 20)
+        flat["constant_velocity_medium"] = mouse.get("constant_velocity_medium", 10)
+        flat["direction_very_straight"] = mouse.get("very_straight_paths", 12)
+        flat["direction_straight"] = mouse.get("straight_paths", 6)
+        flat["repeated_pixels"] = mouse.get("repeated_pixels", 12)
+        flat["low_jitter"] = mouse.get("no_jitter", 0)
+        
+        reaction = raw.get("reaction", {})
+        flat["too_fast_reactions"] = reaction.get("superhuman_speed", 10)
+        
+        return flat
+
     def __init__(self):
         super().__init__()
 
-        # Load configuration
-        polling_config = _behaviour_config.get("polling", {})
-        self.thresholds = _behaviour_config.get("thresholds", {})
-        self.weights = _behaviour_config.get("scoring_weights", {})
+        # Load configuration - support both old and new structure
+        # New structure: data_collection, bot_detection_thresholds, scoring_weights, reporting
+        # Old structure: polling, thresholds, scoring_weights, reporting
+        
+        # Data collection settings (new: data_collection, old: polling)
+        data_config = _behaviour_config.get("data_collection", _behaviour_config.get("polling", {}))
+        
+        # Thresholds (new: bot_detection_thresholds, old: thresholds)
+        raw_thresholds = _behaviour_config.get("bot_detection_thresholds", _behaviour_config.get("thresholds", {}))
+        self.thresholds = self._flatten_thresholds(raw_thresholds)
+        
+        # Scoring weights (flatten nested structure if new format)
+        raw_weights = _behaviour_config.get("scoring_weights", {})
+        self.weights = self._flatten_weights(raw_weights)
+        
         reporting_config = _behaviour_config.get("reporting", {})
 
-        # Polling settings
-        self.hz = polling_config.get("frequency_hz", 200)
+        # Polling settings (support both old and new field names)
+        self.hz = data_config.get("polling_frequency_hz", data_config.get("frequency_hz", 200))
         self.dt_target = 1.0 / float(self.hz)
-        self.window_seconds = polling_config.get("window_seconds", 10.0)
-        self.min_move = polling_config.get("min_move_px", 3)
-        self.jitter_px_thresh = polling_config.get("jitter_px_threshold", 2.0)
-        self.jitter_window = polling_config.get("jitter_window", 0.3)
+        self.window_seconds = data_config.get("analysis_window_seconds", data_config.get("window_seconds", 10.0))
+        self.min_move = data_config.get("min_mouse_movement_px", data_config.get("min_move_px", 3))
+        self.jitter_px_thresh = data_config.get("jitter_threshold_px", data_config.get("jitter_px_threshold", 2.0))
+        self.jitter_window = data_config.get("jitter_window_seconds", data_config.get("jitter_window", 0.3))
         # Tolerance for repeated-pixel grouping (to handle ±1px drift)
-        self.repeated_pixel_radius = float(self.thresholds.get("repeated_pixel_radius_px", 1.0))
+        self.repeated_pixel_radius = float(self.thresholds.get("repeated_pixel_radius_px", 
+                                                               self.thresholds.get("pixel_radius_px", 1.0)))
 
-        # Reporting settings
-        self.interval_s = reporting_config.get("interval_s", 92.0)
-        self.report_cooldown = apply_cooldown(reporting_config.get("report_cooldown_s", 10.0))
-        self.min_events = reporting_config.get("min_events_threshold", 10)
+        # Reporting settings (support both old and new field names)
+        self.interval_s = reporting_config.get("analysis_interval_seconds", reporting_config.get("interval_s", 92.0))
+        self.report_cooldown = apply_cooldown(reporting_config.get("cooldown_seconds", reporting_config.get("report_cooldown_s", 10.0)))
+        self.min_events = reporting_config.get("min_input_events", reporting_config.get("min_events_threshold", 10))
 
         # Load poker sites from shared config
         poker_config = _shared_config.get("poker_sites", {})

@@ -1,9 +1,21 @@
 {
   "_points_mapping": {
-    "15": {"status": "CRITICAL", "description": "Heavy obfuscation, score 80+"},
-    "10": {"status": "ALERT", "description": "Likely obfuscated, score 60-79"},
-    "5": {"status": "WARN", "description": "Suspicious code, score 40-59"},
-    "0": {"status": "INFO", "description": "Possibly obfuscated, score 30-39"}
+    "0": {
+      "status": "INFO",
+      "description": "Possibly obfuscated, score 30-39"
+    },
+    "5": {
+      "status": "WARN",
+      "description": "Suspicious code, score 40-59"
+    },
+    "10": {
+      "status": "ALERT",
+      "description": "Likely obfuscated, score 60-79"
+    },
+    "15": {
+      "status": "CRITICAL",
+      "description": "Heavy obfuscation, score 80+"
+    }
   },
   "obfuscation_patterns": {
     "exec_eval": [
@@ -50,20 +62,6 @@
     "min_encoding_count": 3,
     "suspicious_line_length": 500,
     "min_obfuscation_score": 5
-  },
-  "file_scan_settings": {
-    "max_file_size": 5242880,
-    "scan_extensions": [
-      ".py",
-      ".pyw"
-    ],
-    "skip_paths": [
-      "__pycache__",
-      ".git",
-      "node_modules",
-      "venv",
-      ".venv"
-    ]
   },
   "reporting": {
     "report_cooldown": 60,

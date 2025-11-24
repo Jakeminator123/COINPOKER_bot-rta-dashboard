@@ -45,68 +45,83 @@ def _load_network_config() -> dict[str, Any]:
     except Exception as e:
         print(f"[WebMonitor] WARNING: Config load failed: {e}")
 
-    # Return default config
+    # Return default config matching new structure
     return {
         "web_monitoring": {
             "browser_min_repeat": 60.0,
             "dns_alert_cooldown": 120.0,
-            "interval_s": 92.0,
-            "protected_poker_process": "game.exe",
-            "other_poker_processes": [
-                "pokerstars",
-                "ggpoker",
-                "888poker",
-                "partypoker",
-                "winamax",
-                "pokerbros",
-                "wsop",
+            "interval_s": 12.0,
+            "rta_websites": {
+                "gtowizard.com": {"label": "GTO Wizard", "status": "CRITICAL", "description": "Real-time GTO solver assistance"},
+                "app.gtowizard.com": {"label": "GTO Wizard App", "status": "CRITICAL", "description": "GTO Wizard web application"},
+                "rta.poker": {"label": "RTA.poker", "status": "CRITICAL", "description": "Real-time assistance service"},
+                "rtapoker.com": {"label": "RTA Poker", "status": "CRITICAL", "description": "Real-time poker assistance"},
+                "simplegto.com": {"label": "Simple GTO", "status": "ALERT", "description": "GTO trainer tool"},
+                "visiongto.com": {"label": "Vision GTO", "status": "ALERT", "description": "GTO trainer tool"},
+                "pokerbotai.com": {"label": "PokerBotAI", "status": "CRITICAL", "description": "Poker bot service"},
+                "warbotpoker.com": {"label": "WarBot", "status": "CRITICAL", "description": "Poker bot service"},
+                "holdembot.com": {"label": "HoldemBot", "status": "CRITICAL", "description": "Poker bot service"},
+            },
+            "browser_keywords": [
+                "gto wizard", "gtowizard", "gto-wizard", "app.gtowizard",
+                "odin poker", "simple gto", "simplegto", "vision gto", "visiongto",
+                "rta.poker", "pokerbotai", "warbot poker", "holdembot",
+                "piosolver", "monkersolver",
             ],
-            "network_keywords": [
-                "gto wizard",
-                "odin",
-                "simple gto",
-                "vision gto",
-                "rta.poker",
-                "pokerbotai",
-                "warbot",
-                "holdembot",
-                "gtowizard.com",
-                "simplegto.com",
-                "visiongto.com",
-            ],
-            "suspicious_patterns": {
-                "rta.poker": ["RTA.poker Service", "ALERT"],
-                "rtapoker.com": ["RTA Poker", "ALERT"],
-                "warbotpoker": ["WarBot", "ALERT"],
-                "holdembot": ["HoldemBot", "ALERT"],
-                "pokerbotai": ["PokerBotAI", "ALERT"],
-                "gtowizard": ["GTO Wizard", "ALERT"],
-                "simplegto": ["Simple GTO", "WARN"],
-                "visiongto": ["Vision GTO", "WARN"],
-                "odinpoker": ["Odin Poker", "WARN"],
-                "gtohero": ["GTO Hero", "WARN"],
-                "piosolver": ["PioSolver", "WARN"],
-                "monkersolver": ["MonkerSolver", "WARN"],
-                "telegram.org": ["Telegram", "WARN"],
-                "api.telegram": ["Telegram API", "WARN"],
-                "t.me": ["Telegram Link", "WARN"],
-                "discord.com": ["Discord", "INFO"],
-                "discordapp": ["Discord App", "INFO"],
-                "teamviewer": ["TeamViewer", "WARN"],
-                "anydesk": ["AnyDesk", "WARN"],
-                "parsec.app": ["Parsec", "WARN"],
-                "remotedesktop": ["Remote Desktop", "WARN"],
-                "ngrok.io": ["Ngrok Tunnel", "ALERT"],
-                "serveo.net": ["Serveo Tunnel", "ALERT"],
-                "tor2web": ["Tor Gateway", "ALERT"],
-                ".onion": ["Tor Hidden Service", "ALERT"],
-                ".ru": ["Russian Domain", "INFO"],
-                ".cn": ["Chinese Domain", "INFO"],
-                ".tk": ["Free Domain", "INFO"],
-                ".ml": ["Free Domain", "INFO"],
+            "suspicious_domains": {
+                "ngrok.io": {"label": "Ngrok Tunnel", "status": "ALERT", "description": "Tunneling service"},
+                "serveo.net": {"label": "Serveo Tunnel", "status": "ALERT", "description": "SSH tunneling service"},
+                "tor2web": {"label": "Tor Gateway", "status": "ALERT", "description": "Tor network gateway"},
+                ".onion": {"label": "Tor Hidden Service", "status": "ALERT", "description": "Tor hidden service"},
+            },
+            "communication_patterns": {
+                "telegram.org": {"label": "Telegram", "status": "WARN", "description": "Messaging app"},
+                "t.me": {"label": "Telegram Link", "status": "WARN", "description": "Telegram share link"},
+                "discord.com": {"label": "Discord", "status": "INFO", "description": "Communication platform"},
+            },
+            "remote_access_patterns": {
+                "teamviewer": {"label": "TeamViewer", "status": "WARN", "description": "Remote desktop software"},
+                "anydesk": {"label": "AnyDesk", "status": "WARN", "description": "Remote desktop software"},
+                "parsec.app": {"label": "Parsec", "status": "WARN", "description": "Remote gaming software"},
+                "remotedesktop": {"label": "Remote Desktop", "status": "WARN", "description": "Windows Remote Desktop"},
             },
         }
     }
+
+
+def _build_suspicious_patterns(config: dict[str, Any]) -> dict[str, list[str]]:
+    """Build suspicious patterns dict from new config structure for backward compatibility.
+    
+    Default severities (if status field missing):
+    - RTA websites: CRITICAL (real-time assistance = cheating)
+    - Suspicious domains: ALERT (tunnels, Tor = evasion)
+    - Communication patterns: WARN (potential bot control)
+    - Remote access patterns: WARN (screen sharing risk)
+    """
+    patterns = {}
+    web_monitoring = config.get("web_monitoring", {})
+
+    # RTA websites - default CRITICAL (these are cheating tools)
+    for key, data in web_monitoring.get("rta_websites", {}).items():
+        if isinstance(data, dict):
+            patterns[key] = [data.get("label", key), data.get("status", "CRITICAL")]
+
+    # Suspicious domains - default ALERT (tunnels, anonymizers)
+    for key, data in web_monitoring.get("suspicious_domains", {}).items():
+        if isinstance(data, dict):
+            patterns[key] = [data.get("label", key), data.get("status", "ALERT")]
+
+    # Communication patterns - default WARN (potential bot control)
+    for key, data in web_monitoring.get("communication_patterns", {}).items():
+        if isinstance(data, dict):
+            patterns[key] = [data.get("label", key), data.get("status", "WARN")]
+
+    # Remote access patterns - default WARN (screen sharing risk)
+    for key, data in web_monitoring.get("remote_access_patterns", {}).items():
+        if isinstance(data, dict):
+            patterns[key] = [data.get("label", key), data.get("status", "WARN")]
+
+    return patterns
 
 
 # Load shared configuration
@@ -125,8 +140,9 @@ def _load_shared_config() -> dict[str, Any]:
 # Load config at module level
 CONFIG = _load_network_config()
 SHARED_CONFIG = _load_shared_config()
-NETWORK_KEYWORDS = CONFIG["web_monitoring"]["network_keywords"]
-SUSPICIOUS_PATTERNS = CONFIG["web_monitoring"]["suspicious_patterns"]
+NETWORK_KEYWORDS = CONFIG["web_monitoring"].get("browser_keywords", [])
+# Build suspicious patterns from new structure (rta_websites, suspicious_domains, etc.)
+SUSPICIOUS_PATTERNS = _build_suspicious_patterns(CONFIG)
 
 # BLACKLIST: Always filter these patterns regardless of dashboard config
 # These generate too many false positives

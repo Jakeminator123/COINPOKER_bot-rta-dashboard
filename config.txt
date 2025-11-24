@@ -47,7 +47,7 @@ FORWARDER_MODE=redis                  # web=HTTP, redis=Redis, auto=försök Red
 ENABLEHASHLOOKUP=true                # Hash database lookups
 ENABLEONLINELOOKUPS=true             # Online API calls (VirusTotal)
 CHECKSIGNATURES=true                 # Digital signature verification
-VirusTotalAPIKey=3dc67831fd53e5691fe568944041d9cb4894221be33ed06cf5221cea20b7686b
+VirusTotalAPIKey=22da334f9a3582bf6a93dc6fdedf2fe45fb86a0a91fd7d81803c13c4c5c4cbc7
 
 # --- Runtime Tweaks ---
 # IMPORTANT (English):

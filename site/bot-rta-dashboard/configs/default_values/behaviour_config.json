@@ -1,62 +1,113 @@
 {
+  "_meta": {
+    "version": "2.0.0",
+    "description": "Configuration for detecting bot-like input patterns (mouse/keyboard behavior analysis)"
+  },
   "_points_mapping": {
-    "15": {"status": "CRITICAL", "description": "Perfect bot patterns, score 70+"},
-    "10": {"status": "ALERT", "description": "Likely bot patterns, score 45-69"},
-    "5": {"status": "WARN", "description": "Suspicious input, score 25-44"},
-    "0": {"status": "INFO", "description": "Unusual but not threatening, score 15-24"}
+    "0": {
+      "status": "INFO",
+      "description": "Unusual but not threatening (score 15-24)"
+    },
+    "5": {
+      "status": "WARN",
+      "description": "Suspicious patterns detected (score 25-44)"
+    },
+    "10": {
+      "status": "ALERT",
+      "description": "Likely bot behavior (score 45-69)"
+    },
+    "15": {
+      "status": "CRITICAL",
+      "description": "Definite bot patterns (score 70+)"
+    }
   },
-  "polling": {
-    "frequency_hz": 200,
-    "window_seconds": 20,
-    "min_move_px": 6,
-    "jitter_px_threshold": 1.5,
-    "jitter_window": 0.3
+  "_explanation": {
+    "how_it_works": "The detector polls mouse and keyboard input at high frequency, then analyzes patterns to calculate a bot-likelihood score (0-100). Lower variance in timing = more bot-like.",
+    "key_metrics": {
+      "IKI": "Inter-Keystroke Interval - time between key presses. Bots have very consistent timing.",
+      "ICI": "Inter-Click Interval - time between mouse clicks. Bots have very consistent timing.",
+      "CV": "Coefficient of Variation (stddev/mean). Lower = more consistent = more bot-like. Humans typically have CV > 0.20",
+      "Constant Velocity": "Mouse moves at same speed. Humans vary speed naturally.",
+      "Direction Variability": "How straight mouse paths are. Bots move in perfect lines."
+    }
   },
-  "thresholds": {
-    "iki_cv_alert": 0.08,
-    "iki_cv_warn": 0.12,
-    "ici_cv_alert": 0.08,
-    "ici_cv_warn": 0.12,
-    "const_velocity_alert": 0.8,
-    "const_velocity_warn": 0.6,
-    "const_velocity_tolerance": 0.1,
-    "dir_variability_alert": 0.05,
-    "dir_variability_warn": 0.1,
-    "min_reaction_ms": 120,
-    "jitter_rms_alert": 0.3,
-    "repeated_pixel_threshold": 5,
-    "repeated_pixel_fraction": 0.5
+  "data_collection": {
+    "_description": "How often and how much input data to collect",
+    "polling_frequency_hz": 239,
+    "analysis_window_seconds": 20,
+    "min_mouse_movement_px": 6,
+    "jitter_threshold_px": 1.5,
+    "jitter_window_seconds": 0.3
+  },
+  "bot_detection_thresholds": {
+    "_description": "Thresholds for detecting bot-like behavior. Lower values = stricter detection.",
+    "keyboard_timing": {
+      "_description": "Inter-Keystroke Interval (IKI) coefficient of variation thresholds",
+      "cv_critical": 0.07,
+      "cv_suspicious": 0.10,
+      "_human_typical": "Humans typically have CV > 0.20 (20% variation in typing speed)"
+    },
+    "click_timing": {
+      "_description": "Inter-Click Interval (ICI) coefficient of variation thresholds",
+      "cv_critical": 0.07,
+      "cv_suspicious": 0.10,
+      "_human_typical": "Humans typically have CV > 0.20 (20% variation in click timing)"
+    },
+    "mouse_movement": {
+      "_description": "Mouse movement pattern thresholds",
+      "constant_velocity_critical": 0.75,
+      "constant_velocity_suspicious": 0.50,
+      "constant_velocity_tolerance": 0.10,
+      "straight_line_critical": 0.045,
+      "straight_line_suspicious": 0.09,
+      "_explanation": "constant_velocity = fraction of movements with same speed. straight_line = direction variability (lower = straighter)"
+    },
+    "reaction_time": {
+      "_description": "Minimum human reaction time in milliseconds",
+      "min_reaction_ms": 140,
+      "_explanation": "Reactions faster than 140ms are physically impossible for humans"
+    },
+    "click_position": {
+      "_description": "Repeated pixel click detection",
+      "pixel_radius_px": 2,
+      "repeat_threshold": 3,
+      "repeat_fraction": 0.30,
+      "_explanation": "Bots often click exact same pixels repeatedly. Humans have natural variance."
+    },
+    "jitter": {
+      "_description": "Micro-movement (jitter) analysis",
+      "rms_critical": 0.25,
+      "_explanation": "Humans have natural hand tremor. Very low jitter suggests synthetic input."
+    }
   },
   "scoring_weights": {
-    "iki_very_low_variance": 12,
-    "iki_low_variance": 6,
-    "ici_very_low_variance": 12,
-    "ici_low_variance": 6,
-    "constant_velocity_high": 20,
-    "constant_velocity_medium": 10,
-    "direction_very_straight": 12,
-    "direction_straight": 6,
-    "repeated_pixels": 12,
-    "low_jitter": 0,
-    "too_fast_reactions": 10
+    "_description": "How many points each detection adds to the bot score (max 100)",
+    "keyboard": {
+      "very_consistent_timing": 12,
+      "consistent_timing": 6
+    },
+    "click": {
+      "very_consistent_timing": 12,
+      "consistent_timing": 6
+    },
+    "mouse": {
+      "constant_velocity_high": 20,
+      "constant_velocity_medium": 10,
+      "very_straight_paths": 12,
+      "straight_paths": 6,
+      "repeated_pixels": 12,
+      "no_jitter": 0
+    },
+    "reaction": {
+      "superhuman_speed": 10
+    }
   },
   "reporting": {
-    "report_cooldown_s": 60,
-    "interval_s": 20,
-    "min_events_threshold": 30
-  },
-  "suspicious_tools": [
-    "autohotkey",
-    "autoit",
-    "python",
-    "pythonw",
-    "powershell",
-    "wscript",
-    "cscript",
-    "sikuli",
-    "selenium",
-    "macro",
-    "clicker",
-    "bot"
-  ]
+    "_description": "How often to report detections",
+    "cooldown_seconds": 30,
+    "analysis_interval_seconds": 20,
+    "min_input_events": 20,
+    "keepalive_seconds": 45,
+    "keepalive_timeout": 90
+  }
 }

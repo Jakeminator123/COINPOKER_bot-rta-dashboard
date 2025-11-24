@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import SmartConfigEditor from "./SmartConfigEditor";
 import UnifiedProgramEditor from "./UnifiedProgramEditor";
 import BehaviourConfigEditor from "./BehaviourConfigEditor";
+import WebMonitoringEditor from "./WebMonitoringEditor";
 
 interface AdvancedSettingsEditorProps {
   programsRegistry?: any;
@@ -20,158 +21,196 @@ interface AdvancedSettingsEditorProps {
   initialSection?: string;
 }
 
-// Advanced configuration - detailed control over all settings
+// =============================================================================
+// RESTRUCTURED SETTINGS - Clearer, more logical organization
+// =============================================================================
 const SETTINGS_GROUPS = [
+  // =========================================================================
+  // GROUP 1: THREAT DATABASE - What programs/sites trigger alerts
+  // =========================================================================
   {
-    id: "detection_rules",
-    title: "Detection Rules",
+    id: "threats",
+    title: "Threat Database",
     icon: "🎯",
-    description: "WHAT to detect: The list of programs, bots, and tools that trigger alerts",
-    color: "from-red-500 to-orange-600",
-    gradient: "bg-gradient-to-br from-red-500/20 to-orange-600/20",
+    description: "Programs and websites that trigger detection alerts",
+    color: "from-red-500 to-rose-600",
+    gradient: "bg-gradient-to-br from-red-500/20 to-rose-600/20",
     borderColor: "border-red-500/30",
-    explanation: "This is the master database of all programs that the system will detect and report. Think of it as a 'blacklist' - when any of these programs are found running, the system generates a detection signal. Each program has a threat level (0-15 points) that determines how serious the alert is.",
+    explanation:
+      "This database contains TWO SEPARATE categories of threats:\n\n" +
+      "1️⃣ PROGRAMS (.exe files) - Detected by scanning running processes\n" +
+      "2️⃣ WEBSITES/DOMAINS - Detected by monitoring browser titles and DNS\n\n" +
+      "⚠️ IMPORTANT: Don't mix them! Websites go in 'Network Threats', programs go in 'Program Threats'.",
     sections: [
       {
         id: "programs_registry",
-        title: "Program Database",
+        title: "🖥️ Program Threats (.exe files)",
         description:
-          "Master list of all programs to detect: bots, RTA tools, automation software, macros. Each program has a threat level (0-15 points).",
+          "Executable programs detected by process scanning. Add ONLY .exe process names here - NOT websites!",
         config: "programsRegistry",
-        editor: "unified", // Use UnifiedProgramEditor
+        editor: "unified",
         details: [
-          "Add/remove programs from detection list",
-          "Set threat points: 0=Info, 5=Warning, 10=Alert, 15=Critical",
-          "Categorize programs: bots, RTA tools, macros, automation",
-          "Used by: Automation Detector, Process Scanner",
+          "✅ CORRECT: warbot.exe, holdembot.exe, autohotkey.exe, piosolver.exe",
+          "❌ WRONG: gtowizard.com, rta.poker (these are WEBSITES, not programs!)",
+          "🤖 Bots: WarBot, HoldemBot, OpenHoldem (15 points - CRITICAL)",
+          "📊 RTA Tools: PioSolver, GTO+, MonkerSolver (10 points - ALERT)",
+          "⌨️ Macros: AutoHotkey, AutoIt, TinyTask (10 points - ALERT)",
+          "⚠️ Kill Flag: If enabled, CoinPoker closes when this program is detected",
+        ],
+      },
+      {
+        id: "network_threats",
+        title: "🌐 Network Threats (Websites & Domains)",
+        description:
+          "Websites and domains detected by browser monitoring and DNS. Add URLs and domain patterns here - NOT .exe files!",
+        config: "networkConfig",
+        editor: "web",
+        details: [
+          "✅ CORRECT: gtowizard.com, rta.poker, telegram.org, ngrok.io",
+          "❌ WRONG: piosolver.exe, warbot.exe (these are PROGRAMS, not websites!)",
+          "🎯 RTA Websites: gtowizard.com, rta.poker (CRITICAL)",
+          "🔗 Tunneling: ngrok.io, .onion, tor2web (ALERT)",
+          "💬 Communication: telegram.org, discord.com (WARN)",
+          "🖥️ Remote Access: teamviewer, anydesk (WARN)",
         ],
       },
     ],
   },
+
+  // =========================================================================
+  // GROUP 2: DETECTION METHODS - How the scanner detects threats
+  // =========================================================================
   {
-    id: "detection_settings",
-    title: "Detection Settings",
-    icon: "⚙️",
-    description: "HOW detection works: Sensitivity, thresholds, and detection methods",
+    id: "detection_methods",
+    title: "Detection Methods",
+    icon: "🔍",
+    description: "Configure HOW each detection method works: sensitivity, thresholds, and analysis parameters",
     color: "from-blue-500 to-cyan-600",
     gradient: "bg-gradient-to-br from-blue-500/20 to-cyan-600/20",
     borderColor: "border-blue-500/30",
-    explanation: "These settings control HOW the system detects threats. They define the sensitivity, thresholds, and patterns used by each detection method. For example: how fast mouse movements must be to trigger bot detection, which network patterns indicate RTA usage, or what screen overlays are suspicious. These are the 'rules of detection' - not what to detect, but how to detect it.",
+    explanation:
+      "These settings control the SENSITIVITY and BEHAVIOR of each detection method. They don't define WHAT to detect (that's in Threat Database), but HOW to detect it. For example: how fast mouse movements must be to trigger bot detection, what entropy level indicates obfuscated code, or which paths are suspicious for executables.",
     sections: [
       {
-        id: "process_scanner",
-        title: "Process Scanner Settings",
+        id: "behaviour",
+        title: "🖱️ Behavior Analysis",
         description:
-          "Settings for scanning running processes: what to ignore, where to look, how to detect suspicious behavior.",
+          "Detects bot-like input patterns: robotic mouse movements, inhuman click timing, perfect keyboard intervals.",
+        config: "behaviourConfig",
+        editor: "behaviour",
+        details: [
+          "📊 Data Collection: How often to sample mouse/keyboard (polling frequency)",
+          "🎯 Thresholds: What patterns are considered 'too perfect' or 'too fast'",
+          "⚖️ Scoring: How much each pattern contributes to the bot score",
+          "📤 Reporting: When to send alerts and cooldown periods",
+        ],
+      },
+      {
+        id: "process_scanner",
+        title: "⚙️ Process Scanner",
+        description:
+          "Scans running processes for threats: checks executable names, paths, command lines, and PE headers.",
         config: "programsConfig",
         editor: "smart",
         details: [
-          "Configure ignored programs (false positives)",
-          "Set expected program locations",
-          "Define suspicious drop zones",
-          "Macro header detection signatures",
-        ],
-      },
-      {
-        id: "network",
-        title: "Network Detection",
-        description:
-          "Configure network monitoring: RTA sites, Telegram detection, DNS monitoring, traffic analysis.",
-        config: "networkConfig",
-        editor: "smart",
-        details: [
-          "RTA site keywords and patterns",
-          "Telegram detection settings",
-          "DNS monitoring thresholds",
-          "Network connection analysis",
-        ],
-      },
-      {
-        id: "behaviour",
-        title: "Behaviour Analysis",
-        description:
-          "Configure behavioral detection: mouse patterns, keyboard timing, click analysis, bot-like behavior detection.",
-        config: "behaviourConfig",
-        editor: "behaviour", // Use specialized BehaviourConfigEditor
-        details: [
-          "Data collection: polling frequency and analysis window",
-          "Detection thresholds: sensitivity for keyboard/click timing, mouse speed, straight lines",
-          "Scoring weights: how much each pattern contributes to bot score",
-          "Reporting: when and how often to report detections",
+          "📁 Expected Locations: Where legitimate programs should be installed",
+          "⚠️ Suspicious Paths: Temp folders, user downloads (higher risk)",
+          "🔍 Macro Headers: Binary signatures for AutoHotkey, AutoIt, CheatEngine",
+          "✅ Safe Processes: Windows system processes to ignore",
+          "🚫 Ignored Programs: False positives to skip",
         ],
       },
       {
         id: "screen",
-        title: "Screen Monitoring",
+        title: "🖼️ Screen Monitoring",
         description:
-          "Configure screen/window detection: overlays, HUD detection, window hierarchies, background automation.",
+          "Detects suspicious overlays, HUD windows, and screen automation tools.",
         config: "screenConfig",
         editor: "smart",
         details: [
-          "Overlay detection settings",
-          "HUD overlay patterns",
-          "Window hierarchy analysis",
-          "Background automation detection",
+          "🪟 Overlay Detection: Transparent windows over poker tables",
+          "📊 HUD Patterns: Known HUD window classes and titles",
+          "🔄 Window Hierarchy: Parent-child window relationships",
+          "🤖 Background Automation: Hidden windows with automation",
         ],
       },
       {
         id: "vm",
-        title: "Virtual Machine Detection",
+        title: "💻 VM Detection",
         description:
-          "Configure VM detection: hypervisor detection, guest tools, hardware fingerprinting, VM probability scoring.",
+          "Detects if poker is running inside a virtual machine (often used to run bots).",
         config: "vmConfig",
         editor: "smart",
         details: [
-          "VM process detection",
-          "Hardware fingerprinting",
-          "Registry markers",
-          "VM probability thresholds",
+          "🔧 VM Processes: VirtualBox, VMware, Hyper-V guest tools",
+          "🖥️ Hardware Fingerprints: Virtual hardware identifiers",
+          "📝 Registry Markers: VM-specific registry entries",
+          "📈 Probability Scoring: Combined VM likelihood score",
         ],
       },
       {
         id: "obfuscation",
-        title: "Code Obfuscation Detection",
+        title: "🔐 Code Obfuscation",
         description:
-          "Configure obfuscation detection: packed files, encrypted code, anti-analysis techniques.",
+          "Detects packed, encrypted, or obfuscated executables (often indicates malicious intent).",
         config: "obfuscationConfig",
         editor: "smart",
         details: [
-          "Obfuscation patterns",
-          "Packer signatures",
-          "Anti-debugging detection",
-          "Code structure analysis",
+          "📦 Packer Signatures: UPX, Themida, VMProtect detection",
+          "🔢 Entropy Analysis: High entropy = likely encrypted/packed",
+          "🛡️ Anti-Debug: Techniques to evade analysis",
+          "📊 Code Structure: Unusual PE sections and imports",
+        ],
+      },
+      {
+        id: "virustotal",
+        title: "🦠 VirusTotal Integration",
+        description:
+          "Checks unknown executables against VirusTotal's database of 70+ antivirus engines.",
+        config: "programsConfig",
+        editor: "smart",
+        details: [
+          "🔑 API Key: Stored in config.txt (VirusTotalAPIKey) for security",
+          "⏱️ Rate Limiting: Free tier = 4 requests/min (20s between lookups)",
+          "💾 Caching: Results cached for 24h to avoid repeated lookups",
+          "🎯 Thresholds: 5+ AV detections = CRITICAL, 2+ = ALERT",
+          "🎰 Poker Keywords: Auto-detect poker-related tools in VT results",
         ],
       },
     ],
   },
+
+  // =========================================================================
+  // GROUP 3: SYSTEM REFERENCE - Shared definitions and identifiers
+  // =========================================================================
+  {
+    id: "system",
+    title: "System Reference",
+    icon: "📚",
+    description: "Shared definitions used by all detection modules: poker site identifiers, browser lists, point mappings",
+    color: "from-purple-500 to-violet-600",
+    gradient: "bg-gradient-to-br from-purple-500/20 to-violet-600/20",
+    borderColor: "border-purple-500/30",
+    explanation:
+      "This is REFERENCE DATA - shared definitions that multiple detection modules use. It defines things like 'what is the CoinPoker process name?', 'what browsers exist?', and 'what do the threat levels mean?'. This is NOT where you add programs to detect - that's in Threat Database. This is for system-wide identifiers and mappings.",
+    sections: [
       {
-        id: "system",
-        title: "System Configuration",
-        icon: "🔧",
-        description: "REFERENCE DATA: Definitions and identifiers used by all detection segments",
-        color: "from-purple-500 to-pink-600",
-        gradient: "bg-gradient-to-br from-purple-500/20 to-pink-600/20",
-        borderColor: "border-purple-500/30",
-        explanation: "This is REFERENCE DATA - overarching definitions and identifiers used by all detection segments. It defines WHAT things are (e.g., 'this is CoinPoker', 'these are browsers', 'these are communication apps'), but it doesn't contain specific program definitions. All specific programs (including automation tools like AutoHotkey, Python, etc.) are managed in Detection Rules (programs_registry.json). System Configuration contains: Points mapping (what 0/5/10/15 points mean), Poker site identifiers (CoinPoker process name, window class), Browser process names (for context), Communication app names (for context).",
-        sections: [
-          {
-            id: "shared",
-            title: "Shared Settings",
-            description:
-              "Overarching reference definitions: points mapping, poker site identifiers, browser names, and communication app patterns. These are used by multiple detection segments to understand context. All specific program definitions (including automation tools) are managed in Detection Rules.",
-            config: "sharedConfig",
-            editor: "smart",
-            details: [
-              "Points mapping: What 0/5/10/15 points mean (INFO/WARN/ALERT/CRITICAL)",
-              "Protected poker site (CoinPoker) process and window identifiers",
-              "List of other poker sites (for context, not detection)",
-              "Browser process names (to distinguish from suspicious apps)",
-              "Communication app patterns (Telegram, Discord, etc.)",
-              "Note: All specific programs are managed in Detection Rules (programs_registry.json)",
-            ],
-          },
+        id: "shared",
+        title: "🔧 Shared Configuration",
+        description:
+          "System-wide reference data: protected poker site (CoinPoker), browser process names, point level definitions.",
+        config: "sharedConfig",
+        editor: "smart",
+        details: [
+          "🎰 Protected Poker: CoinPoker process name, window class, path hints",
+          "🌐 Browser List: Known browser processes (for context, not detection)",
+          "📱 Communication Apps: Telegram, Discord, etc. (reference list)",
+          "📊 Points Mapping: What 0/5/10/15 points mean (INFO/WARN/ALERT/CRITICAL)",
+          "🎲 Other Poker Sites: PokerStars, GGPoker, etc. (for context)",
         ],
       },
+    ],
+  },
 ];
 
 export default function AdvancedSettingsEditor({
@@ -187,15 +226,13 @@ export default function AdvancedSettingsEditor({
   initialGroup,
   initialSection,
 }: AdvancedSettingsEditorProps) {
-  // Use initialGroup/initialSection if provided, otherwise default
   const [activeGroup, setActiveGroup] = useState<string>(
-    initialGroup || "detection_rules"
+    initialGroup || "threats"
   );
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(initialSection ? [initialSection] : ["programs_registry"])
   );
 
-  // Update when initialGroup/initialSection changes (for navigation from Simplified)
   useEffect(() => {
     if (initialGroup) {
       setActiveGroup(initialGroup);
@@ -240,8 +277,77 @@ export default function AdvancedSettingsEditor({
     });
   };
 
+  // Get stats for a section
+  const getSectionStats = (sectionId: string, config: any) => {
+    if (!config) return null;
+
+    switch (sectionId) {
+      case "programs_registry": {
+        const programCount = Object.keys(config.programs || {}).length;
+        const categoryCount = Object.keys(config.category_definitions || {}).length;
+        return `${programCount} programs in ${categoryCount} categories`;
+      }
+      case "network_threats": {
+        const webMonitoring = config.web_monitoring || {};
+        const rtaCount = Object.keys(webMonitoring.rta_websites || {}).length;
+        const domainCount = Object.keys(webMonitoring.suspicious_domains || {}).length;
+        const portCount = Object.keys(config.traffic_monitoring?.suspicious_ports || {}).length;
+        return `${rtaCount} RTA sites, ${domainCount} domains, ${portCount} ports`;
+      }
+      case "behaviour":
+        return "Mouse, keyboard, and click analysis";
+      case "process_scanner": {
+        const safeCount = Object.keys(config.ioc?.safe_processes || {}).length;
+        const hashCount = Object.keys(config.ioc?.bad_hashes || {}).length;
+        return `${safeCount} safe processes, ${hashCount} known bad hashes`;
+      }
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Quick Stats Banner */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="grid grid-cols-3 gap-4 mb-6"
+      >
+        <div className="bg-gradient-to-br from-red-500/10 to-rose-600/10 border border-red-500/20 rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🎯</span>
+            <div>
+              <div className="text-sm text-slate-400">Program Threats</div>
+              <div className="text-xl font-bold text-white">
+                {Object.keys(programsRegistry?.programs || {}).length}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-br from-blue-500/10 to-cyan-600/10 border border-blue-500/20 rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🌐</span>
+            <div>
+              <div className="text-sm text-slate-400">Network Patterns</div>
+              <div className="text-xl font-bold text-white">
+                {Object.keys(networkConfig?.web_monitoring?.rta_websites || {}).length +
+                  Object.keys(networkConfig?.web_monitoring?.suspicious_domains || {}).length +
+                  Object.keys(networkConfig?.traffic_monitoring?.suspicious_ports || {}).length}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-br from-purple-500/10 to-violet-600/10 border border-purple-500/20 rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🔍</span>
+            <div>
+              <div className="text-sm text-slate-400">Detection Methods</div>
+              <div className="text-xl font-bold text-white">5</div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
 
       {/* Group Navigation */}
       <div className="flex flex-wrap gap-4 mb-8">
@@ -256,7 +362,7 @@ export default function AdvancedSettingsEditor({
               transition={{ delay: index * 0.1 }}
               className={`px-6 py-4 rounded-xl font-medium transition-all flex items-center gap-3 relative overflow-hidden group ${
                 isActive
-                  ? `bg-gradient-to-r ${group.color} text-white shadow-xl shadow-${group.color.split('-')[1]}-500/50`
+                  ? `bg-gradient-to-r ${group.color} text-white shadow-xl`
                   : "bg-slate-700/50 text-slate-300 hover:bg-slate-600/50 hover:text-white hover:scale-105"
               }`}
               whileHover={{ scale: isActive ? 1 : 1.05 }}
@@ -282,7 +388,9 @@ export default function AdvancedSettingsEditor({
               </motion.span>
               <div className="text-left">
                 <div className="font-bold text-base">{group.title}</div>
-                <div className="text-xs opacity-90 mt-0.5">{group.description}</div>
+                <div className="text-xs opacity-90 mt-0.5 max-w-[200px] truncate">
+                  {group.description}
+                </div>
               </div>
               {isActive && (
                 <motion.div
@@ -324,7 +432,10 @@ export default function AdvancedSettingsEditor({
               transition={{ duration: 0.3 }}
               className="space-y-4"
             >
-              <div className={`glass-card p-6 rounded-xl border-2 ${group.borderColor} ${group.gradient}`}>
+              <div
+                className={`glass-card p-6 rounded-xl border-2 ${group.borderColor} ${group.gradient}`}
+              >
+                {/* Group Header */}
                 <div className="mb-6">
                   <div className="flex items-start gap-4 mb-4">
                     <motion.div
@@ -335,15 +446,23 @@ export default function AdvancedSettingsEditor({
                       {group.icon}
                     </motion.div>
                     <div className="flex-1">
-                      <h2 className="text-2xl font-bold text-white mb-2">{group.title}</h2>
+                      <h2 className="text-2xl font-bold text-white mb-2">
+                        {group.title}
+                      </h2>
                       <p className="text-slate-300 mb-3">{group.description}</p>
                       {group.explanation && (
                         <div className="mt-4 p-4 bg-slate-800/50 border border-slate-700 rounded-lg">
                           <div className="flex items-start gap-2">
-                            <span className="text-yellow-400 text-lg flex-shrink-0">💡</span>
+                            <span className="text-yellow-400 text-lg flex-shrink-0">
+                              💡
+                            </span>
                             <div>
-                              <p className="text-sm text-slate-200 font-medium mb-1">Why is this different?</p>
-                              <p className="text-sm text-slate-300 leading-relaxed">{group.explanation}</p>
+                              <p className="text-sm text-slate-200 font-medium mb-1">
+                                What is this?
+                              </p>
+                              <p className="text-sm text-slate-300 leading-relaxed">
+                                {group.explanation}
+                              </p>
                             </div>
                           </div>
                         </div>
@@ -357,6 +476,7 @@ export default function AdvancedSettingsEditor({
                   {group.sections.map((section, sectionIndex) => {
                     const config = getConfigForSection(section.config);
                     const isExpanded = expandedSections.has(section.id);
+                    const stats = getSectionStats(section.id, config);
 
                     return (
                       <motion.div
@@ -386,7 +506,7 @@ export default function AdvancedSettingsEditor({
                                   animate={{ scale: 1 }}
                                   className="text-xs bg-green-500/20 text-green-400 px-3 py-1 rounded-full border border-green-500/30"
                                 >
-                                  ✓ Configured
+                                  ✓ Loaded
                                 </motion.span>
                               ) : (
                                 <motion.span
@@ -401,6 +521,15 @@ export default function AdvancedSettingsEditor({
                             <p className="text-sm text-slate-300 mb-3 leading-relaxed">
                               {section.description}
                             </p>
+
+                            {/* Stats line */}
+                            {stats && (
+                              <div className="text-xs text-indigo-400 mb-3 font-medium">
+                                📊 {stats}
+                              </div>
+                            )}
+
+                            {/* Details */}
                             <div className="text-xs text-slate-400 space-y-1.5">
                               {section.details.map((detail, idx) => (
                                 <motion.div
@@ -410,7 +539,6 @@ export default function AdvancedSettingsEditor({
                                   transition={{ delay: idx * 0.05 }}
                                   className="flex items-start gap-2"
                                 >
-                                  <span className={`text-${group.color.split('-')[1]}-400 mt-0.5`}>▸</span>
                                   <span>{detail}</span>
                                 </motion.div>
                               ))}
@@ -420,7 +548,13 @@ export default function AdvancedSettingsEditor({
                             animate={{ rotate: isExpanded ? 180 : 0 }}
                             className="ml-4 flex-shrink-0"
                           >
-                            <div className={`p-2 rounded-lg ${isExpanded ? 'bg-indigo-500/20' : 'bg-slate-700/50'} group-hover:bg-indigo-500/30 transition-colors`}>
+                            <div
+                              className={`p-2 rounded-lg ${
+                                isExpanded
+                                  ? "bg-indigo-500/20"
+                                  : "bg-slate-700/50"
+                              } group-hover:bg-indigo-500/30 transition-colors`}
+                            >
                               <svg
                                 className="w-6 h-6 text-slate-300 group-hover:text-indigo-300 transition-colors"
                                 fill="none"
@@ -449,22 +583,37 @@ export default function AdvancedSettingsEditor({
                               className="border-t-2 border-slate-700 overflow-hidden"
                             >
                               <div className="p-5 bg-slate-900/50">
-                                {section.editor === "unified" && section.id === "programs_registry" ? (
+                                {section.editor === "unified" &&
+                                section.id === "programs_registry" ? (
                                   <UnifiedProgramEditor
                                     programs={config.programs || {}}
-                                    categoryDefinitions={config.category_definitions || {}}
+                                    categoryDefinitions={
+                                      config.category_definitions || {}
+                                    }
                                     onUpdate={async (updatedPrograms) => {
                                       const updatedRegistry = {
                                         ...config,
                                         programs: updatedPrograms,
                                       };
-                                      await onSave("programs_registry", updatedRegistry);
+                                      await onSave(
+                                        "programs_registry",
+                                        updatedRegistry
+                                      );
                                     }}
                                   />
-                                ) : section.editor === "behaviour" && section.id === "behaviour" ? (
+                                ) : section.editor === "behaviour" &&
+                                  section.id === "behaviour" ? (
                                   <BehaviourConfigEditor
                                     config={config}
                                     onSave={onSave}
+                                  />
+                                ) : section.editor === "web" &&
+                                  section.id === "network_threats" ? (
+                                  <WebMonitoringEditor
+                                    config={config}
+                                    onSave={async (updates) => {
+                                      await onSave("network_config", updates);
+                                    }}
                                   />
                                 ) : (
                                   <SmartConfigEditor
@@ -473,10 +622,6 @@ export default function AdvancedSettingsEditor({
                                         ? "programs_config"
                                         : section.id === "shared"
                                         ? "shared_config"
-                                        : section.id === "network"
-                                        ? "network_config"
-                                        : section.id === "behaviour"
-                                        ? "behaviour_config"
                                         : section.id === "screen"
                                         ? "screen_config"
                                         : section.id === "vm"

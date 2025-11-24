@@ -63,20 +63,6 @@
     "suspicious_line_length": 500,
     "min_obfuscation_score": 5
   },
-  "file_scan_settings": {
-    "max_file_size": 5242880,
-    "scan_extensions": [
-      ".py",
-      ".pyw"
-    ],
-    "skip_paths": [
-      "__pycache__",
-      ".git",
-      "node_modules",
-      "venv",
-      ".venv"
-    ]
-  },
   "reporting": {
     "report_cooldown": 60,
     "min_confidence": 0.6

@@ -131,61 +131,12 @@ class TelegramDetector(BaseSegment):
         except Exception as e:
             print(f"[TelegramDetector] WARNING: Config load failed: {e}")
 
-        # Return default config
+        # Return default config (cleaned - only fields actually used)
         return {
             "telegram_detection": {
                 "cidr_fetch_interval": 3600,
                 "alert_cooldown": 120.0,
                 "poker_fg_window": 15.0,
-                "token_scan_interval": 300.0,
-                "scan_paths": ["Desktop", "Documents", "Downloads"],
-                "scan_patterns": [
-                    "*.py",
-                    "*.ahk",
-                    "*.txt",
-                    "*.log",
-                    "*.json",
-                    "*.cfg",
-                    "*.ini",
-                    "*.bat",
-                    "*.ps1",
-                ],
-                "max_file_size": 2000000,
-                "max_depth": 3,
-                "skip_dirs": [
-                    "node_modules",
-                    ".git",
-                    ".venv",
-                    "venv",
-                    "__pycache__",
-                    ".cache",
-                    "cache",
-                    "temp",
-                    "tmp",
-                    "AppData",
-                    "Library",
-                    ".npm",
-                    ".yarn",
-                    "dist",
-                    "build",
-                    "target",
-                ],
-                "protected_poker": {
-                    "process": "game.exe",
-                    "path_hint": "CoinPoker",
-                    "class": "Qt673QWindowIcon",
-                },
-                "other_poker_processes": [
-                    "pokerstars",
-                    "ggpoker",
-                    "888poker",
-                    "partypoker",
-                    "winamax",
-                    "wsop",
-                    "pokerbros",
-                    "party",
-                    "titan",
-                ],
                 "browser_names": [
                     "chrome.exe",
                     "msedge.exe",
@@ -249,7 +200,6 @@ class TelegramDetector(BaseSegment):
             return
 
         # Try to fetch fresh CIDR ranges
-        fetch_success = False
         try:
             resp = requests.get(self.telegram_cidr_url, timeout=10)
             resp.raise_for_status()
@@ -267,7 +217,6 @@ class TelegramDetector(BaseSegment):
             if cidrs:
                 self.telegram_cidrs = cidrs
                 self.last_cidr_fetch = now
-                fetch_success = True
                 print(f"[TelegramDetector] Loaded {len(cidrs)} Telegram CIDR ranges from network")
 
         except Exception as e:
