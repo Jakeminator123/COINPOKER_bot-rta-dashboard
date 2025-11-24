@@ -140,7 +140,7 @@ export default function DeviceListModule({
         result.sort((a, b) => (b.session_duration || 0) - (a.session_duration || 0));
         break;
       case "default":
-      default:
+      default: {
         // Original logic: Online first (by threat), then Offline (by threat)
         const now = Date.now();
         const online: DeviceRecord[] = [];
@@ -163,6 +163,7 @@ export default function DeviceListModule({
         // Combine: online first, then offline
         result = [...online, ...offline];
         break;
+      }
     }
 
     return result;

@@ -48,7 +48,6 @@ import AuthGuard from "@/components/AuthGuard";
 import SegmentHistoryModal from "@/components/SegmentHistoryModal";
 import ReportExportModal from "@/components/ReportExportModal";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
-import DidAgentWidget from "@/components/DidAgentWidget";
 
 // Dynamic imports for client-side components
 const ThreatVisualization = dynamic(
@@ -115,9 +114,6 @@ type CommandExecutionResult =
   | { commandId: string; requireAdmin: boolean; status: "unknown" };
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
-
-const DID_AGENT_URL =
-  "https://studio.d-id.com/agents/share?id=v2_agt_JJZwZKuY&utm_source=copy&key=WjI5dloyeGxMVzloZFhSb01ud3hNVFV5TnpnMU56UXpORE0yTnpFMU9UUTVPRFU2VkZGclUxSTNTVU54V0hwdFpIZzNOSGxOVkhKMA==";
 
 type SessionDurationVariant = "panel" | "inline";
 
@@ -2151,7 +2147,6 @@ function EnhancedDashboardContent() {
         onClose={() => {}}
         deviceId={playerId}
       />
-      <DidAgentWidget agentUrl={DID_AGENT_URL} title="D-ID Copilot" />
       </div>
     </main>
   );
