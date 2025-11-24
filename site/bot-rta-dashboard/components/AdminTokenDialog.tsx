@@ -13,14 +13,47 @@ export default function AdminTokenDialog({ isOpen, onClose, onSuccess }: AdminTo
   const [token, setToken] = useState('');
   const [error, setError] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
-  const [hasToken, setHasToken] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [isSyncingSession, setIsSyncingSession] = useState(true);
 
-  // Check for token on client side only
-  React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setHasToken(!!localStorage.getItem('adminToken'));
+  const refreshSessionState = React.useCallback(async () => {
+    if (typeof window === 'undefined') return;
+    setIsSyncingSession(true);
+    try {
+      const storedSession = localStorage.getItem('adminSessionId');
+      setSessionId(storedSession);
+      if (!storedSession) {
+        setHasSession(false);
+        return;
+      }
+      const response = await fetch('/api/admin/session', {
+        headers: { 'x-admin-session': storedSession },
+      });
+      const payload = await response.json();
+      const active = response.ok && payload?.data?.isAdmin;
+      if (!active) {
+        localStorage.removeItem('adminSessionId');
+        setSessionId(null);
+      }
+      setHasSession(Boolean(active));
+    } catch {
+      setHasSession(false);
+    } finally {
+      setIsSyncingSession(false);
     }
   }, []);
+
+  React.useEffect(() => {
+    refreshSessionState();
+  }, [refreshSessionState]);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      refreshSessionState();
+    }
+  }, [isOpen, refreshSessionState]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,34 +67,25 @@ export default function AdminTokenDialog({ isOpen, onClose, onSuccess }: AdminTo
     setError('');
 
     try {
-      // Verify token by attempting to fetch configs with it
-      const response = await fetch('/api/configs/update', {
+      const response = await fetch('/api/admin/session', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          category: 'test',
-          config: {},
-          test: true // Just test the auth
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
       });
+      const payload = await response.json();
 
-      if (response.status === 401) {
-        setError('Invalid admin token');
-        setIsVerifying(false);
+      if (!response.ok || !payload?.data?.sessionId) {
+        setError(payload?.error || 'Invalid admin token');
         return;
       }
 
-      // Save token to localStorage
       localStorage.setItem('adminToken', token);
-      setHasToken(true);
-
-      // Success
+      localStorage.setItem('adminSessionId', payload.data.sessionId);
+      setSessionId(payload.data.sessionId);
+      setHasSession(true);
+      setToken('');
       onSuccess();
       onClose();
-      setToken('');
     } catch (error) {
       setError('Failed to verify token');
     } finally {
@@ -69,11 +93,28 @@ export default function AdminTokenDialog({ isOpen, onClose, onSuccess }: AdminTo
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('adminToken');
-    setHasToken(false);
-    onSuccess();
-    onClose();
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      const headers: Record<string, string> = {};
+      if (sessionId) {
+        headers['x-admin-session'] = sessionId;
+      }
+      await fetch('/api/admin/session', {
+        method: 'DELETE',
+        headers,
+      });
+    } catch {
+      // Ignore logout errors
+    } finally {
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminSessionId');
+      setSessionId(null);
+      setHasSession(false);
+      setIsLoggingOut(false);
+      onSuccess();
+      onClose();
+    }
   };
 
   return (
@@ -99,12 +140,12 @@ export default function AdminTokenDialog({ isOpen, onClose, onSuccess }: AdminTo
             <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-2xl w-full max-w-md p-6">
               <h2 className="text-2xl font-bold text-white mb-2">Admin Access</h2>
               <p className="text-slate-400 text-sm mb-6">
-                {hasToken
-                  ? 'You are currently logged in as an admin.'
-                  : 'Enter your admin token to enable configuration editing.'}
+                {hasSession
+                  ? 'Admin session is active — configuration editing is unlocked.'
+                  : 'Enter your admin token to unlock the full Settings page. Without it, everything stays read-only.'}
               </p>
 
-              {!hasToken ? (
+              {!hasSession ? (
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -121,6 +162,7 @@ export default function AdminTokenDialog({ isOpen, onClose, onSuccess }: AdminTo
                       className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-indigo-500 focus:outline-none"
                       autoComplete="new-password"
                       autoFocus
+                      disabled={isVerifying || isSyncingSession}
                     />
                     {error && (
                       <p className="mt-2 text-sm text-red-400">{error}</p>
@@ -130,7 +172,7 @@ export default function AdminTokenDialog({ isOpen, onClose, onSuccess }: AdminTo
                   <div className="flex gap-3">
                     <button
                       type="submit"
-                      disabled={isVerifying || !token}
+                      disabled={isVerifying || !token || isSyncingSession}
                       className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-slate-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
                     >
                       {isVerifying ? (
@@ -138,6 +180,8 @@ export default function AdminTokenDialog({ isOpen, onClose, onSuccess }: AdminTo
                           <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                           Verifying...
                         </>
+                      ) : isSyncingSession ? (
+                        'Syncing...'
                       ) : (
                         'Login'
                       )}
@@ -165,9 +209,17 @@ export default function AdminTokenDialog({ isOpen, onClose, onSuccess }: AdminTo
                   <div className="flex gap-3">
                     <button
                       onClick={handleLogout}
-                      className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
+                      disabled={isLoggingOut}
+                      className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-500 disabled:bg-slate-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
                     >
-                      Logout
+                      {isLoggingOut ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Logging out...
+                        </>
+                      ) : (
+                        'Logout'
+                      )}
                     </button>
                     <button
                       onClick={onClose}
@@ -181,7 +233,7 @@ export default function AdminTokenDialog({ isOpen, onClose, onSuccess }: AdminTo
 
               <div className="mt-6 pt-4 border-t border-slate-700">
                 <p className="text-xs text-slate-500">
-                  Note: Admin token is stored locally in your browser and is required to modify detection configurations.
+                  Note: The admin token and session identifier stay in your browser only and are required for any configuration changes.
                 </p>
                 <div className="mt-2 p-2 bg-slate-900/50 rounded text-xs text-slate-400">
                   <strong>Default admin token:</strong> admin-secret-2024

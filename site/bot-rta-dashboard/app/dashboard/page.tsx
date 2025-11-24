@@ -301,7 +301,11 @@ function EnhancedDashboardContent() {
 
   const queueDeviceCommand = useCallback(
     async (deviceId: string, command: DeviceCommandName, payload?: unknown) => {
-      const response = await fetch("/api/device-commands", {
+      // Use Redis API when USE_REDIS is enabled (typically on Render)
+      const useRedis = process.env.NEXT_PUBLIC_USE_REDIS === "true";
+      const apiPath = useRedis ? "/api/device-commands/redis" : "/api/device-commands";
+      
+      const response = await fetch(apiPath, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -332,14 +336,17 @@ function EnhancedDashboardContent() {
   const fetchCommandResult = useCallback(
     async (commandId: string, timeoutMs = 20000) => {
       const started = Date.now();
+      const useRedis = process.env.NEXT_PUBLIC_USE_REDIS === "true";
+      
       while (Date.now() - started < timeoutMs) {
-        const response = await fetch(
-          `/api/device-commands/result?id=${encodeURIComponent(commandId)}`,
-          {
-            method: "GET",
-            cache: "no-store",
-          }
-        );
+        const apiPath = useRedis 
+          ? `/api/device-commands/redis?id=${encodeURIComponent(commandId)}&deviceId=${encodeURIComponent(playerId || '')}`
+          : `/api/device-commands/result?id=${encodeURIComponent(commandId)}`;
+          
+        const response = await fetch(apiPath, {
+          method: "GET",
+          cache: "no-store",
+        });
 
         let json: any = null;
         try {
@@ -370,7 +377,7 @@ function EnhancedDashboardContent() {
 
       return { status: "timeout" as const };
     },
-    [wait]
+    [wait, playerId]
   );
 
   const executeDeviceCommand = useCallback(

@@ -1,5 +1,6 @@
 import type { NextAuthOptions } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import { verifyManagedCredentials } from "@/lib/utils/admin-session";
 
 export const authConfig = {
   session: {
@@ -13,13 +14,12 @@ export const authConfig = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials: { username?: string; password?: string } | undefined) {
-        const adminUser = process.env.ADMIN_USER || "admin";
-        const adminPass = process.env.ADMIN_PASS || "admin";
         if (
-          credentials?.username === adminUser &&
-          credentials?.password === adminPass
+          credentials?.username &&
+          credentials?.password &&
+          verifyManagedCredentials(credentials.username, credentials.password)
         ) {
-          return { id: "admin", name: adminUser };
+          return { id: credentials.username, name: credentials.username };
         }
         return null;
       },

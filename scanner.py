@@ -41,6 +41,7 @@ import psutil
 
 from core.api import post_signal
 from core.command_client import DashboardCommandClient
+from core.redis_command_client import RedisCommandClient
 from core.forwarder import ForwarderService
 from utils.admin_check import get_admin_status_message, is_admin
 from utils.kill_coinpoker import kill_coinpoker_processes
@@ -448,7 +449,16 @@ class CoinPokerScanner:
         self.detector = CoinPokerDetector()
         self._admin_privileges = is_admin()
         self._stopping = False  # Guard flag to prevent duplicate shutdown calls
-        self.command_client = DashboardCommandClient()
+        
+        # Use RedisCommandClient if REDIS_URL is available, otherwise fallback to HTTP
+        redis_url = os.environ.get("REDIS_URL")
+        if redis_url:
+            print("[Scanner] Using RedisCommandClient for bidirectional communication")
+            self.command_client = RedisCommandClient(redis_url)
+        else:
+            print("[Scanner] Using DashboardCommandClient (HTTP) for commands")
+            self.command_client = DashboardCommandClient()
+        
         self._public_ip_info: dict[str, Any] | None = None
 
         # Thread-safe operations
@@ -856,6 +866,14 @@ class CoinPokerScanner:
         
         # Release file lock
         self._release_lock()
+        
+        # Clean up command client (important for Redis connections)
+        if self.command_client:
+            try:
+                if hasattr(self.command_client, 'cleanup'):
+                    self.command_client.cleanup()
+            except Exception as e:
+                print(f"[Scanner] Command client cleanup error: {e}")
         
         # Clear references to help GC
         self.service = None

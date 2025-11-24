@@ -16,7 +16,8 @@ import { SettingsGearIcon, DatabaseIcon, ShieldIcon, ConfigIcon, ArrowIcon, Netw
 import { GlassCard, FeatureCard } from "@/components/GlassCard";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, FormEvent } from "react";
+import type { ReactNode } from "react";
 import useSWR from "swr";
 
 const fetcher = (url: string) =>
@@ -55,6 +56,29 @@ function FloatingIcon({ delay = 0 }: { delay?: number }) {
   );
 }
 
+function AdminLockOverlay({
+  locked,
+  children,
+}: {
+  locked: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className="relative">
+      <div className={locked ? "pointer-events-none opacity-40 blur-[1px]" : ""}>
+        {children}
+      </div>
+      {locked && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="px-4 py-2 bg-slate-900/80 border border-slate-700 rounded-lg text-sm text-white text-center max-w-xs">
+            Admin token required — everything stays read-only until you log in.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsPageContent() {
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
@@ -63,21 +87,79 @@ function SettingsPageContent() {
   const [configMode, setConfigMode] = useState<ConfigurationMode>("simplified");
   const [advancedGroup, setAdvancedGroup] = useState<string | undefined>(undefined);
   const [advancedSection, setAdvancedSection] = useState<string | undefined>(undefined);
+  const [adminSessionId, setAdminSessionId] = useState<string | null>(null);
+  const [adminStatusLoading, setAdminStatusLoading] = useState(true);
+  const [newAdminUser, setNewAdminUser] = useState("");
+  const [newAdminPassword, setNewAdminPassword] = useState("");
+  const [userFormError, setUserFormError] = useState("");
+  const [userActionMessage, setUserActionMessage] = useState("");
+  const [isSavingAdminUser, setIsSavingAdminUser] = useState(false);
   
   const { data: configData, error, isLoading, mutate } = useSWR("/api/configs", fetcher);
 
-  useEffect(() => {
-    const token = localStorage.getItem("adminToken");
-    setIsAdmin(!!token);
+  const adminUsersKey = isAdmin && adminSessionId ? ["/api/admin/users", adminSessionId] : null;
+  const {
+    data: adminUsersData,
+    isLoading: isAdminUsersLoading,
+    mutate: mutateAdminUsers,
+    error: adminUsersError,
+  } = useSWR(
+    adminUsersKey,
+    async ([url, session]: [string, string]) => {
+      const response = await fetch(url, {
+        headers: { "x-admin-session": session },
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to load admin users");
+      }
+      return payload?.data?.users ?? [];
+    }
+  );
+  const adminUsers = adminUsersData ?? [];
+
+  const syncAdminState = useCallback(async () => {
+    if (typeof window === "undefined") return;
+    setAdminStatusLoading(true);
+    try {
+      const storedSession = localStorage.getItem("adminSessionId");
+      setAdminSessionId(storedSession);
+      if (!storedSession) {
+        setIsAdmin(false);
+        return;
+      }
+      const response = await fetch("/api/admin/session", {
+        headers: { "x-admin-session": storedSession },
+      });
+      const payload = await response.json();
+      const active = response.ok && payload?.data?.isAdmin;
+      if (!active) {
+        localStorage.removeItem("adminSessionId");
+        setAdminSessionId(null);
+      }
+      setIsAdmin(Boolean(active));
+    } catch {
+      setIsAdmin(false);
+    } finally {
+      setAdminStatusLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    syncAdminState();
+  }, [syncAdminState]);
+
   const checkAdminStatus = () => {
-    const token = localStorage.getItem("adminToken");
-    setIsAdmin(!!token);
+    void syncAdminState();
   };
 
   const handleResetToDefault = async () => {
     if (!confirm("⚠️ Reset ALL configurations to default values?")) return;
+
+    if (!isAdmin) {
+      alert("Admin session required.");
+      return;
+    }
     
     const token = localStorage.getItem("adminToken");
     if (!token) {
@@ -98,6 +180,79 @@ function SettingsPageContent() {
     } catch (error) {
       console.error("Reset failed:", error);
       alert("❌ Failed to reset configurations");
+    }
+  };
+
+  const handleAdminUserSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!adminSessionId) {
+      setUserFormError("Admin session missing. Please login again.");
+      return;
+    }
+    if (!newAdminUser.trim() || !newAdminPassword.trim()) {
+      setUserFormError("Username and password are required.");
+      return;
+    }
+    setIsSavingAdminUser(true);
+    setUserFormError("");
+    setUserActionMessage("");
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-session": adminSessionId,
+        },
+        body: JSON.stringify({
+          username: newAdminUser.trim(),
+          password: newAdminPassword.trim(),
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to save user");
+      }
+      setUserActionMessage(
+        payload?.data?.action === "updated" ? "Credentials updated." : "User added."
+      );
+      setNewAdminUser("");
+      setNewAdminPassword("");
+      await mutateAdminUsers();
+    } catch (err) {
+      setUserFormError(err instanceof Error ? err.message : "Failed to save user.");
+    } finally {
+      setIsSavingAdminUser(false);
+    }
+  };
+
+  const handleRemoveAdminUser = async (username: string) => {
+    if (!adminSessionId) {
+      setUserFormError("Admin session missing. Please login again.");
+      return;
+    }
+    if (!confirm(`Remove admin user "${username}"?`)) return;
+    setIsSavingAdminUser(true);
+    setUserFormError("");
+    setUserActionMessage("");
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-session": adminSessionId,
+        },
+        body: JSON.stringify({ username }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to remove user");
+      }
+      setUserActionMessage(`Removed ${username}.`);
+      await mutateAdminUsers();
+    } catch (err) {
+      setUserFormError(err instanceof Error ? err.message : "Failed to remove user.");
+    } finally {
+      setIsSavingAdminUser(false);
     }
   };
 
@@ -182,7 +337,18 @@ function SettingsPageContent() {
 
             <div className="flex items-center gap-4">
               <AnimatePresence mode="wait">
-                {isAdmin ? (
+                {adminStatusLoading ? (
+                  <motion.div
+                    key="checking"
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    className="px-5 py-3 bg-slate-700/40 border border-slate-600/40 rounded-2xl backdrop-blur-xl flex items-center gap-3 text-slate-300"
+                  >
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Checking access...
+                  </motion.div>
+                ) : isAdmin ? (
                   <motion.div
                     key="admin"
                     initial={{ scale: 0, opacity: 0, rotate: -180 }}
@@ -342,9 +508,14 @@ function SettingsPageContent() {
                     <div className="flex gap-3">
                       <motion.button
                         onClick={handleResetToDefault}
-                        className="px-4 py-2 bg-red-500/20 border border-red-500/30 text-red-400 rounded-xl hover:bg-red-500/30 transition-all"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
+                        disabled={!isAdmin}
+                        className={`px-4 py-2 border rounded-xl transition-all ${
+                          isAdmin
+                            ? "bg-red-500/20 border-red-500/30 text-red-400 hover:bg-red-500/30"
+                            : "bg-slate-700/30 border-slate-600/40 text-slate-400 cursor-not-allowed opacity-60"
+                        }`}
+                        whileHover={isAdmin ? { scale: 1.05 } : undefined}
+                        whileTap={isAdmin ? { scale: 0.95 } : undefined}
                       >
                         Reset to Default
                       </motion.button>
@@ -402,82 +573,86 @@ function SettingsPageContent() {
                   ) : configData ? (
                     configMode === "simplified" ? (
                       <GlassCard className="p-8">
-                        <SimplifiedConfigurationEditor
-                          programsRegistry={configData.programs_registry}
-                          programsConfig={configData.programs_config}
-                          networkConfig={configData.network_config}
-                          behaviourConfig={configData.behaviour_config}
-                          screenConfig={configData.screen_config}
-                          vmConfig={configData.vm_config}
-                          obfuscationConfig={configData.obfuscation_config}
-                          sharedConfig={configData.shared_config}
-                          onNavigateToAdvanced={(group, section) => {
-                            setConfigMode("advanced");
-                            setAdvancedGroup(group);
-                            setAdvancedSection(section);
-                          }}
-                          onSave={async (category, updates) => {
-                            const token = localStorage.getItem("adminToken");
-                            if (!token) {
-                              alert("Admin token required");
-                              return;
-                            }
-                            
-                            const response = await fetch("/api/configs/update", {
-                              method: "POST",
-                              headers: {
-                                "Content-Type": "application/json",
-                                Authorization: `Bearer ${token}`,
-                              },
-                              body: JSON.stringify({
-                                category,
-                                config: updates,
-                                merge: false,
-                              }),
-                            });
-                            
-                            if (!response.ok) throw new Error("Save failed");
-                            await mutate();
-                          }}
-                        />
+                        <AdminLockOverlay locked={!isAdmin}>
+                          <SimplifiedConfigurationEditor
+                            programsRegistry={configData.programs_registry}
+                            programsConfig={configData.programs_config}
+                            networkConfig={configData.network_config}
+                            behaviourConfig={configData.behaviour_config}
+                            screenConfig={configData.screen_config}
+                            vmConfig={configData.vm_config}
+                            obfuscationConfig={configData.obfuscation_config}
+                            sharedConfig={configData.shared_config}
+                            onNavigateToAdvanced={(group, section) => {
+                              setConfigMode("advanced");
+                              setAdvancedGroup(group);
+                              setAdvancedSection(section);
+                            }}
+                            onSave={async (category, updates) => {
+                              const token = localStorage.getItem("adminToken");
+                              if (!token) {
+                                alert("Admin token required");
+                                return;
+                              }
+                              
+                              const response = await fetch("/api/configs/update", {
+                                method: "POST",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                  Authorization: `Bearer ${token}`,
+                                },
+                                body: JSON.stringify({
+                                  category,
+                                  config: updates,
+                                  merge: false,
+                                }),
+                              });
+                              
+                              if (!response.ok) throw new Error("Save failed");
+                              await mutate();
+                            }}
+                          />
+                        </AdminLockOverlay>
                       </GlassCard>
                     ) : (
                       <GlassCard className="p-8">
-                        <AdvancedSettingsEditor
-                          programsRegistry={configData.programs_registry}
-                          programsConfig={configData.programs_config}
-                          networkConfig={configData.network_config}
-                          behaviourConfig={configData.behaviour_config}
-                          screenConfig={configData.screen_config}
-                          vmConfig={configData.vm_config}
-                          obfuscationConfig={configData.obfuscation_config}
-                          sharedConfig={configData.shared_config}
-                          initialGroup={advancedGroup}
-                          initialSection={advancedSection}
-                          onSave={async (category, updates) => {
-                            const token = localStorage.getItem("adminToken");
-                            if (!token) {
-                              alert("Admin token required");
-                              return;
-                            }
-                            
-                            const response = await fetch("/api/configs/update", {
-                              method: "POST",
-                              headers: {
-                                "Content-Type": "application/json",
-                                Authorization: `Bearer ${token}`,
-                              },
-                              body: JSON.stringify({
-                                category,
-                                config: updates,
-                                merge: false,
-                              }),
-                            });
-                            
-                            if (!response.ok) throw new Error("Save failed");
-                            await mutate();
-                          }}
-                        />
+                        <AdminLockOverlay locked={!isAdmin}>
+                          <AdvancedSettingsEditor
+                            programsRegistry={configData.programs_registry}
+                            programsConfig={configData.programs_config}
+                            networkConfig={configData.network_config}
+                            behaviourConfig={configData.behaviour_config}
+                            screenConfig={configData.screen_config}
+                            vmConfig={configData.vm_config}
+                            obfuscationConfig={configData.obfuscation_config}
+                            sharedConfig={configData.shared_config}
+                            initialGroup={advancedGroup}
+                            initialSection={advancedSection}
+                            onSave={async (category, updates) => {
+                              const token = localStorage.getItem("adminToken");
+                              if (!token) {
+                                alert("Admin token required");
+                                return;
+                              }
+                              
+                              const response = await fetch("/api/configs/update", {
+                                method: "POST",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                  Authorization: `Bearer ${token}`,
+                                },
+                                body: JSON.stringify({
+                                  category,
+                                  config: updates,
+                                  merge: false,
+                                }),
+                              });
+                              
+                              if (!response.ok) throw new Error("Save failed");
+                              await mutate();
+                            }}
+                          />
+                        </AdminLockOverlay>
                       </GlassCard>
                     )
                   ) : (
@@ -492,6 +667,140 @@ function SettingsPageContent() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="mt-10"
+        >
+          <GlassCard className="p-6" glow={true}>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <ShieldIcon className="w-10 h-10 text-indigo-300" isActive={isAdmin} />
+                <div>
+                  <h3 className="text-2xl font-semibold text-white">Credential Manager</h3>
+                  <p className="text-white/60 text-sm">
+                    Define which username/password pairs can log in via the dashboard.
+                  </p>
+                </div>
+              </div>
+              {adminStatusLoading && (
+                <div className="flex items-center gap-2 text-slate-400 text-sm">
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Checking admin session...
+                </div>
+              )}
+            </div>
+
+            {isAdmin ? (
+              <>
+                <form onSubmit={handleAdminUserSubmit} className="mt-6 grid gap-4 md:grid-cols-3">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm text-slate-300">Username</label>
+                    <input
+                      type="text"
+                      value={newAdminUser}
+                      onChange={(e) => {
+                        setNewAdminUser(e.target.value);
+                        setUserFormError("");
+                        setUserActionMessage("");
+                      }}
+                      className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+                      placeholder="admin"
+                      disabled={isSavingAdminUser}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm text-slate-300">Password</label>
+                    <input
+                      type="password"
+                      value={newAdminPassword}
+                      onChange={(e) => {
+                        setNewAdminPassword(e.target.value);
+                        setUserFormError("");
+                        setUserActionMessage("");
+                      }}
+                      className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+                      placeholder="••••••••"
+                      disabled={isSavingAdminUser}
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      type="submit"
+                      disabled={isSavingAdminUser}
+                      className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 rounded-lg text-white font-semibold transition-colors flex items-center justify-center gap-2"
+                    >
+                      {isSavingAdminUser ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        "Save credentials"
+                      )}
+                    </button>
+                  </div>
+                </form>
+                {userFormError && (
+                  <p className="mt-3 text-sm text-red-400">{userFormError}</p>
+                )}
+                {userActionMessage && (
+                  <p className="mt-3 text-sm text-green-400">{userActionMessage}</p>
+                )}
+
+                <div className="mt-8">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-lg font-semibold text-white">Current Admin Users</h4>
+                    {adminUsersError && (
+                      <span className="text-sm text-red-400">{adminUsersError.message}</span>
+                    )}
+                  </div>
+                  {isAdminUsersLoading ? (
+                    <div className="mt-4 flex items-center gap-2 text-slate-400 text-sm">
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Loading users...
+                    </div>
+                  ) : adminUsers.length === 0 ? (
+                    <p className="mt-4 text-slate-400 text-sm">
+                      No admin users registered yet.
+                    </p>
+                  ) : (
+                    <ul className="mt-4 divide-y divide-slate-800">
+                      {adminUsers.map((user) => (
+                        <li key={user.username} className="flex flex-col sm:flex-row sm:items-center justify-between py-3 gap-3">
+                          <div>
+                            <p className="text-white font-medium">{user.username}</p>
+                            <p className="text-xs text-slate-500">
+                              Updated {new Date(user.updatedAt).toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-slate-500">
+                              Created {new Date(user.createdAt).toLocaleDateString()}
+                            </span>
+                            <button
+                              onClick={() => handleRemoveAdminUser(user.username)}
+                              disabled={isSavingAdminUser || adminUsers.length <= 1}
+                              className="px-3 py-1.5 bg-red-600/80 hover:bg-red-500 disabled:bg-slate-700 rounded-lg text-white text-sm transition-colors"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-sm text-yellow-200">
+                Login with the admin token to view or update dashboard credentials.
+              </div>
+            )}
+          </GlassCard>
+        </motion.div>
 
         {/* Admin Mode Reminder */}
         {!isAdmin && (
@@ -522,7 +831,8 @@ function SettingsPageContent() {
         onClose={() => setShowAdminDialog(false)}
         onSuccess={() => {
           checkAdminStatus();
-          mutate();
+          void mutate();
+          void mutateAdminUsers();
         }}
       />
     </div>

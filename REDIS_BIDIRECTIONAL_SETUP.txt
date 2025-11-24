@@ -1,0 +1,68 @@
+REDIS BIDIRECTIONAL COMMUNICATION SETUP
+========================================
+
+PROBLEM SOLVED:
+When dashboard is deployed on Render and detection tools run locally, 
+commands (snapshot, kill CoinPoker) don't work because local detection 
+tools cannot reach Render's HTTP endpoints.
+
+SOLUTION:
+Implemented bidirectional communication through Redis instead of HTTP.
+
+ARCHITECTURE:
+1. Detection Tool → Redis → Dashboard (data flow - already working)
+2. Dashboard → Redis → Detection Tool (commands - NEW)
+3. Detection Tool → Redis → Dashboard (command results - NEW)
+
+FILES MODIFIED:
+- site/bot-rta-dashboard/app/api/device-commands/redis/route.ts (NEW)
+- site/bot-rta-dashboard/lib/storage/redis-utils.ts (NEW)
+- core/redis_command_client.py (NEW)
+- scanner.py (UPDATED)
+- site/bot-rta-dashboard/app/dashboard/page.tsx (UPDATED)
+
+CONFIGURATION:
+
+1. DASHBOARD (on Render):
+   Add to environment variables:
+   - USE_REDIS=true
+   - NEXT_PUBLIC_USE_REDIS=true
+   - UPSTASH_REDIS_URL=<your-redis-url>
+   - UPSTASH_REDIS_TOKEN=<your-redis-token>
+
+2. DETECTION TOOL (local):
+   Add to environment or config:
+   - REDIS_URL=<same-redis-url>
+
+HOW IT WORKS:
+
+1. When user clicks "Take Snapshot" or "Kill CoinPoker":
+   - Dashboard writes command to Redis queue
+   - Command stored with device ID and timestamp
+
+2. Detection tool polls Redis for commands:
+   - RedisCommandClient fetches pending commands every 2 seconds
+   - Executes command locally (screenshot, kill process)
+   - Writes result back to Redis
+
+3. Dashboard polls Redis for results:
+   - Checks for command completion status
+   - Shows result to user
+
+REDIS KEYS USED:
+- device:{deviceId}:command_queue - Sorted set of pending commands
+- device:{deviceId}:commands:{commandId} - Command details
+- device:{deviceId}:command_result:{commandId} - Command results
+
+BENEFITS:
+- Works through firewalls (only outbound Redis connection needed)
+- No port forwarding or VPN required
+- Same Redis instance handles both data and commands
+- Scalable to many detection tools
+
+TESTING:
+1. Deploy dashboard to Render with Redis config
+2. Run detection tool locally with REDIS_URL
+3. Open player details page in dashboard
+4. Click "Take Snapshot" or "Kill CoinPoker"
+5. Command should execute within 2-5 seconds
