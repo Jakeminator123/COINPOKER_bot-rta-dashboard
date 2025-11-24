@@ -103,7 +103,7 @@ function SettingsPageContent() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center relative overflow-hidden">
+      <div className="aurora-background flex items-center justify-center relative">
         <AnimatedBackground intensity="low" />
         <GlassCard className="p-8 max-w-md relative z-10">
           <div className="text-center">
@@ -122,7 +122,7 @@ function SettingsPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden">
+    <div className="aurora-background">
       {/* Animated Background - Toned down for settings */}
       <AnimatedBackground intensity="low" particleCount={15} showFloatingDots={true} />
       

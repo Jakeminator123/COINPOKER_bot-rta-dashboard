@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import type { DeviceRecord } from "@/lib/device/transform";
 import { ACTIVE_DEVICE_THRESHOLD_MS } from "@/lib/device/transform";
+import CustomSelect from "@/components/CustomSelect";
 
 export const DEVICES_PAGE_SIZE = 20;
 
@@ -77,10 +78,13 @@ export default function DeviceListModule({
   const [threatFilter, setThreatFilter] = useState<
     "all" | "critical" | "high" | "medium" | "low"
   >("all");
+  const [sortBy, setSortBy] = useState<
+    "default" | "threat_desc" | "last_seen_desc" | "name_asc" | "duration_desc"
+  >("default");
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, threatFilter, devices?.length ?? 0]);
+  }, [searchQuery, threatFilter, sortBy, devices?.length ?? 0]);
 
   const filteredDevices = useMemo(() => {
     if (!devices) return [];
@@ -110,29 +114,59 @@ export default function DeviceListModule({
     });
   }, [devices, searchQuery, threatFilter]);
 
-  // Combine and sort devices: online first (by threat), then offline (by threat)
+  // Combine and sort devices
   const sortedDevices = useMemo(() => {
-    const now = Date.now();
-    const online: DeviceRecord[] = [];
-    const offline: DeviceRecord[] = [];
+    let result = [...filteredDevices];
 
-    for (const device of filteredDevices) {
-      if (now - device.last_seen < ACTIVE_DEVICE_THRESHOLD_MS) {
-        online.push(device);
-      } else {
-        offline.push(device);
-      }
+    switch (sortBy) {
+      case "threat_desc":
+        // Strict threat level sort (ignoring online status)
+        result.sort((a, b) => (b.threat_level || 0) - (a.threat_level || 0));
+        break;
+      case "last_seen_desc":
+        // Most recent first
+        result.sort((a, b) => b.last_seen - a.last_seen);
+        break;
+      case "name_asc":
+        // Alphabetical by name
+        result.sort((a, b) => {
+          const nameA = a.player_nickname || a.device_name || "";
+          const nameB = b.player_nickname || b.device_name || "";
+          return nameA.localeCompare(nameB);
+        });
+        break;
+      case "duration_desc":
+        // Longest session first
+        result.sort((a, b) => (b.session_duration || 0) - (a.session_duration || 0));
+        break;
+      case "default":
+      default:
+        // Original logic: Online first (by threat), then Offline (by threat)
+        const now = Date.now();
+        const online: DeviceRecord[] = [];
+        const offline: DeviceRecord[] = [];
+
+        for (const device of result) {
+          if (now - device.last_seen < ACTIVE_DEVICE_THRESHOLD_MS) {
+            online.push(device);
+          } else {
+            offline.push(device);
+          }
+        }
+
+        // Sort online by current threat_level (highest first)
+        online.sort((a, b) => (b.threat_level || 0) - (a.threat_level || 0));
+
+        // Sort offline by threat_level (highest first)
+        offline.sort((a, b) => (b.threat_level || 0) - (a.threat_level || 0));
+
+        // Combine: online first, then offline
+        result = [...online, ...offline];
+        break;
     }
 
-    // Sort online by current threat_level (highest first)
-    online.sort((a, b) => (b.threat_level || 0) - (a.threat_level || 0));
-    
-    // Sort offline by threat_level (highest first) - this should be historical max from Redis
-    offline.sort((a, b) => (b.threat_level || 0) - (a.threat_level || 0));
-
-    // Combine: online first, then offline
-    return [...online, ...offline];
-  }, [filteredDevices]);
+    return result;
+  }, [filteredDevices, sortBy]);
 
   // For backward compatibility, keep these variables
   const activeDevices = sortedDevices.filter(d => {
@@ -149,6 +183,22 @@ export default function DeviceListModule({
   const startIdx = (currentPage - 1) * DEVICES_PAGE_SIZE;
   const endIdx = startIdx + DEVICES_PAGE_SIZE;
   const pagedDevices = sortedDevices.slice(startIdx, endIdx);
+
+  const threatOptions = [
+    { value: "all", label: "All Threat Levels" },
+    { value: "critical", label: "Critical (75%+)" },
+    { value: "high", label: "High (50-74%)" },
+    { value: "medium", label: "Medium (25-49%)" },
+    { value: "low", label: "Low (<25%)" },
+  ];
+
+  const sortOptions = [
+    { value: "default", label: "Default (Risk & Status)" },
+    { value: "threat_desc", label: "Highest Risk First" },
+    { value: "last_seen_desc", label: "Recently Active" },
+    { value: "duration_desc", label: "Longest Session" },
+    { value: "name_asc", label: "Name (A-Z)" },
+  ];
 
   const handleSelect = useCallback(
     (deviceId: string) => {
@@ -234,36 +284,34 @@ export default function DeviceListModule({
               placeholder="Search by name, ID, or IP address..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-800/50 text-slate-300 rounded-lg px-4 py-2 border border-slate-600 focus:border-indigo-500 focus:outline-none"
+              className="w-full bg-white/5 text-white rounded-lg px-4 py-2 border border-white/10 focus:border-indigo-500 focus:outline-none hover:bg-white/10 transition-colors placeholder-slate-400"
             />
           </div>
           <div className="flex flex-col">
-            <label
-              htmlFor="threat-filter-select"
-              className="sr-only"
-            >
-              Threat filter
-            </label>
-            <select
+            <CustomSelect
               id="threat-filter-select"
-              name="threat-filter"
+              label="Threat filter"
               value={threatFilter}
-              onChange={(e) => setThreatFilter(e.target.value as typeof threatFilter)}
-              className="bg-slate-800/50 text-slate-300 rounded-lg px-4 py-2 border border-slate-600 focus:border-indigo-500 focus:outline-none"
-            >
-              <option value="all">All Threat Levels</option>
-              <option value="critical">Critical (75%+)</option>
-              <option value="high">High (50-74%)</option>
-              <option value="medium">Medium (25-49%)</option>
-              <option value="low">Low (&lt;25%)</option>
-            </select>
+              onChange={(value) => setThreatFilter(value as typeof threatFilter)}
+              options={threatOptions}
+            />
+          </div>
+          <div className="flex flex-col">
+            <CustomSelect
+              id="sort-by-select"
+              label="Sort by"
+              value={sortBy}
+              onChange={(value) => setSortBy(value as typeof sortBy)}
+              options={sortOptions}
+            />
           </div>
           <button
             onClick={() => {
               setSearchQuery("");
               setThreatFilter("all");
+              setSortBy("default");
             }}
-            className="px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg transition-colors text-sm"
+            className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg transition-colors text-sm"
           >
             Clear Filters
           </button>
@@ -289,11 +337,16 @@ export default function DeviceListModule({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {pagedDevices.map((device, idx) => {
               const isOnline = Date.now() - device.last_seen < ACTIVE_DEVICE_THRESHOLD_MS;
+              const statusBadgeClasses = isOnline
+                ? "bg-emerald-500/15 text-emerald-300 border border-emerald-400/30"
+                : "bg-white/5 text-slate-400 border border-white/10";
               return (
                 <div
                   key={device.device_id}
-                  className={`glass-card p-6 cursor-pointer animate-slide-up hover:scale-105 transition-all duration-300 ${
-                    !isOnline ? 'opacity-75' : ''
+                  className={`glass-card p-6 cursor-pointer animate-slide-up transition-all duration-300 ${
+                    isOnline
+                      ? "border-emerald-400/40 shadow-[0_0_30px_rgba(16,185,129,0.25)] hover:scale-105"
+                      : "opacity-60 saturate-50 hover:opacity-90 hover:saturate-100"
                   }`}
                   style={{
                     animationDelay: `${idx * 50}ms`,
@@ -326,6 +379,9 @@ export default function DeviceListModule({
                               ) : (
                                 <span className="relative inline-flex rounded-full h-2 w-2 bg-slate-500" />
                               )}
+                            </span>
+                            <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full uppercase tracking-wide ${statusBadgeClasses}`}>
+                              {isOnline ? "Online" : "Offline"}
                             </span>
                         </h3>
                         {(device.device_hostname || device.device_name) && (

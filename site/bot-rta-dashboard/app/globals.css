@@ -2,6 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  body {
+    @apply bg-[#030513] text-slate-100;
+  }
+}
+
+.aurora-background {
+  @apply min-h-screen relative overflow-hidden;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(99, 102, 241, 0.35), transparent 45%),
+    radial-gradient(circle at 82% 8%, rgba(236, 72, 153, 0.25), transparent 35%),
+    radial-gradient(circle at 70% 80%, rgba(16, 185, 129, 0.18), transparent 35%),
+    linear-gradient(135deg, #050b1e 0%, #11142b 35%, #1e153a 65%, #2d1b4d 100%);
+}
+
+.surface-panel {
+  @apply rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-xl transition-colors duration-300;
+}
+
+.surface-panel:hover {
+  @apply border-white/20 bg-white/10;
+}
+
 /* Custom scrollbar styles for consistency */
 ::-webkit-scrollbar {
   width: 8px;
@@ -22,7 +45,11 @@
 
 /* Glass morphism effects */
 .glass-card {
-  @apply bg-slate-800/40 backdrop-blur-md rounded-xl border border-slate-700/50;
+  @apply bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 shadow-xl transition-colors duration-300;
+}
+
+.glass-card:hover {
+  @apply border-white/20;
 }
 
 /* Smooth animations */

@@ -17,6 +17,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { signIn, useSession } from 'next-auth/react';
 import SpinningLogo3D from '@/components/SpinningLogo3D';
+import { AnimatedBackground } from '@/components/AnimatedBackground';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -56,7 +57,9 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="aurora-background flex items-center justify-center p-4">
+      <AnimatedBackground intensity="high" showFloatingDots={true} />
+      
       {/* Login card wrapper */}
       <div className="w-full max-w-md animate-fade-in relative z-20">
         {/* Single centered 3D logo above */}
@@ -65,11 +68,11 @@ export default function LoginPage() {
         </div>
 
         <h1 className="text-3xl sm:text-4xl font-bold mb-4 text-center">
-          <span className="text-gradient">Bot & RTA Detection</span>
+          <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Bot & RTA Detection</span>
         </h1>
 
         {/* Login Card */}
-        <div className="glass-card p-5 sm:p-6 animate-slide-up bg-slate-900/95 backdrop-blur-xl">
+        <div className="glass-card p-5 sm:p-6 animate-slide-up">
           <h2 className="text-xl sm:text-2xl font-bold mb-4 text-center text-white">Sign In</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -89,7 +92,7 @@ export default function LoginPage() {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-slate-500 transition-all"
+                  className="w-full pl-10 pr-4 py-3 bg-white/5 border border-slate-600/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-slate-400 transition-all hover:bg-white/10"
                   placeholder="Enter your username"
                   autoComplete="username"
                   required
@@ -114,7 +117,7 @@ export default function LoginPage() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-slate-500 transition-all"
+                  className="w-full pl-10 pr-4 py-3 bg-white/5 border border-slate-600/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-slate-400 transition-all hover:bg-white/10"
                   placeholder="Enter your password"
                   autoComplete="current-password"
                   required

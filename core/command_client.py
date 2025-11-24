@@ -15,6 +15,7 @@ from typing import Any
 
 import requests
 
+from core.system_info import get_windows_computer_name
 from utils.config_loader import get_config_loader
 from utils.config_reader import get_signal_token, read_config
 
@@ -44,7 +45,9 @@ class DashboardCommandClient:
         self._last_backoff_log = 0.0  # Timestamp of last backoff log message
 
     def _compute_device_id(self) -> str:
-        hostname = socket.gethostname()
+        # Use specific Windows computer name logic to match core/api.py device_id generation
+        # This ensures the command client polls for the same ID that reports are sent under
+        hostname = get_windows_computer_name()
         return hashlib.md5(hostname.encode()).hexdigest()
 
     def _resolve_api_base(self) -> str:

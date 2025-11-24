@@ -71,7 +71,7 @@ const AnimatedCounter = dynamic(() => import("@/components/AnimatedCounter"), {
 const DetectionFeed = dynamic(() => import("@/components/DetectionFeed"), {
   ssr: false,
   loading: () => (
-    <div className="animate-pulse h-64 bg-slate-800/50 rounded-lg"></div>
+    <div className="animate-pulse h-64 rounded-lg bg-white/10"></div>
   ),
 });
 
@@ -80,7 +80,7 @@ const UnifiedHistoryChart = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="animate-pulse h-80 bg-slate-800/50 rounded-lg"></div>
+      <div className="animate-pulse h-80 rounded-lg bg-white/10"></div>
     ),
   }
 );
@@ -90,7 +90,7 @@ const IPLocationMap = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="animate-pulse h-64 bg-slate-800/50 rounded-lg"></div>
+      <div className="animate-pulse h-64 rounded-lg bg-white/10"></div>
     ),
   }
 );
@@ -119,7 +119,15 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 const DID_AGENT_URL =
   "https://studio.d-id.com/agents/share?id=v2_agt_JJZwZKuY&utm_source=copy&key=WjI5dloyeGxMVzloZFhSb01ud3hNVFV5TnpnMU56UXpORE0yTnpFMU9UUTVPRFU2VkZGclUxSTNTVU54V0hwdFpIZzNOSGxOVkhKMA==";
 
-function SessionDurationDisplay({ sessionStart }: { sessionStart: number }) {
+type SessionDurationVariant = "panel" | "inline";
+
+function SessionDurationDisplay({
+  sessionStart,
+  variant = "panel",
+}: {
+  sessionStart: number;
+  variant?: SessionDurationVariant;
+}) {
   const normalizedStart =
     sessionStart < 10_000_000_000 ? sessionStart * 1000 : sessionStart;
   const [duration, setDuration] = useState(0);
@@ -157,6 +165,21 @@ function SessionDurationDisplay({ sessionStart }: { sessionStart: number }) {
     }
   };
 
+  const formattedDuration = formatDuration(duration);
+
+  if (variant === "inline") {
+    return (
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-slate-500 font-medium min-w-[100px]">
+          Current Session:
+        </span>
+        <span className="text-indigo-300 font-semibold font-mono">
+          {formattedDuration}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-700/50">
       <svg
@@ -172,9 +195,11 @@ function SessionDurationDisplay({ sessionStart }: { sessionStart: number }) {
           d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
         />
       </svg>
-      <span className="text-slate-500 font-medium min-w-[80px]">Session Duration:</span>
+      <span className="text-slate-500 font-medium min-w-[80px]">
+        Session Duration:
+      </span>
       <span className="text-indigo-400 font-semibold font-mono">
-        {formatDuration(duration)}
+        {formattedDuration}
       </span>
     </div>
   );
@@ -203,6 +228,18 @@ function EnhancedDashboardContent() {
   }
 
   const [deviceData, setDeviceData] = useState<DeviceData | null>(null);
+  const normalizeSnapshotResponse = useCallback((payload: any): Snapshot | null => {
+    if (!payload) {
+      return null;
+    }
+    if (payload.sections) {
+      return payload as Snapshot;
+    }
+    if (payload.data && payload.data.sections) {
+      return payload.data as Snapshot;
+    }
+    return null;
+  }, []);
 
   // Analysis modal state
   interface AnalysisResult {
@@ -239,6 +276,10 @@ function EnhancedDashboardContent() {
     []
   );
 
+  useEffect(() => {
+    setTableInfo([]);
+  }, [playerId]);
+
   const formatDetectionTimestamp = useCallback((timestamp?: number) => {
     if (!timestamp) return "Unknown time";
     const date = new Date(
@@ -258,8 +299,8 @@ function EnhancedDashboardContent() {
     WARN: "bg-yellow-500/10 text-yellow-300 border border-yellow-400/30",
     INFO: "bg-blue-500/10 text-blue-300 border border-blue-400/30",
     OK: "bg-green-500/10 text-green-300 border border-green-400/30",
-    OFF: "bg-slate-700 text-slate-300 border border-slate-600/50",
-    UNK: "bg-slate-800 text-slate-400 border border-slate-700/50",
+  OFF: "bg-white/10 text-slate-200 border border-white/15",
+  UNK: "bg-white/5 text-slate-300 border border-white/10",
   };
 
   const queueDeviceCommand = useCallback(
@@ -477,12 +518,16 @@ function EnhancedDashboardContent() {
     revalidateOnReconnect: false,
     dedupingInterval: 60000, // Cache for 1 minute client-side
   });
+  const normalizedCachedSnapshot = useMemo(
+    () => normalizeSnapshotResponse(cachedData),
+    [cachedData, normalizeSnapshotResponse],
+  );
 
   useEffect(() => {
-    if (cachedData && !data) {
-      setData(cachedData);
+    if (normalizedCachedSnapshot && !data) {
+      setData(normalizedCachedSnapshot);
     }
-  }, [cachedData, data]);
+  }, [normalizedCachedSnapshot, data]);
 
   // Fallback polling
   const pollUrl = playerId
@@ -492,8 +537,11 @@ function EnhancedDashboardContent() {
     refreshInterval: 15000,
   });
   useEffect(() => {
-    if (polled) setData(polled);
-  }, [polled]);
+    const normalizedPoll = normalizeSnapshotResponse(polled);
+    if (normalizedPoll) {
+      setData(normalizedPoll);
+    }
+  }, [polled, normalizeSnapshotResponse]);
 
   const grouped = useMemo(() => {
     const sections = data?.sections ?? {};
@@ -649,7 +697,7 @@ function EnhancedDashboardContent() {
         : {
             label: "Last session",
             className:
-              "bg-slate-700/70 text-slate-300 border border-slate-500/50",
+              "bg-white/10 text-slate-200 border border-white/15",
           },
     [isOnline],
   );
@@ -1049,7 +1097,7 @@ function EnhancedDashboardContent() {
   }, [allDetections, overallThreat, categoryThreats, stats, playerId, analysisTimePreset]);
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden">
+    <main className="aurora-background">
       {/* Animated Background - Same as home page */}
       <AnimatedBackground intensity="medium" particleCount={20} showFloatingDots={true} />
       
@@ -1096,25 +1144,29 @@ function EnhancedDashboardContent() {
                 </motion.div>
                 
                 <div>
+                  <motion.p
+                    className="uppercase tracking-wide text-[11px] text-slate-500"
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                  >
+                    Player Focus
+                  </motion.p>
                   <motion.h1 
                     className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent"
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.2 }}
                   >
-                    Bot & RTA Detection System
+                    {nicknameLabel}
                   </motion.h1>
-                  <motion.div 
-                    className="mt-3 space-y-1.5 text-xs sm:text-sm"
+                  <motion.p 
+                    className="mt-2 text-sm text-slate-400"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.3 }}
                   >
-                    {/* Nickname and IP details moved to profile card to avoid duplication */}
-                    {isOnline && deviceData?.session_start && (
-                      <SessionDurationDisplay sessionStart={deviceData.session_start} />
-                    )}
-                  </motion.div>
+                    Bot & RTA Detection System · {deviceHostLabel}
+                  </motion.p>
                 </div>
               </div>
             </div>
@@ -1203,6 +1255,13 @@ function EnhancedDashboardContent() {
                     </span>
                   </div>
 
+                  {isOnline && deviceData?.session_start && (
+                    <SessionDurationDisplay
+                      sessionStart={deviceData.session_start}
+                      variant="inline"
+                    />
+                  )}
+
                   {serverTime && (
                     <div className="flex items-center gap-2 text-sm">
                       <span className="text-slate-500 font-medium min-w-[100px]">Server Time:</span>
@@ -1228,9 +1287,9 @@ function EnhancedDashboardContent() {
                     </div>
                   )}
 
-                  {deviceData?.session_duration && (
+                  {!isOnline && deviceData?.session_duration && (
                     <div className="flex items-center gap-2 text-sm">
-                      <span className="text-slate-500 font-medium min-w-[100px]">Session:</span>
+                      <span className="text-slate-500 font-medium min-w-[100px]">Last Session:</span>
                       <span className="text-slate-300">
                         {Math.floor(
                           deviceData.session_duration / (1000 * 60)
@@ -1305,7 +1364,7 @@ function EnhancedDashboardContent() {
             {tableInfo.map((table, idx) => (
               <div
                 key={idx}
-                className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50"
+                className="surface-panel p-4"
               >
                 <div className="mb-3">
                   <h3 className="font-semibold text-white mb-1">
@@ -1413,7 +1472,7 @@ function EnhancedDashboardContent() {
               {activeTablesInfo.tables.map((table: any, idx: number) => (
                 <div
                   key={idx}
-                  className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50"
+                  className="surface-panel p-3"
                 >
                   <div
                     className="text-sm font-medium text-white mb-1 truncate"
@@ -1441,7 +1500,7 @@ function EnhancedDashboardContent() {
         {/* Main Metrics Grid */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
           {/* Bot Probability - Primary Metric */}
-          <div className="md:col-span-1 bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-xl p-6 border border-slate-700/50 hover:border-slate-600 transition-all">
+          <div className="md:col-span-1 surface-panel p-6">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-semibold text-slate-400">
                 Overall Risk
@@ -1464,7 +1523,7 @@ function EnhancedDashboardContent() {
           </div>
 
           {/* Critical Threats */}
-          <div className="bg-gradient-to-br from-red-900/30 to-slate-900/50 rounded-xl p-6 border border-red-700/30 hover:border-red-600/50 transition-all">
+          <div className="surface-panel p-6 border-red-500/40 bg-gradient-to-br from-red-500/15 via-transparent to-white/5">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-semibold text-slate-400">
                 Critical
@@ -1483,7 +1542,7 @@ function EnhancedDashboardContent() {
           </div>
 
           {/* Alerts */}
-          <div className="bg-gradient-to-br from-orange-900/30 to-slate-900/50 rounded-xl p-6 border border-orange-700/30 hover:border-orange-600/50 transition-all">
+          <div className="surface-panel p-6 border-orange-400/40 bg-gradient-to-br from-orange-400/15 via-transparent to-white/5">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-semibold text-slate-400">
                 Alerts
@@ -1502,7 +1561,7 @@ function EnhancedDashboardContent() {
           </div>
 
           {/* Warnings */}
-          <div className="bg-gradient-to-br from-yellow-900/30 to-slate-900/50 rounded-xl p-6 border border-yellow-700/30 hover:border-yellow-600/50 transition-all">
+          <div className="surface-panel p-6 border-yellow-300/40 bg-gradient-to-br from-yellow-300/20 via-transparent to-white/5">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-semibold text-slate-400">
                 Warnings
@@ -1521,7 +1580,7 @@ function EnhancedDashboardContent() {
           </div>
 
           {/* Info (optional display) */}
-          <div className="bg-gradient-to-br from-blue-900/30 to-slate-900/50 rounded-xl p-6 border border-blue-700/30 hover:border-blue-600/50 transition-all">
+          <div className="surface-panel p-6 border-blue-400/40 bg-gradient-to-br from-blue-400/15 via-transparent to-white/5">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-semibold text-slate-400">Info</span>
               <span className="text-2xl">ℹ️</span>
@@ -1541,7 +1600,7 @@ function EnhancedDashboardContent() {
         </div>
 
         {/* Risk Assessment Bar */}
-        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
+        <div className="surface-panel p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="text-sm font-semibold text-slate-300 flex items-center gap-2">
               <span>Risk Assessment</span>
@@ -1555,7 +1614,7 @@ function EnhancedDashboardContent() {
               {overallThreat}% / 100%
             </span>
           </div>
-          <div className="relative h-4 bg-slate-700/80 rounded-full overflow-hidden mb-3">
+          <div className="relative h-4 bg-white/15 rounded-full overflow-hidden mb-3">
             <div
               className="h-full transition-all duration-1000 rounded-full shadow-lg"
               style={{
@@ -1664,7 +1723,7 @@ function EnhancedDashboardContent() {
                   return (
                     <div
                       key={catKey}
-                      className="rounded-2xl border border-slate-700/50 bg-slate-800/40 shadow-lg shadow-black/10"
+                      className="surface-panel shadow-black/10"
                     >
                       <button
                         onClick={() =>
@@ -1679,7 +1738,7 @@ function EnhancedDashboardContent() {
                               {detections.length} detections
                             </span>
                           </p>
-                          <div className="mt-2 h-2 w-full rounded-full bg-slate-700/70 overflow-hidden">
+                          <div className="mt-2 h-2 w-full rounded-full bg-white/15 overflow-hidden">
                             <div
                               className="h-full rounded-full transition-all"
                               style={{
@@ -1723,7 +1782,7 @@ function EnhancedDashboardContent() {
                           {detections.map((item, index) => (
                             <div
                               key={`${item.name}-${index}`}
-                              className="flex items-center justify-between gap-3 rounded-xl border border-slate-700 bg-slate-900/40 p-3"
+                              className="flex items-center justify-between gap-3 rounded-xl bg-white/5 border border-white/10 p-3"
                             >
                               <div className="min-w-0">
                                 <p className="text-sm font-medium text-white truncate">
@@ -1810,7 +1869,7 @@ function EnhancedDashboardContent() {
                   <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
                     Time Range
                   </label>
-                  <select
+                <select
                     value={analysisTimePreset ?? ""}
                     onChange={(e) =>
                       setAnalysisTimePreset(
@@ -1826,7 +1885,7 @@ function EnhancedDashboardContent() {
                           | null
                       )
                     }
-                    className="mt-1 w-full px-3 py-2 bg-slate-900/60 border border-slate-700/60 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                  className="mt-1 w-full px-3 py-2 rounded-lg text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 hover:bg-white/10 transition-colors"
                   >
                     <option value="">Select period…</option>
                     <option value="1h">Last 1 hour</option>
@@ -1845,7 +1904,7 @@ function EnhancedDashboardContent() {
                   className={`w-full sm:w-auto px-4 py-3 min-h-[44px] rounded-lg transition-all hover:scale-105 text-left sm:text-center ${
                     analysisTimePreset
                       ? "bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30"
-                      : "bg-slate-700/30 cursor-not-allowed text-slate-500"
+                      : "bg-white/10 cursor-not-allowed text-white/50"
                   }`}
                 >
                   <div className="flex items-center justify-between sm:justify-center gap-2">

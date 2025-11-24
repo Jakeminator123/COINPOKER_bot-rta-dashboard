@@ -109,9 +109,9 @@ const MODEL_PREFERENCE: Array<{ name: string; maxTokens: number }> = [
   { name: "gpt-4o", maxTokens: 3000 },
 ];
 
-const SYSTEM_PROMPT = `Du är en erfaren poker-säkerhetsanalytiker.
-Du får sammanfattade detektioner och ska avgöra om spelaren kör bot/RTA/makro/overlay eller verkar ren.
-Besvara alltid på svenska, strukturerat och kortfattat.`;
+const SYSTEM_PROMPT = `You are an experienced poker security analyst.
+You receive summarized detections and must determine whether the player is running a bot/RTA/macro/overlay or appears clean.
+Always respond in concise, structured English.`;
 
 function summarizeTopSignals(
   signals: any[],
@@ -143,14 +143,14 @@ function summarizeTopSignals(
 }
 
 function buildCategorySentence(categoryThreats?: Record<string, number>) {
-  if (!categoryThreats) return "Inga kategoripoäng rapporterade.";
+  if (!categoryThreats) return "No category pressure reported.";
   const entries = Object.entries(categoryThreats)
     .filter(([, value]) => value && value > 0)
     .sort((a, b) => (b[1] || 0) - (a[1] || 0))
     .map(([key, value]) => `${key}: ${Math.round(value)}%`);
   return entries.length
-    ? `Kategori-tryck → ${entries.join(", ")}.`
-    : "Kategori-tryck är lågt i samtliga segment.";
+    ? `Category pressure → ${entries.join(", ")}.`
+    : "Category pressure remains low across all segments.";
 }
 
 function buildAnalysisSummary(options: {
@@ -175,16 +175,16 @@ function buildAnalysisSummary(options: {
 }) {
   const lines: string[] = [];
   lines.push(
-    `Device: ${options.deviceId || "okänd"} | Fönster: ${options.timePreset}`,
+    `Device: ${options.deviceId || "unknown"} | Window: ${options.timePreset}`,
   );
   lines.push(
-    `Analyserade signaler: ${options.totalSignals} (live ${options.currentSignalsCount}, historiska ${options.historicalSignalsCount})`,
+    `Signals analyzed: ${options.totalSignals} (live ${options.currentSignalsCount}, historical ${options.historicalSignalsCount})`,
   );
-  lines.push(`Total hotnivå: ${options.threatLevel ?? 0}%`);
+  lines.push(`Overall threat level: ${options.threatLevel ?? 0}%`);
   lines.push(buildCategorySentence(options.categoryThreats));
   if (options.stats) {
     lines.push(
-      `Status-counts – Critical ${options.stats.critical ?? 0}, Alert ${
+      `Status counts – Critical ${options.stats.critical ?? 0}, Alert ${
         options.stats.alerts ?? 0
       }, Warn ${options.stats.warnings ?? 0}, Info ${
         options.stats.info ?? 0
@@ -192,24 +192,24 @@ function buildAnalysisSummary(options: {
     );
   }
   lines.push(
-    `Aktivitet – 1h:${options.timeRanges.lastHour}, 24h:${options.timeRanges.last24Hours}, 7d:${options.timeRanges.last7Days}`,
+    `Activity – 1h:${options.timeRanges.lastHour}, 24h:${options.timeRanges.last24Hours}, 7d:${options.timeRanges.last7Days}`,
   );
   const categoriesListed = Object.entries(options.categorizedSnapshot)
     .map(([key, list]) => `${key}:${list.length}`)
     .join(", ");
   lines.push(
-    `Segment-sammanfattning: ${categoriesListed || "Inga kategorier funna"}.`,
+    `Segment summary: ${categoriesListed || "No categories detected."}.`,
   );
   if (options.programDetails.length) {
     lines.push(
-      `Program-registerträffar:\n${options.programDetails
+      `Program registry hits:\n${options.programDetails
         .slice(0, 6)
         .join("\n")}`,
     );
   }
   if (options.topSignals.length) {
     lines.push(
-      "Tyngsta detektioner:",
+      "Top detections:",
       ...options.topSignals.map((sig) => {
         const ts = sig.timestamp
           ? new Date(
@@ -217,7 +217,7 @@ function buildAnalysisSummary(options: {
                 ? sig.timestamp * 1000
                 : sig.timestamp,
             ).toLocaleString()
-          : "okänd tid";
+          : "unknown time";
         return `  • [${sig.status}] ${sig.category} – ${sig.name} (${ts}) ${
           sig.details ? "- " + sig.details : ""
         }`;
@@ -242,7 +242,7 @@ function buildSyntheticSignalsFromCategories(
         category,
         name: `${category}-aggregate`,
         status,
-        details: `Syntetisk kategori-signal ~${pct}% risk baserat på segmentdata`,
+        details: `Synthetic category signal ~${pct}% risk based on segment data`,
         timestamp: now,
         synthetic: true,
       };
@@ -606,7 +606,7 @@ export async function POST(request: NextRequest) {
       return successResponse(
         {
           analysis:
-            "Inga detektioner hittades för valt tidsfönster. Kör en längre period eller vänta på nya signaler.",
+            "No detections were found for the selected window. Try a longer period or wait for new signals.",
           model: "not-run",
           threatLevel: threatLevel ?? 0,
           signalCount: 0,
@@ -653,7 +653,7 @@ export async function POST(request: NextRequest) {
 
     const topSignals = summarizeTopSignals(allSignals, 8);
     const summaryTimePreset = usedSyntheticSignals
-      ? `${timePreset} (syntetisk kategori-sammanställning)`
+      ? `${timePreset} (synthetic category aggregate)`
       : timePreset;
     const summaryBlock = buildAnalysisSummary({
       deviceId,
@@ -677,20 +677,20 @@ export async function POST(request: NextRequest) {
 
     const prompt = `${summaryBlock}
 
-Konfigsnapshot (trimmat):
+Config snapshot (trimmed):
 ${condensedConfig}
 
-Detektionskontext:
+Detection context:
 ${detectionContext}
 
-Programregister-noteringar:
-${programDetails.slice(0, 8).join("\n") || "Inga"}
+Program registry notes:
+${programDetails.slice(0, 8).join("\n") || "None"}
 
-Instruktion:
-- Cheat Verdict (High/Medium/Low + klassificering: bot, RTA, macro, overlay eller ren).
-- Key Evidence (punktlista med direkta detektioner/konfigtrösklar).
+Instruction:
+- Cheat Verdict (High/Medium/Low + classification: bot, RTA, macro, overlay, or clean).
+- Key Evidence (bullet list with direct detections/config thresholds).
 - Recommended Action.
-Max 2200 tecken, skriv på svenska och håll det koncist.`;
+Maximum 2200 characters, respond in English and keep it concise.`;
 
     // Try different models with fallback
     let analysis = "";

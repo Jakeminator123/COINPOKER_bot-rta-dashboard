@@ -8,7 +8,7 @@ INPUT_DEBUG=1                        # Debug logging (0=off, 1=on)
 
 # --- Batch System ---
 BATCH_INTERVAL_HEAVY=92              # Batch-rapporter skickas var 92:e sekund
-NEW_BATCHES_LOG=y                     # Spara batch-loggar lokalt (debugging)
+NEW_BATCHES_LOG=n                     # Spara batch-loggar lokalt (debugging)
 BATCH_LOG_DIR=jay                    # Mapp där batch-loggar sparas (default: batch_logs)
 
 # --- Forwarder-läge (väljer hur batchar skickas) ---

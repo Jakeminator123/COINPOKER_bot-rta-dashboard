@@ -1062,33 +1062,13 @@ export class MemoryStore implements StorageAdapter {
   }> {
     this.prune();
     const now = Math.floor(Date.now() / 1000);
-    const nowMs = Date.now();
     const sections: Record<string, { items: Stored[] }> = {};
 
     // Check if device is online (if device_id is specified)
-    let isDeviceOnline = true;
-    if (device_id) {
-      const device = this.devices.get(device_id);
-      if (device) {
-        // Device is offline if last_seen is older than DEVICE_TIMEOUT_MS or logged out
-        isDeviceOnline =
-          nowMs - device.last_seen < DEVICE_TIMEOUT_MS && !device.logged_out;
-      } else {
-        // Device not found in store - treat as offline
-        isDeviceOnline = false;
-      }
-    }
-
     for (const [k, arr] of this.store.entries()) {
-      // Filter by device if specified
+      // Filter by device if specified (even if offline so UI can show last-known data)
       let filtered = arr;
       if (device_id) {
-        // If device is offline, return empty sections (no detections visible)
-        if (!isDeviceOnline) {
-          sections[k] = { items: [] };
-          continue;
-        }
-
         filtered = arr.filter((s) => {
           const sDeviceId = s.device_id || "unknown";
           // Exact match
@@ -1141,7 +1121,7 @@ export class MemoryStore implements StorageAdapter {
   }
 
   // Get cached snapshot (instant if available)
-  // Note: Even if cached, we check online status to ensure offline devices show no detections
+  // Offline devices also receive cached data so the UI can show last-known signals
   async getCachedSnapshot(device_id: string): Promise<{
     serverTime: number;
     sections: Record<string, { items: Stored[] }>;
@@ -1149,27 +1129,6 @@ export class MemoryStore implements StorageAdapter {
   } | null> {
     const cached = this.deviceSnapshotCache.get(device_id);
     if (!cached) return null;
-
-    // Check if device is still online - if offline, return empty snapshot even if cached
-    const nowMs = Date.now();
-    const device = this.devices.get(device_id);
-    if (device) {
-      const isDeviceOnline =
-        nowMs - device.last_seen < DEVICE_TIMEOUT_MS && !device.logged_out;
-      if (!isDeviceOnline) {
-        // Device went offline - return empty snapshot regardless of cache
-        const now = Math.floor(Date.now() / 1000);
-        const emptySections: Record<string, { items: Stored[] }> = {};
-        for (const [k] of this.store.entries()) {
-          emptySections[k] = { items: [] };
-        }
-        return {
-          serverTime: now,
-          sections: emptySections,
-          cached: false, // Mark as not cached since we're returning empty
-        };
-      }
-    }
 
     // Cache valid for 5 minutes
     const cacheAge = Date.now() - cached.cachedAt;

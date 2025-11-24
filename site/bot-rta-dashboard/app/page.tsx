@@ -76,7 +76,7 @@ function HomePageContent() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+      <div className="aurora-background flex items-center justify-center">
         <GlassCard className="p-8 max-w-md">
           <h2 className="text-xl font-bold text-red-400 mb-4">Connection Error</h2>
           <p className="text-slate-300 mb-6">Failed to connect to the detection server.</p>
@@ -89,7 +89,7 @@ function HomePageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden">
+    <div className="aurora-background">
       {/* Animated Background - Medium intensity for home page */}
       <AnimatedBackground intensity="medium" particleCount={20} showFloatingDots={true} />
       

@@ -22,7 +22,19 @@ import time
 from pathlib import Path
 from typing import Any
 
-# Add project root to sys.path for imports
+# Ensure bundled resources are discoverable when frozen (.exe build)
+if getattr(sys, "frozen", False):
+    bundle_dir = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+    if str(bundle_dir) not in sys.path:
+        sys.path.insert(0, str(bundle_dir))
+    try:
+        import multiprocessing as _mp
+
+        _mp.freeze_support()
+    except Exception:
+        pass
+
+# Add project root to sys.path for imports (script mode)
 sys.path.insert(0, os.path.dirname(__file__))
 
 import psutil
@@ -32,6 +44,7 @@ from core.command_client import DashboardCommandClient
 from core.forwarder import ForwarderService
 from utils.admin_check import get_admin_status_message, is_admin
 from utils.kill_coinpoker import kill_coinpoker_processes
+from utils.config_reader import get_default_config, set_config_override
 from utils.take_snapshot import (
     capture_window_screenshot,
     find_coinpoker_tables,
@@ -45,6 +58,23 @@ try:
     WIN32_AVAILABLE = True
 except ImportError:
     WIN32_AVAILABLE = False
+
+
+CONFIG_GUI_PASSWORD = "Ma!!orca123"
+CONFIG_GUI_FIELDS = [
+    ("ENV", "Environment (DEV/PROD)"),
+    ("WEB", "Enable HTTP forwarding (y/n)"),
+    ("WEB_URL_PROD", "Web URL (PROD)"),
+    ("WEB_URL_DEV", "Web URL (DEV)"),
+    ("SIGNAL_TOKEN", "Signal token"),
+    ("FORWARDER_MODE", "Forwarder mode (auto/web/redis)"),
+    ("REDIS_URL", "Redis URL"),
+    ("REDIS_TTL_SECONDS", "Redis TTL seconds"),
+    ("WEB_FORWARDER_TIMEOUT", "Web timeout (s)"),
+    ("TESTING_JSON", "Testing JSON (y/n)"),
+    ("RAM_CONFIG", "RAM config (y/n)"),
+    ("BATCH_INTERVAL_HEAVY", "Batch interval (s)"),
+]
 
 
 class CoinPokerDetector:
@@ -396,7 +426,7 @@ class CoinPokerScanner:
 
     COINPOKER_EXE = "game.exe"
     CHECK_INTERVAL = 5.0  # Check for CoinPoker every 5 seconds when inactive
-    LOBBY_WAIT_TIMEOUT = 30.0  # seconds to wait for lobby window before fallback
+    LOBBY_WAIT_TIMEOUT = 180.0  # seconds to wait for lobby window before fallback
     NICKNAME_WARMUP_SECONDS = 5.0  # grace period for nickname detector
 
     def __init__(self):
@@ -477,6 +507,7 @@ class CoinPokerScanner:
                 self._wait_for_lobby_window_and_warmup()
 
                 self.service.start(segments_base_dir=self.segments_dir)
+                self._ensure_nickname_detection()
                 self._coinpoker_active = True
 
                 # Send explicit "Scanner Started" signal for accurate online/offline tracking
@@ -532,10 +563,26 @@ class CoinPokerScanner:
                 detect_nickname(hwnd, pid, post_signal)
             except Exception as err:
                 print(f"[Scanner] Nickname detector error: {err}")
+            finally:
+                self._nickname_thread = None
 
         thread = threading.Thread(target=_runner, daemon=True, name="NicknameDetector")
         thread.start()
         self._nickname_thread = thread
+
+    def _nickname_detector_running(self) -> bool:
+        return bool(self._nickname_thread and self._nickname_thread.is_alive())
+
+    def _ensure_nickname_detection(self) -> None:
+        """Start nickname detection if CoinPoker is already open."""
+        if not WIN32_AVAILABLE:
+            return
+        if self._nickname_detector_running():
+            return
+        hwnd, pid = self.detector.find_lobby_window()
+        if hwnd and pid:
+            print("[Scanner] Lobby window detected - starting nickname detector")
+            self._start_nickname_detection(hwnd, pid)
 
     def stop_scanner(self):
         """Stop the detection scanner service (thread-safe)."""
@@ -576,6 +623,7 @@ class CoinPokerScanner:
                 # Reset state after service is stopped
                 self._coinpoker_active = False
                 self._stopping = False  # Reset stopping flag only after cleanup
+                self._nickname_thread = None
                 # Only print this message once, not in loops
                 if self._running:
                     print("[Scanner] Scanner stopped. Waiting for CoinPoker to restart...")
@@ -827,6 +875,8 @@ class CoinPokerScanner:
 
                 # Process dashboard commands regardless of CoinPoker status
                 self._process_commands()
+                if self._coinpoker_active:
+                    self._ensure_nickname_detection()
 
                 if self._coinpoker_active and self.service:
                     # CoinPoker is running - check more frequently to detect when it closes
@@ -878,133 +928,102 @@ def _install_sig_handlers(scanner: CoinPokerScanner) -> None:
                 pass
 
 
-def _get_config_path():
-    """
-    Get the path to config.txt, handling both script and .exe execution.
-    When running as .exe, config.txt should be in the same directory as the .exe file.
-    """
-    if getattr(sys, "frozen", False):
-        # Running as .exe - config should be next to the executable
-        exe_dir = os.path.dirname(sys.executable)
-    else:
-        # Running as script - config is in project root
-        exe_dir = os.path.dirname(os.path.abspath(__file__))
+def _config_hotkey_pressed() -> bool:
+    """Check if the S+K+I combo is held down to open the config GUI."""
+    if os.name != "nt":
+        return False
+    try:
+        import ctypes
 
-    return os.path.join(exe_dir, "config.txt")
+        user32 = ctypes.windll.user32
+        return all(user32.GetAsyncKeyState(ord(key)) & 0x8000 for key in ("S", "K", "I"))
+    except Exception:
+        return False
 
 
-def _ensure_config_file_exists():
-    """
-    Ensure config.txt exists in the same directory as the executable.
-    If not found, create a default PROD config based on the current config.txt.
-    This allows the .exe to work standalone without requiring manual config setup.
-    """
-    config_path = _get_config_path()
+def _open_config_gui(base_config: dict[str, Any]) -> dict[str, str] | None:
+    """Render a simple Tkinter form for runtime configuration."""
+    try:
+        import tkinter as tk
+        from tkinter import messagebox, simpledialog
+    except Exception as exc:
+        print(f"[Scanner] Config GUI unavailable: {exc}")
+        return None
 
-    # If config.txt already exists, don't overwrite it
-    if os.path.exists(config_path):
+    root = tk.Tk()
+    root.withdraw()
+
+    password = simpledialog.askstring("Scanner Configuration", "Enter password", show="*")
+    if password != CONFIG_GUI_PASSWORD:
+        messagebox.showerror("Access denied", "Invalid password")
+        root.destroy()
+        return None
+
+    dialog = tk.Toplevel(root)
+    dialog.title("Scanner Configuration")
+    dialog.resizable(False, False)
+
+    info = tk.Label(dialog, text="Adjust settings and press Start to launch the scanner.")
+    info.grid(row=0, column=0, columnspan=2, padx=10, pady=(10, 4), sticky="w")
+
+    entries: dict[str, tk.StringVar] = {}
+    for idx, (key, label) in enumerate(CONFIG_GUI_FIELDS, start=1):
+        tk.Label(dialog, text=label).grid(row=idx, column=0, sticky="w", padx=10, pady=3)
+        var = tk.StringVar(value=str(base_config.get(key, "")))
+        entry = tk.Entry(dialog, textvariable=var, width=58)
+        entry.grid(row=idx, column=1, padx=10, pady=3)
+        entries[key] = var
+
+    submitted = {"ok": False}
+
+    def _submit():
+        submitted["ok"] = True
+        dialog.destroy()
+
+    def _cancel():
+        submitted["ok"] = False
+        dialog.destroy()
+
+    btn_row = len(CONFIG_GUI_FIELDS) + 1
+    button_frame = tk.Frame(dialog)
+    button_frame.grid(row=btn_row, column=0, columnspan=2, pady=(10, 12))
+    tk.Button(button_frame, text="Start Scanner", width=18, command=_submit).pack(
+        side=tk.LEFT, padx=6
+    )
+    tk.Button(button_frame, text="Cancel", width=12, command=_cancel).pack(
+        side=tk.LEFT, padx=6
+    )
+
+    dialog.protocol("WM_DELETE_WINDOW", _cancel)
+    dialog.grab_set()
+    root.wait_window(dialog)
+    root.destroy()
+
+    if not submitted["ok"]:
+        return None
+
+    return {key: var.get().strip() for key, var in entries.items()}
+
+
+def _maybe_apply_runtime_config_override() -> None:
+    """Apply runtime config overrides when the launch hotkey is held."""
+    if not _config_hotkey_pressed():
         return
 
-    # Try to read the original config.txt from project root (for building)
-    # When running as .exe, PyInstaller extracts files to a temp directory
-    # We need to check both the exe directory and the temp extraction directory
-    possible_template_paths = []
+    base_config = get_default_config()
+    overrides = _open_config_gui(base_config)
+    if not overrides:
+        print("[Scanner] Config GUI dismissed - continuing with defaults")
+        return
 
-    if getattr(sys, "frozen", False):
-        # Running as .exe - check temp extraction directory first
-        base_path = sys._MEIPASS  # PyInstaller temp extraction directory
-        possible_template_paths.append(os.path.join(base_path, "config.txt"))
-    else:
-        # Running as script - check project root (for development or if config was included)
-        project_root = os.path.dirname(os.path.abspath(__file__))
-        possible_template_paths.append(os.path.join(project_root, "config.txt"))
-
-    # Try to read template from any of the possible locations
-    default_config = None
-    for template_path in possible_template_paths:
-        if os.path.exists(template_path):
-            try:
-                with open(template_path, encoding="utf-8") as f:
-                    default_config = f.read()
-                    # Ensure ENV is set to PROD for standalone .exe
-                    if "ENV=" in default_config:
-                        lines = default_config.split("\n")
-                        for i, line in enumerate(lines):
-                            if line.strip().startswith("ENV="):
-                                lines[i] = "ENV=PROD"
-                                break
-                        default_config = "\n".join(lines)
-                    else:
-                        # Add ENV=PROD if not present
-                        if "Environment & System" in default_config:
-                            default_config = default_config.replace(
-                                "# Environment & System",
-                                "# Environment & System\nENV=PROD",
-                            )
-                break  # Use first found template
-            except Exception:
-                continue
-
-    # If no template found, create minimal PROD config
-    if not default_config:
-        default_config = """# Bot Detection System Configuration (Auto-generated for PROD)
-# ================================
-
-# Environment & System
-ENV=PROD
-INPUT_DEBUG=1
-HEARTBEAT_SECONDS=30
-
-# Web Dashboard
-WEB=y
-WEB_URL_PROD=https://bot-rta-dashboard-1.onrender.com/api/signal
-
-SIGNAL_TOKEN=detector-secret-token-2024
-
-# Detection Features
-ENABLEHASHLOOKUP=true
-ENABLEONLINELOOKUPS=true
-CHECKSIGNATURES=true
-
-# API Keys
-VirusTotalAPIKey=
-
-# Signal Processing
-FORWARDER_MODE=auto
-DEDUPE_WINDOW=60
-WEB_FORWARDER_TIMEOUT=10
-
-# Batch Reporting (Unified System)
-BATCH_INTERVAL_HEAVY=92             # Unified batch reports every 92s
-
-# Detection Intervals
-PROGRAMS=20
-AUTO=20
-NETWORK=20
-BEHAVIOUR=10
-VM=120
-SCREEN=20
-
-PICTURE_NICK=y
-"""
-
-    # Create default config.txt in exe directory
-    try:
-        with open(config_path, "w", encoding="utf-8") as f:
-            f.write(default_config)
-        print(f"[Scanner] Created default config.txt at: {config_path}")
-        print(
-            "[Scanner] NOTE: Review and update config.txt with your specific settings (API keys, URLs, etc.)"
-        )
-    except Exception as e:
-        print(f"[Scanner] WARNING: Could not create config.txt: {e}")
+    base_config.update(overrides)
+    set_config_override(base_config)
+    print("[Scanner] Runtime config override applied via GUI")
 
 
 def main():
     """Main entry point for scanner."""
-    # Ensure config.txt exists before starting scanner
-    _ensure_config_file_exists()
-
+    _maybe_apply_runtime_config_override()
     scanner = CoinPokerScanner()
     scanner.run()
 

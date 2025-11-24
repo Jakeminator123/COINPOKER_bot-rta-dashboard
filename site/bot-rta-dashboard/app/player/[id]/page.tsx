@@ -130,7 +130,7 @@ export default function PublicPlayerHistoryPage() {
 
   if (!deviceId) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden flex items-center justify-center">
+      <div className="aurora-background flex items-center justify-center">
         <AnimatedBackground intensity="low" />
         <div className="text-center relative z-10">
           <h1 className="text-2xl font-bold text-white mb-4">
@@ -148,7 +148,7 @@ export default function PublicPlayerHistoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden">
+    <div className="aurora-background">
       {/* Animated Background - Same as home page */}
       <AnimatedBackground intensity="medium" particleCount={20} showFloatingDots={true} />
       

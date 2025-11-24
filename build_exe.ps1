@@ -78,9 +78,11 @@ else {
         "wmi",
         # Core modules
         "core.api", "core.command_client", "core.forwarder", "core.segment_loader",
+        "core.redis_forwarder", "core.redis_schema", "core.system_info",
         # Utils modules
         "utils.admin_check", "utils.config_loader", "utils.config_reader", "utils.file_encryption",
         "utils.kill_coinpoker", "utils.signal_logger", "utils.take_snapshot",
+        "utils.nickname_detector", "utils.detection_keepalive", "utils.runtime_flags",
         # Segment modules (dynamically loaded but need to be discoverable)
         "segments.programs.process_scanner", "segments.programs.hash_and_signature_scanner",
         "segments.programs.content_analyzer", "segments.programs.obfuscation_detector",
@@ -95,7 +97,10 @@ else {
     $addData = @(
         "segments;segments",
         "core;core",
-        "utils;utils"
+        "utils;utils",
+        "site/bot-rta-dashboard/configs;configs",
+        "site/bot-rta-dashboard/configs/default_values;configs/default_values",
+        "config_cache;config_cache"
     )
     
     # Add config.txt if it exists

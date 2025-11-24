@@ -62,9 +62,11 @@ export default function UnifiedHistoryChart({
       // Try 24h first, then fall back to 7d if needed
       return "24h";
     }
-    
-    if (!deviceData?.session_duration) return "1h";
-    const hours = Math.ceil(deviceData.session_duration / 3600);
+
+    const sessionDurationMs = deviceData?.session_duration ?? 0;
+    if (!sessionDurationMs) return "1h";
+
+    const hours = Math.ceil(sessionDurationMs / (1000 * 3600));
     if (hours <= 1) return "1h";
     if (hours <= 3) return "3h";
     if (hours <= 6) return "6h";

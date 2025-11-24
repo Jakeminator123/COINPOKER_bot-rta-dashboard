@@ -9,43 +9,133 @@ import os
 import sys
 from typing import Any, Dict, Optional
 
+DEFAULT_CONFIG_TEXT = """# ====================================
+# Bot Detection System Configuration
+# ====================================
+
+# --- Environment ---
+ENV=PROD                              # DEV eller PROD
+INPUT_DEBUG=1                        # Debug logging (0=off, 1=on)
+
+# --- Batch System ---
+BATCH_INTERVAL_HEAVY=92              # Batch-rapporter skickas var 92:e sekund
+NEW_BATCHES_LOG=n                     # Spara batch-loggar lokalt (debugging)
+BATCH_LOG_DIR=jay                    # Mapp där batch-loggar sparas (default: batch_logs)
+
+# --- Forwarder-läge (väljer hur batchar skickas) ---
+# OPTION 1 – Direkt till Redis (snabbast, bypass HTTP)
+#   • Ange REDIS_URL
+#   • Sätt FORWARDER_MODE=redis (eller auto för fallback)
+#   • WEB kan vara n
+#
+# OPTION 2 – Via webb-API (dashboard postar vidare till Redis)
+#   • Lämna REDIS_URL kommenterad
+#   • Sätt WEB=y och ange WEB_URL_*
+#   • FORWARDER_MODE=web (eller auto om du vill kunna falla tillbaka)
+#
+# All metadata (nickname, device_id, device_name, IP osv) följer alltid med.
+
+# --- HTTP Dashboard (Option 2) ---
+WEB=n                                # y=Skicka batchar till dashboardens HTTP-endpoint
+TESTING_JSON=y                       # Lägg till metadata i batches (förklarar systemflödet)
+
+#WEB_URL_DEV=http://localhost:3001/api/signal
+WEB_URL_PROD=https://bot-rta-dashboard-2.onrender.com/api/signal
+SIGNAL_TOKEN=detector-secret-token-2024
+WEB_FORWARDER_TIMEOUT=10             # Timeout för HTTP requests när batchar skickas
+
+# --- Direkt Redis (Option 1) ---
+REDIS_URL=redis://default:RmJmzvxtcg4PpDPCEly7ap7sHdpgQhmR@redis-12756.c44.us-east-1-2.ec2.redns.redis-cloud.com:12756
+REDIS_TTL_SECONDS=604800                      # TTL för Redis-keys (default: 7 dagar)
+
+FORWARDER_MODE=redis                  # web=HTTP, redis=Redis, auto=försök Redis → HTTP fallback
+
+# --- Detection Features ---
+ENABLEHASHLOOKUP=true                # Hash database lookups
+ENABLEONLINELOOKUPS=true             # Online API calls (VirusTotal)
+CHECKSIGNATURES=true                 # Digital signature verification
+VirusTotalAPIKey=3dc67831fd53e5691fe568944041d9cb4894221be33ed06cf5221cea20b7686b
+
+# --- Runtime Tweaks ---
+# IMPORTANT (English):
+# SYNC_SEGMENTS ensures every detection segment starts and ticks at the same time (no staggered delay).
+# COOLDOWN_MULTIPLIER scales EVERY per-segment cooldown/cache globally: 1.0 = default behaviour,
+# values <1 speed up detections (e.g. 0 = no throttling, warnings fire immediately),
+# values >1 slow things down (useful if signals are too noisy). Change once here instead of per file.
+SYNC_SEGMENTS=Y                      # Sprid ut segment-start över första 92s perioden
+COOLDOWN_MULTIPLIER=0                # Standard cooldowns (0=av, 1=normal, 2=dubbel)
+
+# --- Detection Segments (intervall i sekunder för varje segment) ---
+PROGRAMS=92                          # ProcessScanner - intervall mellan skanningar
+AUTO=92                              # AutomationDetector - intervall mellan skanningar
+NETWORK=92                           # WebMonitor/TrafficMonitor - intervall mellan skanningar
+BEHAVIOUR=92                         # BehaviourDetector - intervall mellan skanningar
+VM=92                                # VMDetector - intervall mellan skanningar
+SCREEN=92                            # ScreenDetector - intervall mellan skanningar
+
+# --- Security ---
+RAM_CONFIG=n                         # n=använd disk-cache, y=endast RAM (tamper-proof)
+"""
+
+_runtime_override: dict[str, Any] | None = None
+
+
+def _apply_config_line(cfg: dict[str, Any], line: str) -> None:
+    line = line.strip()
+    if not line or line.startswith("#") or "=" not in line:
+        return
+    key, value = line.split("=", 1)
+    key = key.strip()
+    value = value.strip()
+    if "#" in value:
+        value = value.split("#")[0].strip()
+    if not key:
+        return
+    if key == "HEARTBEAT_SECONDS":
+        with contextlib.suppress(ValueError):
+            cfg[key] = int(value)
+    else:
+        cfg[key] = value
+
+
+def get_default_config() -> dict[str, Any]:
+    """Return embedded default config values."""
+    cfg = {
+        "ENV": "TEST",
+        "HEARTBEAT_SECONDS": 30,
+    }
+    for line in DEFAULT_CONFIG_TEXT.splitlines():
+        _apply_config_line(cfg, line)
+    return cfg
+
+
+def set_config_override(config: dict[str, Any] | None) -> None:
+    """Override config values for current runtime (e.g., GUI edits)."""
+    global _runtime_override
+    _runtime_override = dict(config) if config else None
+
 
 def read_config(config_path: str = None) -> dict[str, Any]:
-    """Reads simple key=value from ./config.txt (if it exists)."""
+    """Reads simple key=value settings."""
     if config_path is None:
-        # Handle both script and .exe execution
         if getattr(sys, "frozen", False):
-            # Running as .exe - config should be next to the executable
             config_path = os.path.join(os.path.dirname(sys.executable), "config.txt")
         else:
-            # Running as script - config is in project root (one level up from utils/)
             project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             config_path = os.path.join(project_root, "config.txt")
 
-    cfg = {
-        "ENV": "TEST",
-        "HEARTBEAT_SECONDS": 30,  # 0 = off
-    }
+    cfg = get_default_config()
     try:
         if os.path.exists(config_path):
             with open(config_path, encoding="utf-8") as f:
                 for line in f:
-                    line = line.strip()
-                    if not line or line.startswith("#") or "=" not in line:
-                        continue
-                    k, v = line.split("=", 1)
-                    k, v = k.strip(), v.strip()
-                    # Remove inline comments
-                    if "#" in v:
-                        v = v.split("#")[0].strip()
-                    if k == "HEARTBEAT_SECONDS":
-                        with contextlib.suppress(ValueError):
-                            cfg[k] = int(v)
-                    else:
-                        cfg[k] = v
+                    _apply_config_line(cfg, line)
     except Exception:
         pass
-    # Environment variables can override
+
+    if _runtime_override:
+        cfg.update(_runtime_override)
+
     cfg["ENV"] = os.environ.get("ENV", cfg["ENV"])
     return cfg
 
