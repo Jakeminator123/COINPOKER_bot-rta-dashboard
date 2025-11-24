@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     const requireAdmin = COMMAND_REQUIRE_ADMIN[normalized] ?? false;
 
     // Get Redis client
-    const redis = getRedisClient();
+    const redis = await getRedisClient();
     if (!redis) {
       return errorResponse("Redis not available", 503);
     }
@@ -77,13 +77,16 @@ export async function POST(req: NextRequest) {
 
     // Store command in Redis with TTL of 5 minutes
     const commandKey = redisKeys.deviceCommand(deviceId, commandId);
-    await redis.set(commandKey, JSON.stringify(commandObj), { EX: redisTTL.command });
+    await redis.setEx(commandKey, redisTTL.command, JSON.stringify(commandObj));
 
     // Add to device command queue (sorted set by timestamp)
     const queueKey = redisKeys.deviceCommandQueue(deviceId);
-    await redis.zadd(queueKey, {
-      [commandId]: Date.now(),
-    });
+    await redis.zAdd(queueKey, [
+      {
+        score: Date.now(),
+        value: commandId,
+      }
+    ]);
 
     // Set TTL on queue
     await redis.expire(queueKey, redisTTL.command);
@@ -120,7 +123,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Get Redis client
-    const redis = getRedisClient();
+    const redis = await getRedisClient();
     if (!redis) {
       return errorResponse("Redis not available", 503);
     }

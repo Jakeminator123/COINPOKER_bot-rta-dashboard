@@ -45,7 +45,7 @@ from core.redis_command_client import RedisCommandClient
 from core.forwarder import ForwarderService
 from utils.admin_check import get_admin_status_message, is_admin
 from utils.kill_coinpoker import kill_coinpoker_processes
-from utils.config_reader import get_default_config, set_config_override
+from utils.config_reader import get_default_config, set_config_override, read_config
 from utils.take_snapshot import (
     capture_window_screenshot,
     find_coinpoker_tables,
@@ -1089,6 +1089,8 @@ def main():
     except Exception:
         pass
     _maybe_apply_runtime_config_override()
+    # Ensure config is loaded and REDIS_URL is exported to environment
+    read_config()
     scanner = CoinPokerScanner()
     scanner.run()
 

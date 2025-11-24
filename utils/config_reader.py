@@ -148,6 +148,12 @@ def read_config(config_path: str = None) -> dict[str, Any]:
         cfg.update(_runtime_override)
 
     cfg["ENV"] = os.environ.get("ENV", cfg["ENV"])
+    
+    # Export REDIS_URL to environment if found in config
+    # This allows RedisCommandClient to access it
+    if "REDIS_URL" in cfg and cfg["REDIS_URL"]:
+        os.environ["REDIS_URL"] = cfg["REDIS_URL"]
+    
     return cfg
 
 

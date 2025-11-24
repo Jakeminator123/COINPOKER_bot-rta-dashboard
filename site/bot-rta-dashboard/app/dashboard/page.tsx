@@ -114,6 +114,7 @@ type CommandExecutionResult =
   | { commandId: string; requireAdmin: boolean; status: "unknown" };
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const REDIS_COMMANDS_ENABLED = process.env.NEXT_PUBLIC_USE_REDIS === "true";
 
 type SessionDurationVariant = "panel" | "inline";
 
@@ -301,31 +302,41 @@ function EnhancedDashboardContent() {
 
   const queueDeviceCommand = useCallback(
     async (deviceId: string, command: DeviceCommandName, payload?: unknown) => {
-      // Use Redis API when USE_REDIS is enabled (typically on Render)
-      const useRedis = process.env.NEXT_PUBLIC_USE_REDIS === "true";
-      const apiPath = useRedis ? "/api/device-commands/redis" : "/api/device-commands";
-      
-      const response = await fetch(apiPath, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ deviceId, command, payload }),
-      });
+      const request = async (path: string) => {
+        const res = await fetch(path, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ deviceId, command, payload }),
+        });
 
-      let json: any = null;
-      try {
-        json = await response.json();
-      } catch (error) {
-        console.error("queueDeviceCommand JSON parse error", error);
+        let parsed: any = null;
+        try {
+          parsed = await res.json();
+        } catch (error) {
+          console.error("queueDeviceCommand JSON parse error", error);
+        }
+
+        return { res, parsed };
+      };
+
+      const primaryPath = REDIS_COMMANDS_ENABLED
+        ? "/api/device-commands/redis"
+        : "/api/device-commands";
+
+      let { res, parsed } = await request(primaryPath);
+
+      if (REDIS_COMMANDS_ENABLED && res.status === 503) {
+        ({ res, parsed } = await request("/api/device-commands"));
       }
 
-      if (!response.ok || !json?.ok) {
-        const message = json?.error || "Failed to queue command";
+      if (!res.ok || !parsed?.ok) {
+        const message = parsed?.error || "Failed to queue command";
         throw new Error(message);
       }
 
-      return (json.data ?? {}) as {
+      return (parsed.data ?? {}) as {
         commandId: string;
         requireAdmin?: boolean;
       };
@@ -335,36 +346,54 @@ function EnhancedDashboardContent() {
 
   const fetchCommandResult = useCallback(
     async (commandId: string, timeoutMs = 20000) => {
-      const started = Date.now();
-      const useRedis = process.env.NEXT_PUBLIC_USE_REDIS === "true";
-      
-      while (Date.now() - started < timeoutMs) {
-        const apiPath = useRedis 
-          ? `/api/device-commands/redis?id=${encodeURIComponent(commandId)}&deviceId=${encodeURIComponent(playerId || '')}`
-          : `/api/device-commands/result?id=${encodeURIComponent(commandId)}`;
-          
-        const response = await fetch(apiPath, {
+      if (!playerId) {
+        throw new Error("Device ID missing");
+      }
+
+      const request = async (url: string) => {
+        const res = await fetch(url, {
           method: "GET",
           cache: "no-store",
         });
 
-        let json: any = null;
+        let parsed: any = null;
         try {
-          json = await response.json();
+          parsed = await res.json();
         } catch (error) {
           console.error("fetchCommandResult JSON parse error", error);
         }
 
-        if (!response.ok || !json?.ok) {
-          const message = json?.error || "Failed to fetch command result";
+        return { res, parsed };
+      };
+
+      const redisUrl = `/api/device-commands/redis?id=${encodeURIComponent(
+        commandId
+      )}&deviceId=${encodeURIComponent(playerId)}`;
+      const httpUrl = `/api/device-commands/result?id=${encodeURIComponent(
+        commandId
+      )}`;
+
+      const started = Date.now();
+
+      while (Date.now() - started < timeoutMs) {
+        let { res, parsed } = await request(
+          REDIS_COMMANDS_ENABLED ? redisUrl : httpUrl
+        );
+
+        if (REDIS_COMMANDS_ENABLED && res.status === 503) {
+          ({ res, parsed } = await request(httpUrl));
+        }
+
+        if (!res.ok || !parsed?.ok) {
+          const message = parsed?.error || "Failed to fetch command result";
           throw new Error(message);
         }
 
-        const status = json?.data?.status;
+        const status = parsed?.data?.status;
         if (status === "completed") {
           return {
             status: "completed" as const,
-            result: json.data?.result,
+            result: parsed.data?.result,
           };
         }
 
@@ -386,7 +415,7 @@ function EnhancedDashboardContent() {
       payload?: unknown
     ): Promise<CommandExecutionResult> => {
       if (!playerId) {
-        throw new Error("Device ID saknas");
+        throw new Error("Device ID missing");
       }
 
       const queued = await queueDeviceCommand(playerId, command, payload);
@@ -1426,7 +1455,7 @@ function EnhancedDashboardContent() {
                       const result = execution.result ?? {};
                       const adminHint =
                         execution.requireAdmin || result?.adminRequired
-                          ? "\nObservera: scanner måste köras som administratör på Windows-maskinen."
+                          ? "\nNote: scanner must be run as administrator on the Windows machine."
                           : "";
 
                       if (result?.success) {
@@ -1435,32 +1464,32 @@ function EnhancedDashboardContent() {
                           result?.output?.count ??
                           (Array.isArray(tables) ? tables.length : 0);
                         setTableInfo(Array.isArray(tables) ? tables : []);
-                        alert(`Fångade ${count} bord.${adminHint}`);
+                        alert(`Captured ${count} tables.${adminHint}`);
                       } else {
                         const errorMsg =
-                          result?.error || "Misslyckades med att ta snapshots.";
+                          result?.error || "Failed to take snapshots.";
                         setSnapshotError(errorMsg);
-                        alert(`Fel: ${errorMsg}${adminHint}`);
+                        alert(`Error: ${errorMsg}${adminHint}`);
                       }
                     } else if (execution.status === "timeout") {
                       const errorMsg =
-                        "Snapshot-kommandot timeout: ingen respons från scanner.";
+                        "Snapshot command timed out: no response from scanner.";
                       setSnapshotError(errorMsg);
-                      alert(`Fel: ${errorMsg}`);
+                      alert(`Error: ${errorMsg}`);
                     } else {
                       const errorMsg =
-                        "Snapshot-kommandot kunde inte genomföras. Kontrollera att scanner-klienten är aktiv.";
+                        "Snapshot command could not be executed. Check that the scanner client is active.";
                       setSnapshotError(errorMsg);
-                      alert(`Fel: ${errorMsg}`);
+                      alert(`Error: ${errorMsg}`);
                     }
                   } catch (error) {
                     console.error("Take Snapshot command error:", error);
                     const errorMsg =
                       error instanceof Error
                         ? error.message
-                        : "Okänt fel vid snapshot-kommandot.";
+                        : "Unknown error with snapshot command.";
                     setSnapshotError(errorMsg);
-                    alert(`Fel: ${errorMsg}`);
+                    alert(`Error: ${errorMsg}`);
                   } finally {
                     setIsTakingSnapshot(false);
                   }
@@ -1972,27 +2001,27 @@ function EnhancedDashboardContent() {
                       const result = execution.result ?? {};
                       const adminHint =
                         execution.requireAdmin || result?.adminRequired
-                          ? "\nObservera: scanner måste köras som administratör på Windows-maskinen."
+                          ? "\nNote: scanner must be run as administrator on the Windows machine."
                           : "";
 
                       if (result?.success) {
                         const message =
                           result?.output?.message ||
-                          "CoinPoker-klienten stoppades.";
+                          "CoinPoker client stopped.";
                         alert(`${message}${adminHint}`);
                       } else {
                         const errorMsg =
                           result?.error ||
-                          "Misslyckades med att stänga CoinPoker-klienten.";
-                        alert(`Fel: ${errorMsg}${adminHint}`);
+                          "Failed to close CoinPoker client.";
+                        alert(`Error: ${errorMsg}${adminHint}`);
                       }
                     } else if (execution.status === "timeout") {
                       alert(
-                        "Kill-kommandot timeout: ingen respons från scanner (kontrollera att klienten är online)."
+                        "Kill command timed out: no response from scanner (check that the client is online)."
                       );
                     } else {
                       alert(
-                        "Kill-kommandot kunde inte genomföras. Kontrollera att scanner-klienten är aktiv."
+                        "Kill command could not be executed. Check that the scanner client is active."
                       );
                     }
                   } catch (error) {
@@ -2000,8 +2029,8 @@ function EnhancedDashboardContent() {
                     const message =
                       error instanceof Error
                         ? error.message
-                        : "Okänt fel vid kill-kommandot.";
-                    alert(`Fel: ${message}`);
+                        : "Unknown error with kill command.";
+                    alert(`Error: ${message}`);
                   } finally {
                     setIsKillInProgress(false);
                   }
@@ -2044,7 +2073,7 @@ function EnhancedDashboardContent() {
                       const result = execution.result ?? {};
                       const adminHint =
                         execution.requireAdmin || result?.adminRequired
-                          ? "\nObservera: scanner måste köras som administratör på Windows-maskinen."
+                          ? "\nNote: scanner must be run as administrator on the Windows machine."
                           : "";
 
                       if (result?.success) {
@@ -2053,32 +2082,32 @@ function EnhancedDashboardContent() {
                           result?.output?.count ??
                           (Array.isArray(tables) ? tables.length : 0);
                         setTableInfo(Array.isArray(tables) ? tables : []);
-                        alert(`Fångade ${count} bord.${adminHint}`);
+                        alert(`Captured ${count} tables.${adminHint}`);
                       } else {
                         const errorMsg =
-                          result?.error || "Misslyckades med att ta snapshots.";
+                          result?.error || "Failed to take snapshots.";
                         setSnapshotError(errorMsg);
-                        alert(`Fel: ${errorMsg}${adminHint}`);
+                        alert(`Error: ${errorMsg}${adminHint}`);
                       }
                     } else if (execution.status === "timeout") {
                       const errorMsg =
-                        "Snapshot-kommandot timeout: ingen respons från scanner.";
+                        "Snapshot command timed out: no response from scanner.";
                       setSnapshotError(errorMsg);
-                      alert(`Fel: ${errorMsg}`);
+                      alert(`Error: ${errorMsg}`);
                     } else {
                       const errorMsg =
-                        "Snapshot-kommandot kunde inte genomföras. Kontrollera att scanner-klienten är aktiv.";
+                        "Snapshot command could not be executed. Check that the scanner client is active.";
                       setSnapshotError(errorMsg);
-                      alert(`Fel: ${errorMsg}`);
+                      alert(`Error: ${errorMsg}`);
                     }
                   } catch (error) {
                     console.error("Take Snapshot command error:", error);
                     const errorMsg =
                       error instanceof Error
                         ? error.message
-                        : "Okänt fel vid snapshot-kommandot.";
+                        : "Unknown error with snapshot command.";
                     setSnapshotError(errorMsg);
-                    alert(`Fel: ${errorMsg}`);
+                    alert(`Error: ${errorMsg}`);
                   } finally {
                     setIsTakingSnapshot(false);
                   }

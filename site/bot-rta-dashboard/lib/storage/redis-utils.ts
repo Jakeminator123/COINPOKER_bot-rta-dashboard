@@ -1,38 +1,49 @@
-import { Redis } from "@upstash/redis";
+import { createClient } from "redis";
 
-let redisClient: Redis | null = null;
+type RedisClient = ReturnType<typeof createClient>;
+let redisClient: RedisClient | null = null;
+let connectionPromise: Promise<RedisClient | null> | null = null;
 
-export function getRedisClient(): Redis | null {
-  if (redisClient) {
+export async function getRedisClient(): Promise<RedisClient | null> {
+  if (redisClient && redisClient.isOpen) {
     return redisClient;
   }
 
-  const url = process.env.UPSTASH_REDIS_URL || process.env.REDIS_URL;
-  const token = process.env.UPSTASH_REDIS_TOKEN;
+  if (!connectionPromise) {
+    const url = process.env.REDIS_URL;
 
-  if (!url) {
-    console.warn("[Redis Utils] No Redis URL configured");
-    return null;
-  }
-
-  try {
-    if (token) {
-      // Use Upstash Redis with token
-      redisClient = new Redis({
-        url,
-        token,
-      });
-    } else {
-      // Use standard Redis URL
-      redisClient = Redis.fromEnv();
+    if (!url) {
+      console.warn("[Redis Utils] No Redis URL configured");
+      return null;
     }
-    
-    console.log("[Redis Utils] Redis client initialized");
-    return redisClient;
-  } catch (error) {
-    console.error("[Redis Utils] Failed to initialize Redis client:", error);
-    return null;
+
+    connectionPromise = (async () => {
+      try {
+        const client = createClient({ url });
+        client.on("error", (err) =>
+          console.error("[Redis Utils] Redis Client Error:", err)
+        );
+
+        await client.connect();
+        console.log("[Redis Utils] Redis client connected");
+        return client;
+      } catch (error) {
+        console.error("[Redis Utils] Failed to connect to Redis:", error);
+        return null;
+      }
+    })();
   }
+
+  const client = await connectionPromise;
+  connectionPromise = null;
+
+  if (client && client.isOpen) {
+    redisClient = client;
+    return client;
+  }
+
+  redisClient = null;
+  return null;
 }
 
 export function isRedisAvailable(): boolean {

@@ -96,11 +96,11 @@ else {
         # Image processing
         "pytesseract", "PIL", "PIL.Image", "PIL.ImageEnhance", "PIL.ImageGrab",
         # Core dependencies
-        "numpy", "psutil", "cryptography", "requests", "certifi",
+        "numpy", "psutil", "cryptography", "requests", "certifi", "redis",
         # Optional dependencies (may not be installed but handled gracefully)
         "wmi",
         # Core modules
-        "core.api", "core.command_client", "core.forwarder", "core.segment_loader",
+        "core.api", "core.command_client", "core.redis_command_client", "core.forwarder", "core.segment_loader",
         "core.redis_forwarder", "core.redis_schema", "core.system_info",
         "core.device_identity", "core.models", "core.web_forwarder",
         "core.runtime_config_embedded",

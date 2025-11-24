@@ -97,7 +97,8 @@ function SettingsPageContent() {
   
   const { data: configData, error, isLoading, mutate } = useSWR("/api/configs", fetcher);
 
-  const adminUsersKey = isAdmin && adminSessionId ? ["/api/admin/users", adminSessionId] : null;
+  const adminUsersKey =
+    isAdmin && adminSessionId ? (["/api/admin/users", adminSessionId] as const) : null;
   const {
     data: adminUsersData,
     isLoading: isAdminUsersLoading,
@@ -105,16 +106,18 @@ function SettingsPageContent() {
     error: adminUsersError,
   } = useSWR(
     adminUsersKey,
-    async ([url, session]: [string, string]) => {
-      const response = await fetch(url, {
-        headers: { "x-admin-session": session },
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload?.error || "Failed to load admin users");
-      }
-      return payload?.data?.users ?? [];
-    }
+    adminUsersKey
+      ? async ([url, session]: readonly [string, string]) => {
+          const response = await fetch(url, {
+            headers: { "x-admin-session": session },
+          });
+          const payload = await response.json();
+          if (!response.ok) {
+            throw new Error(payload?.error || "Failed to load admin users");
+          }
+          return payload?.data?.users ?? [];
+        }
+      : null
   );
   const adminUsers = adminUsersData ?? [];
 
@@ -768,7 +771,7 @@ function SettingsPageContent() {
                     </p>
                   ) : (
                     <ul className="mt-4 divide-y divide-slate-800">
-                      {adminUsers.map((user) => (
+                      {adminUsers.map((user: any) => (
                         <li key={user.username} className="flex flex-col sm:flex-row sm:items-center justify-between py-3 gap-3">
                           <div>
                             <p className="text-white font-medium">{user.username}</p>
