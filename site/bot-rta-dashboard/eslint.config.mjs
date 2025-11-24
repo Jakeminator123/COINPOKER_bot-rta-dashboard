@@ -4,6 +4,7 @@ import js from "@eslint/js";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 import pluginReact from "eslint-plugin-react";
+import pluginUnusedImports from "eslint-plugin-unused-imports";
 
 export default [
   //
@@ -36,6 +37,9 @@ export default [
   //
   {
     files: ["**/*.{js,jsx,ts,tsx}"],
+    plugins: {
+      "unused-imports": pluginUnusedImports,
+    },
     rules: {
       // React 17+ behöver inte React i scope för JSX
       "react/react-in-jsx-scope": "off",
@@ -46,14 +50,20 @@ export default [
       // Slå AV klagomål på `any` (ändra till "warn" om du vill ha varningar)
       "@typescript-eslint/no-explicit-any": "off",
 
-      // Tillåt oanvända variabler/args som börjar med underscore osv.
-      "@typescript-eslint/no-unused-vars": [
+      // Stäng av standardregler för unused vars (vi ersätter dem med pluginet)
+      "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+
+      // Plugin: eslint-plugin-unused-imports
+      "unused-imports/no-unused-imports": "error",
+      "unused-imports/no-unused-vars": [
         "warn",
         {
-          argsIgnorePattern: "^_",
+          vars: "all",
           varsIgnorePattern: "^_",
-          caughtErrorsIgnorePattern: "^_|^e$|^err$|^error$",
           args: "after-used",
+          argsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_|^e$|^err$|^error$",
         },
       ],
     },

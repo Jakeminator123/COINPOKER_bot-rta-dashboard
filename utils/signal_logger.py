@@ -17,11 +17,24 @@ from typing import Any, Dict, Optional
 _logger_instance: Optional["SignalLogger"] = None
 
 
+def _load_signal_logging_enabled() -> bool:
+    """Check config to see if signal flow logging is enabled."""
+    try:
+        from utils.config_reader import read_config
+        cfg = read_config()
+        value = str(cfg.get("SIGNAL_FLOW_LOG", "y")).strip().lower()
+        return value in ("y", "yes", "1", "true")
+    except Exception:
+        return True  # Default: enabled
+
+
 class SignalLogger:
     """Logs signal flow from detector to dashboard and Redis."""
 
     def __init__(self, log_dir: Optional[str] = None):
         """Initialize signal logger."""
+        self.enabled = _load_signal_logging_enabled()
+        
         if log_dir is None:
             # Use same directory as scanner.py
             if getattr(__import__("sys"), "frozen", False):
@@ -32,11 +45,13 @@ class SignalLogger:
                 log_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
         self.log_dir = Path(log_dir)
-        self.log_dir.mkdir(exist_ok=True)
-
-        # Log file: signal_flow_YYYYMMDD.log
-        today = datetime.now().strftime("%Y%m%d")
-        self.log_file = self.log_dir / f"signal_flow_{today}.log"
+        if self.enabled:
+            self.log_dir.mkdir(exist_ok=True)
+            # Log file: signal_flow_YYYYMMDD.log
+            today = datetime.now().strftime("%Y%m%d")
+            self.log_file = self.log_dir / f"signal_flow_{today}.log"
+        else:
+            self.log_file = None
 
         # Statistics
         self.stats = {
@@ -55,18 +70,27 @@ class SignalLogger:
         # Track signal IDs to detect duplicates
         self._seen_signals: Dict[str, float] = {}
 
-        # Write header
-        self._write_header()
+        # Write header only if logging is enabled
+        if self.enabled:
+            self._write_header()
 
     def _write_header(self):
         """Write log file header."""
-        with open(self.log_file, "a", encoding="utf-8") as f:
-            f.write("\n" + "=" * 80 + "\n")
-            f.write(f"Signal Flow Log - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write("=" * 80 + "\n\n")
+        if not self.enabled or not self.log_file:
+            return
+        try:
+            with open(self.log_file, "a", encoding="utf-8") as f:
+                f.write("\n" + "=" * 80 + "\n")
+                f.write(f"Signal Flow Log - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write("=" * 80 + "\n\n")
+        except Exception:
+            pass
 
     def _log(self, level: str, message: str, data: Optional[Dict[str, Any]] = None):
         """Write log entry."""
+        if not self.enabled or not self.log_file:
+            return  # Logging disabled via config
+        
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
         log_entry = {
             "timestamp": timestamp,
@@ -267,13 +291,19 @@ class SignalLogger:
 
     def log_stats(self):
         """Log current statistics."""
+        stats_data = {
+            "stats": self.stats,
+        }
+        # Only include log_file if logging is enabled
+        if self.log_file:
+            stats_data["log_file"] = str(self.log_file)
+        else:
+            stats_data["log_file"] = "disabled (SIGNAL_FLOW_LOG=n)"
+        
         self._log(
             "STATS",
             "Signal flow statistics",
-            {
-                "stats": self.stats,
-                "log_file": str(self.log_file),
-            },
+            stats_data,
         )
 
     def get_stats(self) -> Dict[str, Any]:

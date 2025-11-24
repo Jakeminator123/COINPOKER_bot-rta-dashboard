@@ -9,8 +9,10 @@ import json
 import os
 import re
 import socket
+import sys
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -18,10 +20,13 @@ import pytesseract
 from PIL import Image, ImageEnhance, ImageGrab
 from pytesseract import Output
 from core.system_info import get_windows_computer_name
+from utils.config_reader import read_config
 
 try:
     import win32gui
     import win32ui
+    import win32process
+    import win32con
     WIN32_AVAILABLE = True
 except ImportError:
     WIN32_AVAILABLE = False
@@ -76,6 +81,91 @@ CURRENCY_ONLY_PATTERN = re.compile(r"^[\d₮$€£¥]+$")
 DISALLOWED_CHARS_PATTERN = re.compile(r"[\\\'\"<>{}\[\]|`~]")
 CURRENCY_PATTERN = re.compile(r"[¥$€£₮]|chp|usd|eur|gbp|btc|eth", re.I)
 BALANCE_KEYWORDS = {"balance"}
+BALANCE_LOOKALIKE_MAP = {
+    "0": "o",
+    "1": "l",
+    "2": "b",
+    "3": "e",
+    "4": "a",
+    "5": "s",
+    "6": "b",
+    "7": "t",
+    "8": "b",
+    "9": "g",
+    "@": "a",
+    "$": "s",
+    "!": "l",
+    "€": "e",
+    "¥": "y",
+}
+BALANCE_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9@#$€¥]+")
+
+
+def _load_picture_nick_flag() -> bool:
+    """Check config to see if OCR debug image saving is enabled."""
+    try:
+        cfg = read_config()
+        value = str(cfg.get("PICTURE_NICK", "n")).strip().lower()
+        return value in ("y", "yes", "1", "true")
+    except Exception:
+        return False
+
+
+PICTURE_NICK_ENABLED = _load_picture_nick_flag()
+_DEBUG_IMAGE_DIR: Path | None = None
+
+
+def _ensure_debug_dir() -> Path | None:
+    """Ensure nickname_debug directory exists when snapshot saving is enabled."""
+    global _DEBUG_IMAGE_DIR
+    if not PICTURE_NICK_ENABLED:
+        return None
+    if _DEBUG_IMAGE_DIR is None:
+        try:
+            base_dir = (
+                Path(sys.executable).parent
+                if getattr(sys, "frozen", False)
+                else Path(__file__).parent.parent
+            )
+            debug_dir = base_dir / "nickname_debug"
+            debug_dir.mkdir(exist_ok=True)
+            _DEBUG_IMAGE_DIR = debug_dir
+        except Exception as err:
+            print(f"[NicknameDetector] Could not prepare nickname_debug directory: {err}")
+            _DEBUG_IMAGE_DIR = None
+    return _DEBUG_IMAGE_DIR
+
+
+def _save_debug_image(image: Image.Image | None, pid: int | None, attempt: int, label: str) -> None:
+    """Persist a debug snapshot with contextual naming."""
+    if not PICTURE_NICK_ENABLED or image is None:
+        return
+    directory = _ensure_debug_dir()
+    if not directory:
+        return
+    try:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        pid_part = f"pid{pid}" if pid is not None else "pid_unknown"
+        filename = f"{timestamp}_{pid_part}_attempt{attempt}_{label}.png"
+        image.save(directory / filename)
+    except Exception as exc:
+        print(f"[NicknameDetector] Could not save debug image ({label}): {exc}")
+
+
+def _capture_debug_variants(source_image: Image.Image | None, pid: int | None, attempt: int) -> None:
+    """Store raw, region, and filtered variants to help troubleshoot OCR."""
+    if not PICTURE_NICK_ENABLED or source_image is None:
+        return
+    try:
+        _save_debug_image(source_image, pid, attempt, "raw")
+        region_image = crop_username_region(source_image.copy(), use_auto_config=True)
+        if region_image:
+            _save_debug_image(region_image, pid, attempt, "region")
+            filtered_image = filter_red_text(region_image.copy(), tolerance=50, use_auto_config=True)
+            if filtered_image:
+                _save_debug_image(filtered_image, pid, attempt, "region_redfilter")
+    except Exception as err:
+        print(f"[NicknameDetector] Debug snapshot capture failed: {err}")
 
 
 def _prepare_candidate_word(word: str) -> str | None:
@@ -169,6 +259,70 @@ def _find_candidate_left_of_index(words: list[dict], idx: int) -> tuple[str, flo
     return None
 
 
+def _normalize_balance_token(text: str) -> str:
+    """Normalize OCR word for fuzzy Balance comparisons."""
+    if not text:
+        return ""
+    normalized = text.lower().strip(" \t\r\n|:;,.()[]{}<>-_=+'\"`")
+    translated = "".join(BALANCE_LOOKALIKE_MAP.get(ch, ch) for ch in normalized)
+    cleaned = re.sub(r"[^a-z]", "", translated)
+    return cleaned
+
+
+def _within_edit_distance(candidate: str, target: str, max_distance: int = 1) -> bool:
+    """Check if candidate is within small edit distance of target."""
+    if candidate == target:
+        return True
+    if abs(len(candidate) - len(target)) > max_distance:
+        return False
+
+    target_len = len(target)
+    previous_row = list(range(target_len + 1))
+
+    for i, c1 in enumerate(candidate, start=1):
+        current_row = [i]
+        min_current = i
+        for j, c2 in enumerate(target, start=1):
+            insertions = previous_row[j] + 1
+            deletions = current_row[j - 1] + 1
+            substitutions = previous_row[j - 1] + (c1 != c2)
+            current = min(insertions, deletions, substitutions)
+            current_row.append(current)
+            if current < min_current:
+                min_current = current
+        if min_current > max_distance:
+            return False
+        previous_row = current_row
+
+    return previous_row[-1] <= max_distance
+
+
+def _is_balance_keyword(text: str) -> bool:
+    """Return True if OCR token should be treated as 'Balance'."""
+    normalized = _normalize_balance_token(text)
+    if not normalized:
+        return False
+    if normalized in BALANCE_KEYWORDS:
+        return True
+    return _within_edit_distance(normalized, "balance", max_distance=1)
+
+
+def _find_balance_index_in_line(line: str) -> int | None:
+    """Find approximate start index of Balance token within a text line."""
+    if not line:
+        return None
+    line_lower = line.lower()
+    direct_idx = line_lower.find("balance")
+    if direct_idx != -1:
+        return direct_idx
+
+    for match in BALANCE_TOKEN_PATTERN.finditer(line):
+        token = match.group(0)
+        if _is_balance_keyword(token):
+            return match.start()
+    return None
+
+
 
 def _resolve_device_identity() -> tuple[str, str]:
     """Return consistent hostname/device_id shared with scanner + Redis."""
@@ -180,6 +334,36 @@ def _resolve_device_identity() -> tuple[str, str]:
             hostname = "Unknown Device"
     device_id = hashlib.md5(hostname.encode()).hexdigest()
     return hostname, device_id
+
+
+def _focus_window(hwnd: int) -> None:
+    """Bring target window to foreground/topmost briefly to stabilize capture."""
+    if not WIN32_AVAILABLE:
+        return
+    try:
+        win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+        win32gui.SetForegroundWindow(hwnd)
+        win32gui.SetWindowPos(
+            hwnd,
+            win32con.HWND_TOPMOST,
+            0,
+            0,
+            0,
+            0,
+            win32con.SWP_NOMOVE | win32con.SWP_NOSIZE,
+        )
+        time.sleep(0.05)
+        win32gui.SetWindowPos(
+            hwnd,
+            win32con.HWND_NOTOPMOST,
+            0,
+            0,
+            0,
+            0,
+            win32con.SWP_NOMOVE | win32con.SWP_NOSIZE,
+        )
+    except Exception:
+        pass
 
 
 def ensure_tesseract() -> bool:
@@ -262,9 +446,14 @@ def grab_window(hwnd: int) -> Image.Image | None:
         return None
 
 
-def crop_username_region(image: Image.Image, use_auto_config: bool = True) -> Image.Image:
-    """Crop to upper-right region where username typically appears."""
+def get_username_crop_box(image: Image.Image, use_auto_config: bool = True) -> tuple[int, int, int, int]:
+    """Return crop box for username region (mirrors runtime behavior)."""
     width, height = image.size
+
+    def _extend_left(left: int, right: int) -> int:
+        """Extend region 100% further to the left (double width) without going outside image."""
+        region_width = max(1, right - left)
+        return max(0, left - region_width)
 
     # Try to load auto-detected config
     if use_auto_config:
@@ -284,7 +473,8 @@ def crop_username_region(image: Image.Image, use_auto_config: bool = True) -> Im
                     and right > left
                     and bottom > top
                 ):
-                    return image.crop((left, top, right, bottom))
+                    left = _extend_left(left, right)
+                    return left, top, right, bottom
             except Exception:
                 pass
 
@@ -303,8 +493,15 @@ def crop_username_region(image: Image.Image, use_auto_config: bool = True) -> Im
     if bottom > height:
         bottom = height
     if right <= left or bottom <= top:
-        return image
+        return 0, 0, width, max(1, int(height * 0.15))
 
+    left = _extend_left(left, right)
+    return left, top, right, bottom
+
+
+def crop_username_region(image: Image.Image, use_auto_config: bool = True) -> Image.Image:
+    """Crop to upper-right region where username typically appears."""
+    left, top, right, bottom = get_username_crop_box(image, use_auto_config=use_auto_config)
     return image.crop((left, top, right, bottom))
 
 
@@ -433,6 +630,8 @@ def extract_player_name_from_lobby(hwnd: int, ocr_text: str) -> tuple[str | None
     for line in lines:
         words = WORD_SPLIT_PATTERN.split(line)
         line_lower = line.lower()
+        currency_match = CURRENCY_PATTERN.search(line)
+        balance_pos = _find_balance_index_in_line(line)
 
         for raw_word in words:
             candidate = _prepare_candidate_word(raw_word)
@@ -441,7 +640,6 @@ def extract_player_name_from_lobby(hwnd: int, ocr_text: str) -> tuple[str | None
 
             confidence = 0.5
 
-            currency_match = CURRENCY_PATTERN.search(line)
             if currency_match:
                 currency_pos = currency_match.start()
                 word_pos = line_lower.find(candidate.lower())
@@ -453,8 +651,7 @@ def extract_player_name_from_lobby(hwnd: int, ocr_text: str) -> tuple[str | None
                         confidence = 0.95
                 elif word_pos != -1:
                     confidence = 0.70
-            elif "balance" in line_lower:
-                balance_pos = line_lower.find("balance")
+            elif balance_pos is not None:
                 word_pos = line_lower.find(candidate.lower())
                 confidence = 0.90 if word_pos != -1 and word_pos < balance_pos else 0.85
             elif any(indicator in line_lower for indicator in ["player", "user", "logged"]):
@@ -484,8 +681,7 @@ def extract_player_name_from_ocr_data(ocr_data: dict | None) -> tuple[str | None
         # Pass 1: look for explicit Balance keyword and take the closest valid word to the left.
         for words in lines:
             for idx, word in enumerate(words):
-                normalized = word["text"].strip().lower().strip(":|")
-                if normalized not in BALANCE_KEYWORDS:
+                if not _is_balance_keyword(word["text"]):
                     continue
 
                 candidate = _find_candidate_left_of_index(words, idx)
@@ -521,6 +717,120 @@ def extract_player_name_from_ocr_data(ocr_data: dict | None) -> tuple[str | None
     return None, 0.0
 
 
+def _locate_balance_region_in_ocr_data(ocr_data: dict | None) -> tuple[int, int, int, int] | None:
+    """Return bounding box for the first detected 'Balance' word in OCR data."""
+    if not ocr_data or "text" not in ocr_data:
+        return None
+    for idx, text in enumerate(ocr_data["text"]):
+        if text and _is_balance_keyword(text):
+            left = int(ocr_data["left"][idx])
+            top = int(ocr_data["top"][idx])
+            width = int(ocr_data["width"][idx]) or 1
+            height = int(ocr_data["height"][idx]) or 1
+            return left, top, left + width, top + height
+    return None
+
+
+def _find_balance_region(image: Image.Image) -> tuple[int, int, int, int] | None:
+    """Locate Balance area on the lobby UI to anchor nickname extraction."""
+    crop_left, crop_top, crop_right, crop_bottom = get_username_crop_box(image)
+    processed_image = image.crop((crop_left, crop_top, crop_right, crop_bottom))
+    filtered_image = filter_red_text(processed_image.copy(), tolerance=50, use_auto_config=True)
+    try:
+        ocr_data = pytesseract.image_to_data(filtered_image, lang="eng+osd", output_type=Output.DICT)
+    except Exception:
+        ocr_data = None
+
+    region = _locate_balance_region_in_ocr_data(ocr_data)
+    if region:
+        left, top, right, bottom = region
+        return left + crop_left, top + crop_top, right + crop_left, bottom + crop_top
+
+    # Fallback: try full image with red filter
+    try:
+        filtered_full = filter_red_text(image.copy(), tolerance=50, use_auto_config=True)
+        ocr_data_full = pytesseract.image_to_data(filtered_full, lang="eng+osd", output_type=Output.DICT)
+    except Exception:
+        ocr_data_full = None
+
+    region = _locate_balance_region_in_ocr_data(ocr_data_full)
+    if region:
+        return region
+
+    # Last resort: no filter
+    try:
+        ocr_data_plain = pytesseract.image_to_data(image, lang="eng+osd", output_type=Output.DICT)
+    except Exception:
+        ocr_data_plain = None
+    return _locate_balance_region_in_ocr_data(ocr_data_plain)
+
+
+def _create_nickname_region_from_balance(
+    image: Image.Image, balance_region: tuple[int, int, int, int]
+) -> Image.Image | None:
+    """Create expanded nickname region to the left of Balance."""
+    img_width, img_height = image.size
+    balance_left, balance_top, balance_right, balance_bottom = balance_region
+
+    ref_width = balance_right - balance_left
+    ref_height = balance_bottom - balance_top
+
+    if ref_width <= 0 or ref_height <= 0:
+        return None
+
+    new_width = int(ref_width * 3.0)
+
+    new_right = balance_left
+    new_left = new_right - new_width
+
+    height_adjust = int(ref_height * 0.2)
+    new_top = balance_top - height_adjust
+    new_bottom = balance_bottom + height_adjust
+
+    if new_left < 0:
+        new_right = max(0, new_right - new_left)
+        new_left = 0
+
+    new_left = max(0, new_left)
+    new_top = max(0, new_top)
+    new_right = min(img_width, new_right)
+    new_bottom = min(img_height, new_bottom)
+
+    if new_right <= new_left or new_bottom <= new_top:
+        return None
+
+    return image.crop((new_left, new_top, new_right, new_bottom))
+
+
+def _extract_nickname_via_balance(image: Image.Image) -> tuple[str | None, float]:
+    """Fallback OCR routine that anchors on Balance label."""
+    balance_region = _find_balance_region(image)
+    if not balance_region:
+        return None, 0.0
+
+    nickname_region = _create_nickname_region_from_balance(image, balance_region)
+    if not nickname_region:
+        return None, 0.0
+
+    filtered_region = filter_red_text(nickname_region.copy(), tolerance=50, use_auto_config=True)
+    try:
+        balance_text = pytesseract.image_to_string(filtered_region, lang="eng+osd")
+    except Exception:
+        balance_text = ""
+
+    if not balance_text.strip():
+        try:
+            balance_text = pytesseract.image_to_string(nickname_region, lang="eng+osd")
+        except Exception:
+            balance_text = ""
+
+    if not balance_text.strip():
+        return None, 0.0
+
+    name, confidence = extract_player_name_from_lobby(0, balance_text)
+    return name, confidence
+
+
 def extract_nickname_with_retry(hwnd: int, max_attempts: int = 3) -> tuple[str | None, float]:
     """Extract nickname with smart retry and increasing delays."""
     delays = [2, 5, 10]
@@ -528,6 +838,8 @@ def extract_nickname_with_retry(hwnd: int, max_attempts: int = 3) -> tuple[str |
     best_confidence = 0.0
 
     print(f"[NicknameDetector] Extracting nickname ({max_attempts} attempts)...")
+
+    last_captured_image: Image.Image | None = None
 
     for attempt in range(max_attempts):
         print(f"[NicknameDetector] Attempt {attempt + 1}/{max_attempts}...")
@@ -537,12 +849,21 @@ def extract_nickname_with_retry(hwnd: int, max_attempts: int = 3) -> tuple[str |
                 print("[NicknameDetector] Window closed. Stopping extraction...")
                 break
 
+            _focus_window(hwnd)
             img = grab_window(hwnd)
             if not img:
                 print("[NicknameDetector] Could not capture window")
                 if attempt < max_attempts - 1:
                     time.sleep(delays[min(attempt, len(delays) - 1)])
                 continue
+            last_captured_image = img.copy()
+
+            # Save debug images if PICTURE_NICK=y
+            try:
+                _, pid = win32process.GetWindowThreadProcessId(hwnd)
+            except Exception:
+                pid = None
+            _capture_debug_variants(img, pid, attempt + 1)
 
             # Strategy 1: Try with region cropping and red filter first
             text, ocr_data = ocr_text(
@@ -607,6 +928,13 @@ def extract_nickname_with_retry(hwnd: int, max_attempts: int = 3) -> tuple[str |
             print(f"[NicknameDetector] Error in attempt {attempt + 1}: {e}")
             if attempt < max_attempts - 1:
                 time.sleep(delays[min(attempt, len(delays) - 1)])
+
+    if not best_name and last_captured_image is not None:
+        print("[NicknameDetector] Attempting Balance-based OCR fallback...")
+        balance_name, balance_conf = _extract_nickname_via_balance(last_captured_image)
+        if balance_name:
+            best_name = balance_name
+            best_confidence = balance_conf
 
     return best_name, best_confidence
 
