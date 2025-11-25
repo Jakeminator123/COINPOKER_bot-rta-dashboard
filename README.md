@@ -330,6 +330,33 @@ Detection Tool  ──PUBLISH signals──>  Redis  ──>  Dashboard (SUBSCRI
 
 ---
 
+## 📋 Project Status
+
+### ✅ Fixed / Completed
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Nickname detection | ✅ Fixed | OCR-based player name detection working |
+| IP address tracking | ✅ Fixed | Device IP properly captured and displayed |
+| Dropdown menu visibility | ✅ Fixed | White text on dark background now readable |
+| 11,000 players (5k online) | ✅ Works | System handles high load flawlessly |
+| Admin backoffice | ⚠️ Better | Improved, but consider full refactor (complex) |
+| Device Manager page | ✅ Done | Overview page with dates and players |
+
+### 📝 To Do
+
+| Task | Assigned To | Priority |
+|------|-------------|----------|
+| Sort player detections on Overview page | - | Medium |
+| Pts instead of "%" on player page | - | Low (evaluate necessity) |
+| Overview bottom totals - fix detections | - | Medium |
+| PostgreSQL database integration | Konrad | High |
+| Static page implementation | Nina | Medium |
+| Table layout instead of cards | Nina | Medium |
+| Autostart cloaked as Windows service | Jakob | High |
+
+---
+
 ## 👥 Authors
 
 **Conrad & Nina**
