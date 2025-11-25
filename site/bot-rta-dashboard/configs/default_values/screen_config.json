@@ -62,7 +62,9 @@
       "lockapp",
       "taskhostw",
       "__wgl",
-      "nvogldc"
+      "nvogldc",
+      "coinpokerscanner",
+      "administrator"
     ],
     "safe_processes": [
       "explorer.exe",
@@ -81,7 +83,8 @@
       "ctfmon.exe",
       "searchapp.exe",
       "windowsterminal.exe",
-      "conhost.exe"
+      "conhost.exe",
+      "coinpokerscanner.exe"
     ],
     "system_window_keywords": [
       "taskbar",

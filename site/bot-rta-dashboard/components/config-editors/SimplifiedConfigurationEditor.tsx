@@ -189,16 +189,39 @@ export default function SimplifiedConfigurationEditor({
     text: string;
   } | null>(null);
 
+  // Helper to get threshold value from either old or new config structure
+  const getThreshold = (config: any, oldPath: string, newPath: string, defaultValue: number): number => {
+    // Try new structure first (e.g., bot_detection_thresholds.keyboard_timing.cv_critical)
+    const newParts = newPath.split('.');
+    let newValue = config;
+    for (const part of newParts) {
+      newValue = newValue?.[part];
+    }
+    if (typeof newValue === 'number') return newValue;
+    
+    // Fall back to old structure (e.g., thresholds.iki_cv_alert)
+    const oldParts = oldPath.split('.');
+    let oldValue = config;
+    for (const part of oldParts) {
+      oldValue = oldValue?.[part];
+    }
+    if (typeof oldValue === 'number') return oldValue;
+    
+    return defaultValue;
+  };
+
   // Determine current settings from configs
   const getCurrentSensitivity = () => {
     // Analyze behaviour config thresholds to determine sensitivity
-    if (!behaviourConfig?.thresholds) return "medium";
-    const ikiAlert = behaviourConfig.thresholds.iki_cv_alert || 0.08;
-    const constVelAlert = behaviourConfig.thresholds.const_velocity_alert || 0.8;
+    if (!behaviourConfig) return "medium";
+    
+    // Get values from either new or old structure
+    const cvCritical = getThreshold(behaviourConfig, 'thresholds.iki_cv_alert', 'bot_detection_thresholds.keyboard_timing.cv_critical', 0.07);
+    const constVelCritical = getThreshold(behaviourConfig, 'thresholds.const_velocity_alert', 'bot_detection_thresholds.mouse_movement.constant_velocity_critical', 0.75);
     
     // Match to one of three options: low, medium, high
-    if (ikiAlert <= 0.05 && constVelAlert >= 0.9) return "high";
-    if (ikiAlert >= 0.12 && constVelAlert <= 0.6) return "low";
+    if (cvCritical <= 0.05 && constVelCritical >= 0.85) return "high";
+    if (cvCritical >= 0.10 && constVelCritical <= 0.60) return "low";
     return "medium"; // Default/standard
   };
 
@@ -251,13 +274,18 @@ export default function SimplifiedConfigurationEditor({
 
   const getCurrentBehaviourDetection = () => {
     if (!behaviourConfig) return "normal";
+    
     // Check if behaviour detection is effectively disabled
-    const minEvents = behaviourConfig.reporting?.min_events_threshold || 20;
+    // Support both old (reporting.min_events_threshold) and new (reporting.min_input_events) structure
+    const minEvents = behaviourConfig.reporting?.min_input_events 
+      ?? behaviourConfig.reporting?.min_events_threshold 
+      ?? 20;
     if (minEvents > 100) return "disabled";
     
-    const ikiAlert = behaviourConfig.thresholds?.iki_cv_alert || 0.08;
-    if (ikiAlert > 0.15) return "relaxed";
-    if (ikiAlert < 0.05) return "strict";
+    // Get CV threshold from either structure
+    const cvCritical = getThreshold(behaviourConfig, 'thresholds.iki_cv_alert', 'bot_detection_thresholds.keyboard_timing.cv_critical', 0.07);
+    if (cvCritical > 0.12) return "relaxed";
+    if (cvCritical < 0.05) return "strict";
     return "normal";
   };
 
@@ -284,65 +312,80 @@ export default function SimplifiedConfigurationEditor({
 
     try {
       // Apply sensitivity preset to behaviour config
-      // CRITICAL: Preserve all existing fields including polling, _points_mapping, etc.
+      // CRITICAL: Preserve all existing fields and use NEW structure
       const behaviourUpdates: any = {
         ...behaviourConfig,
-        thresholds: { ...(behaviourConfig?.thresholds || {}) },
-        scoring_weights: { ...(behaviourConfig?.scoring_weights || {}) },
-        reporting: { ...(behaviourConfig?.reporting || {}) },
-        polling: { ...(behaviourConfig?.polling || {}) },
       };
       
-      // Preserve metadata fields
-      if (behaviourConfig?._points_mapping) {
-        behaviourUpdates._points_mapping = behaviourConfig._points_mapping;
+      // Ensure new structure exists
+      if (!behaviourUpdates.bot_detection_thresholds) {
+        behaviourUpdates.bot_detection_thresholds = {};
+      }
+      if (!behaviourUpdates.bot_detection_thresholds.keyboard_timing) {
+        behaviourUpdates.bot_detection_thresholds.keyboard_timing = {};
+      }
+      if (!behaviourUpdates.bot_detection_thresholds.click_timing) {
+        behaviourUpdates.bot_detection_thresholds.click_timing = {};
+      }
+      if (!behaviourUpdates.bot_detection_thresholds.mouse_movement) {
+        behaviourUpdates.bot_detection_thresholds.mouse_movement = {};
+      }
+      if (!behaviourUpdates.reporting) {
+        behaviourUpdates.reporting = {};
       }
 
       // Sensitivity presets (3 options: low, medium, high)
+      // These affect how strict the detection thresholds are
       switch (sensitivity) {
         case "low":
-          behaviourUpdates.thresholds.iki_cv_alert = 0.12;
-          behaviourUpdates.thresholds.iki_cv_warn = 0.18;
-          behaviourUpdates.thresholds.const_velocity_alert = 0.6;
-          behaviourUpdates.thresholds.const_velocity_warn = 0.4;
-          behaviourUpdates.reporting.min_events_threshold = 50;
+          // More lenient - fewer false positives, may miss some bots
+          behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_critical = 0.05;
+          behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_suspicious = 0.08;
+          behaviourUpdates.bot_detection_thresholds.click_timing.cv_critical = 0.05;
+          behaviourUpdates.bot_detection_thresholds.click_timing.cv_suspicious = 0.08;
+          behaviourUpdates.bot_detection_thresholds.mouse_movement.constant_velocity_critical = 0.60;
+          behaviourUpdates.bot_detection_thresholds.mouse_movement.constant_velocity_suspicious = 0.40;
+          behaviourUpdates.reporting.min_input_events = 50;
           break;
         case "medium":
-          // Standard/default configuration
-          behaviourUpdates.thresholds.iki_cv_alert = 0.08;
-          behaviourUpdates.thresholds.iki_cv_warn = 0.12;
-          behaviourUpdates.thresholds.const_velocity_alert = 0.75;
-          behaviourUpdates.thresholds.const_velocity_warn = 0.5;
-          behaviourUpdates.reporting.min_events_threshold = 20;
+          // Standard/default configuration - balanced
+          behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_critical = 0.07;
+          behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_suspicious = 0.10;
+          behaviourUpdates.bot_detection_thresholds.click_timing.cv_critical = 0.07;
+          behaviourUpdates.bot_detection_thresholds.click_timing.cv_suspicious = 0.10;
+          behaviourUpdates.bot_detection_thresholds.mouse_movement.constant_velocity_critical = 0.75;
+          behaviourUpdates.bot_detection_thresholds.mouse_movement.constant_velocity_suspicious = 0.50;
+          behaviourUpdates.reporting.min_input_events = 20;
           break;
         case "high":
-          behaviourUpdates.thresholds.iki_cv_alert = 0.05;
-          behaviourUpdates.thresholds.iki_cv_warn = 0.08;
-          behaviourUpdates.thresholds.const_velocity_alert = 0.9;
-          behaviourUpdates.thresholds.const_velocity_warn = 0.75;
-          behaviourUpdates.reporting.min_events_threshold = 10;
+          // Stricter - catches more, may have more false positives
+          behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_critical = 0.10;
+          behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_suspicious = 0.15;
+          behaviourUpdates.bot_detection_thresholds.click_timing.cv_critical = 0.10;
+          behaviourUpdates.bot_detection_thresholds.click_timing.cv_suspicious = 0.15;
+          behaviourUpdates.bot_detection_thresholds.mouse_movement.constant_velocity_critical = 0.85;
+          behaviourUpdates.bot_detection_thresholds.mouse_movement.constant_velocity_suspicious = 0.65;
+          behaviourUpdates.reporting.min_input_events = 10;
           break;
       }
 
-      // Behaviour detection presets
+      // Behaviour detection presets (override sensitivity if specific mode selected)
       switch (behaviourDetection) {
         case "disabled":
-          behaviourUpdates.reporting.min_events_threshold = 999999; // Effectively disable
+          behaviourUpdates.reporting.min_input_events = 999999; // Effectively disable
           break;
         case "relaxed":
-          behaviourUpdates.thresholds.iki_cv_alert = 0.15;
-          behaviourUpdates.thresholds.const_velocity_alert = 0.6;
-          behaviourUpdates.reporting.min_events_threshold = 40;
+          behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_critical = 0.05;
+          behaviourUpdates.bot_detection_thresholds.mouse_movement.constant_velocity_critical = 0.55;
+          behaviourUpdates.reporting.min_input_events = 40;
           break;
         case "normal":
-          behaviourUpdates.thresholds.iki_cv_alert = 0.08;
-          behaviourUpdates.thresholds.const_velocity_alert = 0.75;
-          behaviourUpdates.reporting.min_events_threshold = 20;
+          // Keep sensitivity settings (don't override)
           break;
         case "strict":
-          behaviourUpdates.thresholds.iki_cv_alert = 0.05;
-          behaviourUpdates.thresholds.const_velocity_alert = 0.9;
-          behaviourUpdates.reporting.min_events_threshold = 10;
+          behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_critical = 0.10;
+          behaviourUpdates.bot_detection_thresholds.mouse_movement.constant_velocity_critical = 0.90;
+          behaviourUpdates.reporting.min_input_events = 10;
           break;
       }
 

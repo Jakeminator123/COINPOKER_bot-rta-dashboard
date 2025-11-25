@@ -1,9 +1,21 @@
 {
   "_points_mapping": {
-    "15": {"status": "CRITICAL", "description": "Active VM guest tools, high bot risk"},
-    "10": {"status": "ALERT", "description": "VM software detected"},
-    "5": {"status": "WARN", "description": "VM components running"},
-    "0": {"status": "INFO", "description": "Informational VM detection"}
+    "0": {
+      "status": "INFO",
+      "description": "Informational VM detection"
+    },
+    "5": {
+      "status": "WARN",
+      "description": "VM components running"
+    },
+    "10": {
+      "status": "ALERT",
+      "description": "VM software detected"
+    },
+    "15": {
+      "status": "CRITICAL",
+      "description": "Active VM guest tools, high bot risk"
+    }
   },
   "vm_processes": {
     "vmware": {
