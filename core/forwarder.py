@@ -47,7 +47,6 @@ class ForwarderService:
         # Read config.txt (config_path can override default location)
         self.cfg = read_config(config_path)
         self.env = str(self.cfg.get("ENV", "TEST"))
-        self.heartbeat_seconds = int(self.cfg.get("HEARTBEAT_SECONDS", 30))
         
         # Use Windows Computer Name (can contain spaces like "Jakobs dator")
         try:

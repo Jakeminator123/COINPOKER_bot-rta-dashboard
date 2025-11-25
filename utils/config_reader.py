@@ -4,7 +4,6 @@ Configuration Reader
 Helper functions for reading config.txt and parsing settings.
 """
 
-import contextlib
 import os
 import sys
 from typing import Any, Dict, Optional
@@ -101,18 +100,13 @@ def _apply_config_line(cfg: dict[str, Any], line: str) -> None:
         value = value.split("#")[0].strip()
     if not key:
         return
-    if key == "HEARTBEAT_SECONDS":
-        with contextlib.suppress(ValueError):
-            cfg[key] = int(value)
-    else:
-        cfg[key] = value
+    cfg[key] = value
 
 
 def get_default_config() -> dict[str, Any]:
     """Return embedded default config values."""
     cfg = {
         "ENV": "TEST",
-        "HEARTBEAT_SECONDS": 30,
     }
     config_text = EMBEDDED_CONFIG_TEXT or DEFAULT_CONFIG_TEXT
     for line in config_text.splitlines():
