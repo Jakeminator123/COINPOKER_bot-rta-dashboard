@@ -667,7 +667,6 @@ export default function AdvancedSettingsEditor({
                                 ) : section.editor === "points" ? (
                                   <div className="space-y-4">
                                     <DetectionPointsEditor
-                                      configName="behaviour_config"
                                       title="Behaviour Analysis"
                                       icon="🖱️"
                                       description="Points for bot-like mouse/keyboard patterns"
@@ -680,7 +679,6 @@ export default function AdvancedSettingsEditor({
                                       }}
                                     />
                                     <DetectionPointsEditor
-                                      configName="screen_config"
                                       title="Screen Monitoring"
                                       icon="🖼️"
                                       description="Points for overlays and HUD detection"
@@ -693,7 +691,6 @@ export default function AdvancedSettingsEditor({
                                       }}
                                     />
                                     <DetectionPointsEditor
-                                      configName="programs_config"
                                       title="Process Scanner"
                                       icon="⚙️"
                                       description="Points for suspicious processes and paths"
@@ -706,7 +703,6 @@ export default function AdvancedSettingsEditor({
                                       }}
                                     />
                                     <DetectionPointsEditor
-                                      configName="network_config"
                                       title="Network Detection"
                                       icon="🌐"
                                       description="Points for websites, domains, and traffic"
@@ -719,7 +715,6 @@ export default function AdvancedSettingsEditor({
                                       }}
                                     />
                                     <DetectionPointsEditor
-                                      configName="obfuscation_config"
                                       title="Code Obfuscation"
                                       icon="🔐"
                                       description="Points for packed/encrypted code"

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface WhitelistEditorProps {
@@ -26,6 +26,15 @@ export default function WhitelistEditor({
 
   const [localProgramWhitelist, setLocalProgramWhitelist] = useState<string[]>(programWhitelist);
   const [localWebsiteWhitelist, setLocalWebsiteWhitelist] = useState<string[]>(websiteWhitelist);
+
+  // Update local state when props change (e.g., after reset to default)
+  useEffect(() => {
+    setLocalProgramWhitelist(programWhitelist);
+  }, [programWhitelist]);
+
+  useEffect(() => {
+    setLocalWebsiteWhitelist(websiteWhitelist);
+  }, [websiteWhitelist]);
 
   const tabs: { id: TabType; label: string; icon: string; count: number }[] = [
     { id: 'programs', label: 'Program Whitelist', icon: '🖥️', count: localProgramWhitelist.length },

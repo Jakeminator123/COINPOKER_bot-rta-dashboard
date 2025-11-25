@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 type PointsLevel = 0 | 5 | 10 | 15;
@@ -10,7 +10,6 @@ interface DetectionPointsConfig {
 }
 
 interface DetectionPointsEditorProps {
-  configName: string;
   title: string;
   icon: string;
   description: string;
@@ -81,6 +80,11 @@ export default function DetectionPointsEditor({
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // Update local state when props change (e.g., after reset to default)
+  useEffect(() => {
+    setLocalPoints(detectionPoints);
+  }, [detectionPoints]);
 
   // Filter out metadata keys
   const pointKeys = Object.keys(localPoints).filter(k => !k.startsWith('_'));
