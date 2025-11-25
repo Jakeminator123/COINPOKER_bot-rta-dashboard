@@ -24,6 +24,7 @@ import DeviceListModule, {
   getThreatColor,
   getThreatLabel,
 } from "@/components/DeviceListModule";
+import DeviceAnalyticsSection from "@/components/DeviceAnalyticsSection";
 import { normalizeDevicesResponse, ACTIVE_DEVICE_THRESHOLD_MS } from "@/lib/device/transform";
 import { motion } from "framer-motion";
 
@@ -322,6 +323,11 @@ function DevicesPageContent() {
           <div className="h-1 w-full mt-4 rounded-full bg-gradient-to-r from-red-500 to-red-600"></div>
         </div>
       </div>
+
+      {/* Analytics Section with Charts */}
+      {normalizedDevices.length > 0 && (
+        <DeviceAnalyticsSection devices={normalizedDevices} />
+      )}
 
       {/* Leaderboard View */}
       {viewMode === "leaderboard" && (

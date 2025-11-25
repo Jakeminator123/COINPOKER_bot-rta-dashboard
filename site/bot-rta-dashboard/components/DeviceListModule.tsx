@@ -14,12 +14,6 @@ interface DeviceListModuleProps {
   showInactive?: boolean;
 }
 
-interface HourStats {
-  avg: number;
-  total: number;
-  activeMinutes: number;
-  loading: boolean;
-}
 
 function MiniSparkline({ data, color }: { data: number[]; color: string }) {
   if (!data || data.length < 2) return null;
@@ -72,7 +66,6 @@ export default function DeviceListModule({
   showInactive: _showInactive = true,
 }: DeviceListModuleProps) {
   const [hoveredDevice, setHoveredDevice] = useState<string | null>(null);
-  const [hourMap, setHourMap] = useState<Record<string, HourStats>>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [threatFilter, setThreatFilter] = useState<
@@ -208,45 +201,6 @@ export default function DeviceListModule({
     [onDeviceSelect],
   );
 
-  const loadHourStats = useCallback(async (deviceId: string) => {
-    setHourMap((prev) => ({
-      ...prev,
-      [deviceId]: {
-        avg: prev[deviceId]?.avg ?? 0,
-        total: prev[deviceId]?.total ?? 0,
-        activeMinutes: prev[deviceId]?.activeMinutes ?? 0,
-        loading: true,
-      },
-    }));
-
-    try {
-      const res = await fetch(
-        `/api/history/hour?device=${encodeURIComponent(deviceId)}&window=3600`,
-      );
-      const json = await res.json();
-      if (json?.ok) {
-        setHourMap((prev) => ({
-          ...prev,
-          [deviceId]: {
-            avg: json.avg ?? 0,
-            total: json.total ?? 0,
-            activeMinutes: json.activeMinutes ?? 0,
-            loading: false,
-          },
-        }));
-      } else {
-        setHourMap((prev) => ({
-          ...prev,
-          [deviceId]: { avg: 0, total: 0, activeMinutes: 0, loading: false },
-        }));
-      }
-    } catch {
-      setHourMap((prev) => ({
-        ...prev,
-        [deviceId]: { avg: 0, total: 0, activeMinutes: 0, loading: false },
-      }));
-    }
-  }, []);
 
   if (isLoading) {
     return (
@@ -359,9 +313,6 @@ export default function DeviceListModule({
                   onClick={() => handleSelect(device.device_id)}
                   onMouseEnter={() => {
                     setHoveredDevice(device.device_id);
-                    if (!hourMap[device.device_id] && isOnline) {
-                      void loadHourStats(device.device_id);
-                    }
                   }}
                   onMouseLeave={() => setHoveredDevice(null)}
                 >
@@ -502,8 +453,8 @@ export default function DeviceListModule({
                   )}
 
                   <div className="flex justify-end gap-3 text-xs text-slate-500">
-                    <span>samples {hourMap[device.device_id]?.total ?? 0}</span>
-                    <span>active {hourMap[device.device_id]?.activeMinutes ?? 0} min</span>
+                    <span>{device.signal_count || 0} detections</span>
+                    <span>{device.session_duration ? Math.floor(device.session_duration / 60000) : 0}m session</span>
                   </div>
                 </div>
               </div>

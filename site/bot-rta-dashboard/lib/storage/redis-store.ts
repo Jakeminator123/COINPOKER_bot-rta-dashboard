@@ -1272,6 +1272,27 @@ export class RedisStore implements StorageAdapter {
             ? parseFloat(deviceInfo.threat_level)
             : 0;
 
+        // Calculate session_start in milliseconds
+        const sessionStartMs = deviceInfo.session_start
+          ? parseInt(deviceInfo.session_start) < 10_000_000_000
+            ? parseInt(deviceInfo.session_start) * 1000
+            : parseInt(deviceInfo.session_start)
+          : undefined;
+
+        // Calculate session_duration: if online, use now - session_start; if offline, use last_seen - session_start
+        let sessionDuration: number | undefined;
+        if (sessionStartMs) {
+          if (isOnline) {
+            sessionDuration = now - sessionStartMs;
+          } else {
+            sessionDuration = lastSeenMs - sessionStartMs;
+          }
+          // Ensure non-negative duration
+          if (sessionDuration < 0) {
+            sessionDuration = 0;
+          }
+        }
+
         devices.push({
           device_id: deviceInfo.device_id,
           device_name: deviceInfo.device_name || device_id,
@@ -1288,11 +1309,8 @@ export class RedisStore implements StorageAdapter {
           threat_level: Number.isFinite(threatLevel) ? threatLevel : 0,
           is_online: isOnline,
           ip_address: deviceInfo.ip_address,
-          session_start: deviceInfo.session_start
-            ? parseInt(deviceInfo.session_start) < 10_000_000_000
-              ? parseInt(deviceInfo.session_start) * 1000
-              : parseInt(deviceInfo.session_start)
-            : undefined,
+          session_start: sessionStartMs,
+          session_duration: sessionDuration,
         });
       }
     }
