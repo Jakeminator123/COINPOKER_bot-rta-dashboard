@@ -418,6 +418,7 @@ function SettingsPageContent() {
                           vmConfig={configData.vm_config}
                           obfuscationConfig={configData.obfuscation_config}
                           sharedConfig={configData.shared_config}
+                          securityConfig={configData.security_config}
                           initialGroup={advancedGroup}
                           initialSection={advancedSection}
                           onSave={handleSaveConfig}

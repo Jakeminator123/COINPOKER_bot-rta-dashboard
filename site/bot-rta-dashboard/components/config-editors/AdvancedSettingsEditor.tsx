@@ -18,6 +18,7 @@ interface AdvancedSettingsEditorProps {
   vmConfig?: any;
   obfuscationConfig?: any;
   sharedConfig?: any;
+  securityConfig?: any;
   onSave: (category: string, updates: any) => Promise<void>;
   initialGroup?: string;
   initialSection?: string;
@@ -206,6 +207,20 @@ const SETTINGS_GROUPS = [
           "15 = CRITICAL (confirmed threat, immediate action)",
         ],
       },
+      {
+        id: "security",
+        title: "🔒 Security / MITM Detection",
+        description:
+          "Detects suspicious root certificates that could intercept encrypted traffic (MITM attacks, SSL inspection).",
+        config: "securityConfig",
+        editor: "smart",
+        details: [
+          "🕵️ MITM Tools: mitmproxy, Burp Suite, Fiddler, Charles (CRITICAL)",
+          "🏢 Corporate SSL: Zscaler, Blue Coat, Fortinet (ALERT)",
+          "📜 Certificate Stores: Scans Windows Root and CA stores",
+          "⚠️ Why Important: Attackers could intercept poker traffic and steal credentials",
+        ],
+      },
     ],
   },
 
@@ -251,6 +266,7 @@ export default function AdvancedSettingsEditor({
   vmConfig,
   obfuscationConfig,
   sharedConfig,
+  securityConfig,
   onSave,
   initialGroup,
   initialSection,
@@ -289,6 +305,8 @@ export default function AdvancedSettingsEditor({
         return obfuscationConfig;
       case "sharedConfig":
         return sharedConfig;
+      case "securityConfig":
+        return securityConfig;
       case "all":
         // Return a truthy value for sections that need multiple configs
         return { loaded: true };

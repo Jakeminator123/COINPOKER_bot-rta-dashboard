@@ -41,7 +41,7 @@ class SegmentLoader:
             print(f"[Loader] WARNING: segments/ directory missing: {segments_base_dir}")
             return discovered
 
-        for category in ["programs", "network", "behaviour", "vm", "auto", "screen"]:
+        for category in ["programs", "network", "behaviour", "vm", "auto", "screen", "security"]:
             category_dir = os.path.join(segments_base_dir, category)
             if not os.path.exists(category_dir):
                 continue

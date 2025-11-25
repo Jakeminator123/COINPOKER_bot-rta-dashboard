@@ -51,6 +51,7 @@ async function loadConfigs() {
       "vm_config.json",
       "obfuscation_config.json",
       "shared_config.json",
+      "security_config.json", // MITM/certificate detection
       // automation_programs.json removed - deprecated, use programs_registry.json instead
     ];
 

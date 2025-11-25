@@ -1,0 +1,64 @@
+{
+  "_description": "Security detection configuration - MITM certificates, SSL inspection, etc.",
+  "_version": "1.0.0",
+  
+  "enabled": true,
+  
+  "mitm_detection": {
+    "enabled": true,
+    "report_cooldown": 300,
+    "full_scan_interval": 600,
+    "certificate_stores": ["root", "ca"],
+    
+    "suspicious_keywords": [
+      "mitmproxy",
+      "burp",
+      "portswigger",
+      "fiddler",
+      "charles",
+      "wireshark",
+      "httptoolkit",
+      "zscaler",
+      "blue coat",
+      "bluecoat",
+      "fortinet",
+      "fortigate",
+      "checkpoint",
+      "palo alto",
+      "netskope",
+      "websense",
+      "symantec web",
+      "mcafee web",
+      "sophos",
+      "barracuda",
+      "ssl inspection",
+      "tls inspection",
+      "deep inspection",
+      "traffic inspection",
+      "web filter",
+      "content filter",
+      "superfish",
+      "komodia",
+      "privdog"
+    ],
+    
+    "whitelist": {
+      "enabled": false,
+      "allowed_issuers": [],
+      "allowed_subjects": []
+    }
+  },
+  
+  "detection_points": {
+    "mitm_tool_detected": 15,
+    "corporate_inspection": 10,
+    "suspicious_certificate": 5
+  },
+  
+  "severity_levels": {
+    "mitm_tool": "CRITICAL",
+    "corporate_inspection": "ALERT",
+    "suspicious_certificate": "WARN"
+  }
+}
+

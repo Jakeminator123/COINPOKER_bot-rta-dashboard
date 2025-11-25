@@ -66,8 +66,23 @@ class TrafficMonitor(BaseSegment):
                 # Old format: "RTMP (Streaming)"
                 self.suspicious_ports[port] = v
 
-        # Suspicious remote IPs/domains from config (optional, may not exist in new structure)
-        self.suspicious_domains = self.config["traffic_monitoring"].get("suspicious_domains", {})
+        # Suspicious domains from config - check multiple locations for backwards compatibility
+        # New structure: web_monitoring.suspicious_domains, communication_patterns, remote_access_patterns
+        # Old structure: traffic_monitoring.suspicious_domains
+        self.suspicious_domains = {}
+        
+        # Try new structure first (web_monitoring section)
+        web_mon = self.config.get("web_monitoring", {})
+        if web_mon.get("suspicious_domains"):
+            self.suspicious_domains.update(web_mon["suspicious_domains"])
+        if web_mon.get("communication_patterns"):
+            self.suspicious_domains.update(web_mon["communication_patterns"])
+        if web_mon.get("remote_access_patterns"):
+            self.suspicious_domains.update(web_mon["remote_access_patterns"])
+        
+        # Fallback to old structure if nothing found
+        if not self.suspicious_domains:
+            self.suspicious_domains = self.config["traffic_monitoring"].get("suspicious_domains", {})
 
         # Load poker sites from shared config
         poker_config = self.shared_config.get("poker_sites", {})

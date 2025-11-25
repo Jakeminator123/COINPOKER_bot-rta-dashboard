@@ -553,6 +553,7 @@ class ConfigLoader:
             "vm_config": "vm_config.json",
             "obfuscation_config": "obfuscation_config.json",
             "shared_config": "shared_config.json",
+            "security_config": "security_config.json",  # MITM/certificate detection
             # automation_programs.json removed - use programs_registry instead
         }
 
