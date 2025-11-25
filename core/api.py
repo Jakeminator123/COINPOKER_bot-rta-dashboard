@@ -94,7 +94,6 @@ class ReportBatcher:
     def _init_batch_logging(self):
         """Initialize batch logging if NEW_BATCHES_LOG=y in config, and testing_json if TESTING_JSON=y"""
         try:
-            import os
             config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.txt")
             if os.path.exists(config_path):
                 with open(config_path, encoding="utf-8") as f:
@@ -145,7 +144,6 @@ class ReportBatcher:
             return
         
         try:
-            import os
             import glob
             
             log_files = glob.glob(os.path.join(self._log_dir, "batch_*.json"))
@@ -167,7 +165,6 @@ class ReportBatcher:
             return
         
         try:
-            import os
             import json
             from datetime import datetime
             
@@ -247,7 +244,6 @@ class ReportBatcher:
         }
         
         # Try to get web_enabled status from WebForwarder
-        global _web_forwarder
         if _web_forwarder:
             config_info["web_enabled"] = _web_forwarder.enabled
         

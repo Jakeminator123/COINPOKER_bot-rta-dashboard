@@ -120,7 +120,6 @@ class ForwarderService:
             self._start_web_forwarder()
 
         self.loader = SegmentLoader()
-        self.player_service = None
         self._stop_event = threading.Event()
         self._batch_thread: threading.Thread | None = None
         self._stopped = False  # Flag to prevent double shutdown
@@ -242,14 +241,11 @@ class ForwarderService:
             pass
         
         # Clear references to help GC
-        if self.player_service:
-            self.player_service.cleanup()
         self.loader = None
         self.web_forwarder = None
         self.redis_forwarder = None
         self.report_batcher = None
         self.event_bus = None
-        self.player_service = None
         
         print("[Forwarder] Shutdown complete.")
 

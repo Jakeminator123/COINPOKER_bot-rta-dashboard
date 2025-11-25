@@ -176,7 +176,7 @@ class CoinPokerDetector:
             "children_processes": self.EXPECTED_CHILD_PROCESSES,
         }
 
-    def analyze_process_indicators(self, proc: psutil.Process, pid: int) -> dict[str, any]:
+    def analyze_process_indicators(self, proc: psutil.Process, pid: int) -> dict[str, Any]:
         """
         Analyze a process and collect indicators for CoinPoker detection.
 

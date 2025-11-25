@@ -13,8 +13,8 @@ function isNewStructure(config: any): boolean {
   return config?.data_collection || config?.bot_detection_thresholds;
 }
 
-// Helper to get value from either structure
-function getConfigValue(config: any, path: string): any {
+// Helper to get value from either structure (kept for future use)
+function _getConfigValue(config: any, path: string): any {
   if (!config) return undefined;
   
   // Map old paths to new paths
@@ -618,8 +618,8 @@ export default function BehaviourConfigEditor({
         }
       } else {
         // Old structure
-        const field = group.fields?.find(f => f.key === fieldKey || f.oldKey === fieldKey);
-        const oldKey = field?.oldKey || fieldKey;
+        const field = group.fields?.find(f => f.key === fieldKey || ('oldKey' in f && f.oldKey === fieldKey));
+        const oldKey = (field && 'oldKey' in field ? field.oldKey : undefined) || fieldKey;
         
         if (groupId === "data_collection") {
           if (!updated.polling) updated.polling = {};
@@ -632,7 +632,8 @@ export default function BehaviourConfigEditor({
           // Find the old key from subgroups
           const subgroup = group.subgroups?.find(s => s.id === subgroupId);
           const subField = subgroup?.fields.find(f => f.key === fieldKey);
-          updated.scoring_weights[subField?.oldKey || fieldKey] = value;
+          const subFieldOldKey = subField && 'oldKey' in subField ? subField.oldKey : undefined;
+          updated.scoring_weights[subFieldOldKey || fieldKey] = value;
         } else if (groupId === "reporting") {
           if (!updated.reporting) updated.reporting = {};
           updated.reporting[oldKey] = value;
