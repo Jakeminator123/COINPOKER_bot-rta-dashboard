@@ -1959,17 +1959,17 @@ function EnhancedDashboardContent() {
                           | null
                       )
                     }
-                  className="mt-1 w-full px-3 py-2 rounded-lg text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 hover:bg-white/10 transition-colors"
+                  className="mt-1 w-full px-3 py-2 rounded-lg text-sm text-white bg-slate-800 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 hover:bg-slate-700 transition-colors"
                   >
-                    <option value="">Select period…</option>
-                    <option value="1h">Last 1 hour</option>
-                    <option value="3h">Last 3 hours</option>
-                    <option value="6h">Last 6 hours</option>
-                    <option value="12h">Last 12 hours</option>
-                    <option value="24h">Last 24 hours</option>
-                    <option value="3d">Last 3 days</option>
-                    <option value="7d">Last 7 days</option>
-                    <option value="30d">Last 30 days</option>
+                    <option value="" className="bg-slate-800 text-white">Select period…</option>
+                    <option value="1h" className="bg-slate-800 text-white">Last 1 hour</option>
+                    <option value="3h" className="bg-slate-800 text-white">Last 3 hours</option>
+                    <option value="6h" className="bg-slate-800 text-white">Last 6 hours</option>
+                    <option value="12h" className="bg-slate-800 text-white">Last 12 hours</option>
+                    <option value="24h" className="bg-slate-800 text-white">Last 24 hours</option>
+                    <option value="3d" className="bg-slate-800 text-white">Last 3 days</option>
+                    <option value="7d" className="bg-slate-800 text-white">Last 7 days</option>
+                    <option value="30d" className="bg-slate-800 text-white">Last 30 days</option>
                   </select>
                 </div>
                 <button
