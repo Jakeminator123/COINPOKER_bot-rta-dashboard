@@ -13,6 +13,7 @@ export interface DeviceRecord {
   historical_threat_levels?: number[];
   threat_trend?: "up" | "down" | "stable";
   session_duration?: number;
+  detected_categories?: string[];  // ["programs", "network", "behaviour", "vm", "auto"]
 }
 
 export type DevicesResponse =
@@ -102,6 +103,14 @@ function toNumberArray(value: unknown): number[] | undefined {
   return mapped.length ? mapped : undefined;
 }
 
+function toStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const mapped = value
+    .map((entry) => (typeof entry === "string" ? entry : null))
+    .filter((entry): entry is string => entry !== null);
+  return mapped.length ? mapped : undefined;
+}
+
 export function normalizeDeviceRecord(input: unknown): DeviceRecord | null {
   if (!isRecord(input)) {
     return null;
@@ -179,6 +188,9 @@ export function normalizeDeviceRecord(input: unknown): DeviceRecord | null {
       input.threat_trend ?? input.threatTrend,
     ) as DeviceRecord["threat_trend"],
     session_duration: sessionDuration,
+    detected_categories: toStringArray(
+      input.detected_categories ?? input.detectedCategories,
+    ),
   };
 }
 

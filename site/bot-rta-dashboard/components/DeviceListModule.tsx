@@ -354,6 +354,36 @@ export default function DeviceListModule({
                           {device.threat_level}% {getThreatLabel(device.threat_level)}
                         </div>
                       )}
+                      {/* Category badges */}
+                      {device.detected_categories && device.detected_categories.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {device.detected_categories.includes("programs") && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                              🖥️ Programs
+                            </span>
+                          )}
+                          {device.detected_categories.includes("network") && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                              🌐 Network
+                            </span>
+                          )}
+                          {device.detected_categories.includes("behaviour") && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
+                              🎯 Behaviour
+                            </span>
+                          )}
+                          {device.detected_categories.includes("vm") && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-500/20 text-green-300 border border-green-500/30">
+                              💻 VM
+                            </span>
+                          )}
+                          {device.detected_categories.includes("auto") && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                              ⚡ Auto
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <p className="text-sm text-slate-400">
                       ID: {device.device_id.slice(0, 8)}...

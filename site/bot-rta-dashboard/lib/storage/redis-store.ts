@@ -1221,7 +1221,7 @@ export class RedisStore implements StorageAdapter {
     const devices = [];
     const now = Date.now();
     const chunkSize = DEVICE_CHUNK_SIZE > 0 ? DEVICE_CHUNK_SIZE : 250;
-    const OPERATIONS_PER_DEVICE = 2; // hGetAll + get(threat)
+    const OPERATIONS_PER_DEVICE = 3; // hGetAll + get(threat) + get(categories)
 
     for (let start = 0; start < deviceIds.length; start += chunkSize) {
       const chunk = deviceIds.slice(start, start + chunkSize);
@@ -1230,6 +1230,7 @@ export class RedisStore implements StorageAdapter {
       for (const device_id of chunk) {
         pipeline.hGetAll(redisKeys.deviceHash(device_id));
         pipeline.get(redisKeys.deviceThreat(device_id));
+        pipeline.get(redisKeys.deviceCategories(device_id));
       }
 
       const results = await pipeline.exec();
@@ -1243,6 +1244,7 @@ export class RedisStore implements StorageAdapter {
 
         const deviceInfoEntry = results[resultIndex];
         const threatInfoEntry = results[resultIndex + 1];
+        const categoriesEntry = results[resultIndex + 2];
 
         const deviceInfo =
           Array.isArray(deviceInfoEntry) && deviceInfoEntry.length === 2
@@ -1252,6 +1254,10 @@ export class RedisStore implements StorageAdapter {
           Array.isArray(threatInfoEntry) && threatInfoEntry.length === 2
             ? ((threatInfoEntry[1] ?? null) as unknown as string | null)
             : ((threatInfoEntry ?? null) as unknown as string | null);
+        const categoriesValue =
+          Array.isArray(categoriesEntry) && categoriesEntry.length === 2
+            ? ((categoriesEntry[1] ?? null) as unknown as string | null)
+            : ((categoriesEntry ?? null) as unknown as string | null);
 
         if (!deviceInfo.device_id) {
           continue;
@@ -1293,6 +1299,29 @@ export class RedisStore implements StorageAdapter {
           }
         }
 
+        // Extract detected categories from categories data
+        let detectedCategories: string[] | undefined;
+        if (categoriesValue) {
+          try {
+            const categoriesData = JSON.parse(categoriesValue);
+            // Extract categories that have findings > 0
+            if (categoriesData.segments && Array.isArray(categoriesData.segments)) {
+              detectedCategories = categoriesData.segments
+                .filter((seg: { totalFindings?: number }) => (seg.totalFindings || 0) > 0)
+                .map((seg: { name?: string }) => seg.name?.toLowerCase())
+                .filter((name: string | undefined): name is string => !!name);
+            }
+            // Also check segmentsRan as fallback
+            if ((!detectedCategories || detectedCategories.length === 0) && categoriesData.segmentsRan) {
+              detectedCategories = categoriesData.segmentsRan
+                .map((s: string) => s.toLowerCase())
+                .filter((s: string) => ["programs", "network", "behaviour", "vm", "auto"].includes(s));
+            }
+          } catch {
+            // Ignore JSON parse errors
+          }
+        }
+
         devices.push({
           device_id: deviceInfo.device_id,
           device_name: deviceInfo.device_name || device_id,
@@ -1311,6 +1340,7 @@ export class RedisStore implements StorageAdapter {
           ip_address: deviceInfo.ip_address,
           session_start: sessionStartMs,
           session_duration: sessionDuration,
+          detected_categories: detectedCategories,
         });
       }
     }

@@ -7,7 +7,7 @@
 
 import { useDebouncedNavigation } from "@/lib/utils/navigation";
 import { signOut } from "next-auth/react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import useSWR from "swr";
 import AuthGuard from "@/components/AuthGuard";
@@ -25,8 +25,21 @@ import { THREAT_THRESHOLDS } from "@/lib/detections/threat-scoring";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
+// Segment filter configuration
+const SEGMENT_FILTERS = [
+  { id: "all", label: "All Players", icon: "👥", color: "slate" },
+  { id: "programs", label: "Programs", icon: "🖥️", color: "purple" },
+  { id: "network", label: "Network", icon: "🌐", color: "blue" },
+  { id: "behaviour", label: "Behaviour", icon: "🎯", color: "yellow" },
+  { id: "vm", label: "VM", icon: "💻", color: "green" },
+  { id: "auto", label: "Automation", icon: "⚡", color: "orange" },
+] as const;
+
+type SegmentFilterId = (typeof SEGMENT_FILTERS)[number]["id"];
+
 function HomePageContent() {
   const { navigateTo } = useDebouncedNavigation();
+  const [activeSegmentFilter, setActiveSegmentFilter] = useState<SegmentFilterId>("all");
 
   const {
     data,
@@ -47,6 +60,28 @@ function HomePageContent() {
     () => normalizeDevicesResponse(data),
     [data],
   );
+
+  // Filter devices by selected segment
+  const filteredDevices = useMemo(() => {
+    if (activeSegmentFilter === "all") {
+      return devices;
+    }
+    return devices.filter(
+      (device) =>
+        device.detected_categories?.includes(activeSegmentFilter) ?? false
+    );
+  }, [devices, activeSegmentFilter]);
+
+  // Count devices per segment for badges
+  const segmentCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: devices.length };
+    for (const device of devices) {
+      for (const category of device.detected_categories ?? []) {
+        counts[category] = (counts[category] || 0) + 1;
+      }
+    }
+    return counts;
+  }, [devices]);
 
   const stats = useMemo(() => {
     const now = Date.now();
@@ -229,13 +264,86 @@ function HomePageContent() {
           />
         </motion.div>
 
+        {/* Segment Filter Tabs */}
+        <motion.div
+          className="mb-6"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.35 }}
+        >
+          <div className="flex flex-wrap gap-2">
+            {SEGMENT_FILTERS.map((filter) => {
+              const isActive = activeSegmentFilter === filter.id;
+              const count = segmentCounts[filter.id] || 0;
+              
+              // Color mappings for each filter
+              const colorClasses: Record<string, { active: string; inactive: string; badge: string }> = {
+                slate: {
+                  active: "bg-slate-600/50 border-slate-400/50 text-white",
+                  inactive: "bg-white/5 border-white/10 text-white/70 hover:bg-white/10",
+                  badge: "bg-slate-500/30 text-slate-300",
+                },
+                purple: {
+                  active: "bg-purple-600/50 border-purple-400/50 text-white",
+                  inactive: "bg-white/5 border-white/10 text-white/70 hover:bg-purple-500/20",
+                  badge: "bg-purple-500/30 text-purple-300",
+                },
+                blue: {
+                  active: "bg-blue-600/50 border-blue-400/50 text-white",
+                  inactive: "bg-white/5 border-white/10 text-white/70 hover:bg-blue-500/20",
+                  badge: "bg-blue-500/30 text-blue-300",
+                },
+                yellow: {
+                  active: "bg-yellow-600/50 border-yellow-400/50 text-white",
+                  inactive: "bg-white/5 border-white/10 text-white/70 hover:bg-yellow-500/20",
+                  badge: "bg-yellow-500/30 text-yellow-300",
+                },
+                green: {
+                  active: "bg-green-600/50 border-green-400/50 text-white",
+                  inactive: "bg-white/5 border-white/10 text-white/70 hover:bg-green-500/20",
+                  badge: "bg-green-500/30 text-green-300",
+                },
+                orange: {
+                  active: "bg-orange-600/50 border-orange-400/50 text-white",
+                  inactive: "bg-white/5 border-white/10 text-white/70 hover:bg-orange-500/20",
+                  badge: "bg-orange-500/30 text-orange-300",
+                },
+              };
+              
+              const colors = colorClasses[filter.color] || colorClasses.slate;
+              
+              return (
+                <motion.button
+                  key={filter.id}
+                  onClick={() => setActiveSegmentFilter(filter.id)}
+                  className={`
+                    flex items-center gap-2 px-4 py-2.5 rounded-xl border backdrop-blur-sm
+                    transition-all duration-300 font-medium
+                    ${isActive ? colors.active : colors.inactive}
+                  `}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <span className="text-lg">{filter.icon}</span>
+                  <span>{filter.label}</span>
+                  {count > 0 && (
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${isActive ? "bg-white/20 text-white" : colors.badge}`}>
+                      {count}
+                    </span>
+                  )}
+                </motion.button>
+              );
+            })}
+          </div>
+        </motion.div>
+
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.4 }}
         >
           <DeviceListModule
-            devices={devices}
+            devices={filteredDevices}
             isLoading={isLoading && devices.length === 0}
             onDeviceSelect={(deviceId) => navigateTo(`/dashboard?device=${deviceId}`)}
           />
