@@ -6,6 +6,8 @@ import SmartConfigEditor from "./SmartConfigEditor";
 import UnifiedProgramEditor from "./UnifiedProgramEditor";
 import BehaviourConfigEditor from "./BehaviourConfigEditor";
 import WebMonitoringEditor from "./WebMonitoringEditor";
+import WhitelistEditor from "./WhitelistEditor";
+import DetectionPointsEditor from "./DetectionPointsEditor";
 
 interface AdvancedSettingsEditorProps {
   programsRegistry?: any;
@@ -72,6 +74,19 @@ const SETTINGS_GROUPS = [
           "🔗 Tunneling: ngrok.io, .onion, tor2web (ALERT)",
           "💬 Communication: telegram.org, discord.com (WARN)",
           "🖥️ Remote Access: teamviewer, anydesk (WARN)",
+        ],
+      },
+      {
+        id: "whitelist",
+        title: "✅ Whitelist / Ignore List",
+        description:
+          "Programs and websites that should NEVER trigger alerts. Use this for false positives or legitimate tools.",
+        config: "programsConfig",
+        editor: "whitelist",
+        details: [
+          "🖥️ Program Whitelist: .exe files to never flag",
+          "🌐 Website Whitelist: Domains to never flag",
+          "⚠️ Use sparingly - only for confirmed false positives",
         ],
       },
     ],
@@ -177,6 +192,20 @@ const SETTINGS_GROUPS = [
           "🎰 Poker Keywords: Auto-detect poker-related tools in VT results",
         ],
       },
+      {
+        id: "detection_points",
+        title: "⚡ Detection Points Configuration",
+        description:
+          "Configure how many threat points each type of detection generates. Higher points = more severe alert.",
+        config: "all",
+        editor: "points",
+        details: [
+          "0 = INFO (informational, no action)",
+          "5 = WARN (suspicious, monitor)",
+          "10 = ALERT (likely threat, investigate)",
+          "15 = CRITICAL (confirmed threat, immediate action)",
+        ],
+      },
     ],
   },
 
@@ -260,6 +289,9 @@ export default function AdvancedSettingsEditor({
         return obfuscationConfig;
       case "sharedConfig":
         return sharedConfig;
+      case "all":
+        // Return a truthy value for sections that need multiple configs
+        return { loaded: true };
       default:
         return null;
     }
@@ -615,6 +647,91 @@ export default function AdvancedSettingsEditor({
                                       await onSave("network_config", updates);
                                     }}
                                   />
+                                ) : section.editor === "whitelist" ? (
+                                  <WhitelistEditor
+                                    programWhitelist={programsConfig?.ignored_programs || []}
+                                    websiteWhitelist={networkConfig?.ignored_websites || []}
+                                    onSaveProgramWhitelist={async (programs) => {
+                                      await onSave("programs_config", {
+                                        ...programsConfig,
+                                        ignored_programs: programs,
+                                      });
+                                    }}
+                                    onSaveWebsiteWhitelist={async (websites) => {
+                                      await onSave("network_config", {
+                                        ...networkConfig,
+                                        ignored_websites: websites,
+                                      });
+                                    }}
+                                  />
+                                ) : section.editor === "points" ? (
+                                  <div className="space-y-4">
+                                    <DetectionPointsEditor
+                                      configName="behaviour_config"
+                                      title="Behaviour Analysis"
+                                      icon="🖱️"
+                                      description="Points for bot-like mouse/keyboard patterns"
+                                      detectionPoints={behaviourConfig?.detection_points || {}}
+                                      onSave={async (points) => {
+                                        await onSave("behaviour_config", {
+                                          ...behaviourConfig,
+                                          detection_points: points,
+                                        });
+                                      }}
+                                    />
+                                    <DetectionPointsEditor
+                                      configName="screen_config"
+                                      title="Screen Monitoring"
+                                      icon="🖼️"
+                                      description="Points for overlays and HUD detection"
+                                      detectionPoints={screenConfig?.detection_points || {}}
+                                      onSave={async (points) => {
+                                        await onSave("screen_config", {
+                                          ...screenConfig,
+                                          detection_points: points,
+                                        });
+                                      }}
+                                    />
+                                    <DetectionPointsEditor
+                                      configName="programs_config"
+                                      title="Process Scanner"
+                                      icon="⚙️"
+                                      description="Points for suspicious processes and paths"
+                                      detectionPoints={programsConfig?.detection_points || {}}
+                                      onSave={async (points) => {
+                                        await onSave("programs_config", {
+                                          ...programsConfig,
+                                          detection_points: points,
+                                        });
+                                      }}
+                                    />
+                                    <DetectionPointsEditor
+                                      configName="network_config"
+                                      title="Network Detection"
+                                      icon="🌐"
+                                      description="Points for websites, domains, and traffic"
+                                      detectionPoints={networkConfig?.detection_points || {}}
+                                      onSave={async (points) => {
+                                        await onSave("network_config", {
+                                          ...networkConfig,
+                                          detection_points: points,
+                                        });
+                                      }}
+                                    />
+                                    <DetectionPointsEditor
+                                      configName="obfuscation_config"
+                                      title="Code Obfuscation"
+                                      icon="🔐"
+                                      description="Points for packed/encrypted code"
+                                      detectionPoints={obfuscationConfig?.detection_points || {}}
+                                      onSave={async (points) => {
+                                        await onSave("obfuscation_config", {
+                                          ...obfuscationConfig,
+                                          detection_points: points,
+                                        });
+                                      }}
+                                    />
+                                  </div>
                                 ) : (
                                   <SmartConfigEditor
                                     category={

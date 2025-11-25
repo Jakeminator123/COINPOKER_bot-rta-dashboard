@@ -1,21 +1,20 @@
 {
+  "_meta": {
+    "version": "2.0.0",
+    "description": "Obfuscation detection configuration - packed/encrypted code analysis"
+  },
   "_points_mapping": {
-    "0": {
-      "status": "INFO",
-      "description": "Possibly obfuscated, score 30-39"
-    },
-    "5": {
-      "status": "WARN",
-      "description": "Suspicious code, score 40-59"
-    },
-    "10": {
-      "status": "ALERT",
-      "description": "Likely obfuscated, score 60-79"
-    },
-    "15": {
-      "status": "CRITICAL",
-      "description": "Heavy obfuscation, score 80+"
-    }
+    "0": { "status": "INFO", "description": "Possibly obfuscated, score 30-39" },
+    "5": { "status": "WARN", "description": "Suspicious code, score 40-59" },
+    "10": { "status": "ALERT", "description": "Likely obfuscated, score 60-79" },
+    "15": { "status": "CRITICAL", "description": "Heavy obfuscation, score 80+" }
+  },
+  "detection_points": {
+    "_description": "Threat points based on obfuscation score (0-100)",
+    "score_30_39": 0,
+    "score_40_59": 5,
+    "score_60_79": 10,
+    "score_80_plus": 15
   },
   "obfuscation_patterns": {
     "exec_eval": [

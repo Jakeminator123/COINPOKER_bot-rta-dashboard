@@ -1,4 +1,24 @@
 {
+  "_meta": {
+    "version": "2.0.0",
+    "description": "Screen monitoring configuration - overlays, HUDs, window hierarchy"
+  },
+  "_points_mapping": {
+    "0": { "status": "INFO", "description": "Informational screen activity" },
+    "5": { "status": "WARN", "description": "Suspicious window detected" },
+    "10": { "status": "ALERT", "description": "Overlay or HUD detected" },
+    "15": { "status": "CRITICAL", "description": "Dangerous overlay over poker table" }
+  },
+  "detection_points": {
+    "_description": "Threat points for each detection type (0=INFO, 5=WARN, 10=ALERT, 15=CRITICAL)",
+    "overlay_over_poker": 15,
+    "hud_detected": 10,
+    "suspicious_overlay": 10,
+    "background_automation": 15,
+    "dangerous_child_window": 15,
+    "extended_focus_loss": 5,
+    "multitable_activity": 0
+  },
   "overlay_detection": {
     "overlay_classes": [
       "OverlayWindow",

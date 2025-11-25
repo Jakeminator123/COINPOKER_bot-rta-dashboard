@@ -21,15 +21,12 @@
       "description": "Definite bot patterns (score 70+)"
     }
   },
-  "_explanation": {
-    "how_it_works": "The detector polls mouse and keyboard input at high frequency, then analyzes patterns to calculate a bot-likelihood score (0-100). Lower variance in timing = more bot-like.",
-    "key_metrics": {
-      "IKI": "Inter-Keystroke Interval - time between key presses. Bots have very consistent timing.",
-      "ICI": "Inter-Click Interval - time between mouse clicks. Bots have very consistent timing.",
-      "CV": "Coefficient of Variation (stddev/mean). Lower = more consistent = more bot-like. Humans typically have CV > 0.20",
-      "Constant Velocity": "Mouse moves at same speed. Humans vary speed naturally.",
-      "Direction Variability": "How straight mouse paths are. Bots move in perfect lines."
-    }
+  "detection_points": {
+    "_description": "Threat points based on bot score (0-100). Higher score = more bot-like.",
+    "score_15_24": 0,
+    "score_25_44": 5,
+    "score_45_69": 10,
+    "score_70_plus": 15
   },
   "data_collection": {
     "_description": "How often and how much input data to collect",

@@ -4,22 +4,20 @@
     "description": "Configuration for process scanning, hash analysis, and VirusTotal integration"
   },
   "_points_mapping": {
-    "0": {
-      "status": "INFO",
-      "description": "Informational - benign program"
-    },
-    "5": {
-      "status": "WARN",
-      "description": "Potential threat - automation tools"
-    },
-    "10": {
-      "status": "ALERT",
-      "description": "Suspicious - RTA tools, unknown scripts"
-    },
-    "15": {
-      "status": "CRITICAL",
-      "description": "Confirmed threat - known bots, malware"
-    }
+    "0": { "status": "INFO", "description": "Informational - benign program" },
+    "5": { "status": "WARN", "description": "Potential threat - automation tools" },
+    "10": { "status": "ALERT", "description": "Suspicious - RTA tools, unknown scripts" },
+    "15": { "status": "CRITICAL", "description": "Confirmed threat - known bots, malware" }
+  },
+  "detection_points": {
+    "_description": "Threat points for process scanner detections",
+    "suspicious_path": 10,
+    "macro_header_detected": 10,
+    "renamed_executable": 5,
+    "unknown_script_running": 5,
+    "virustotal_malware": 15,
+    "virustotal_suspicious": 10,
+    "virustotal_poker_related": 10
   },
   "ignored_programs": [
     "PowerShell",

@@ -4,23 +4,25 @@
     "description": "Network monitoring configuration - websites, domains, ports, and communication patterns"
   },
   "_points_mapping": {
-    "0": {
-      "status": "INFO",
-      "description": "Informational network activity"
-    },
-    "5": {
-      "status": "WARN",
-      "description": "Communication apps, minor network concerns"
-    },
-    "10": {
-      "status": "ALERT",
-      "description": "RTA sites, suspicious network activity"
-    },
-    "15": {
-      "status": "CRITICAL",
-      "description": "Bot tokens, custom Telegram clients during CoinPoker"
-    }
+    "0": { "status": "INFO", "description": "Informational network activity" },
+    "5": { "status": "WARN", "description": "Communication apps, minor network concerns" },
+    "10": { "status": "ALERT", "description": "RTA sites, suspicious network activity" },
+    "15": { "status": "CRITICAL", "description": "Bot tokens, custom Telegram clients during CoinPoker" }
   },
+  "detection_points": {
+    "_description": "Default threat points for network detections (individual items can override)",
+    "rta_website_critical": 15,
+    "rta_website_alert": 10,
+    "suspicious_domain": 10,
+    "tunneling_service": 10,
+    "communication_app": 5,
+    "remote_access": 5,
+    "telegram_during_poker": 10,
+    "custom_telegram_client": 15,
+    "bot_token_detected": 15,
+    "suspicious_port": 5
+  },
+  "ignored_websites": [],
   "telegram_detection": {
     "cidr_fetch_interval": 3600,
     "alert_cooldown": 120,
@@ -117,6 +119,11 @@
         "label": "ICMizer",
         "status": "ALERT",
         "description": "ICM calculator website"
+      },
+      "hhdealer.com": {
+        "label": "HHDealer",
+        "status": "ALERT",
+        "description": "Hand history sharing / data mining service"
       }
     },
     "browser_keywords": [

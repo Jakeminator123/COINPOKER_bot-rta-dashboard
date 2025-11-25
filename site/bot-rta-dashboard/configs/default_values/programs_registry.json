@@ -1039,15 +1039,6 @@
         "automation"
       ],
       "description": "SeatScript auto-seating"
-    },
-    "hhdealer.exe": {
-      "label": "HHDealer",
-      "points": 10,
-      "type": "data_mining",
-      "categories": [
-        "data_mining"
-      ],
-      "description": "Data mining / hand history sharing service"
     }
   },
   "category_definitions": {
