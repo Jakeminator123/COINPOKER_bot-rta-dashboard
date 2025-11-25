@@ -101,17 +101,45 @@ const severityWeights: Record<string, number> = {
   INFO: 1,
 };
 
+// Valid OpenAI models in order of preference (best to fallback)
 const MODEL_PREFERENCE: Array<{ name: string; maxTokens: number }> = [
-  { name: "gpt-5.1", maxTokens: 4000 },
-  { name: "gpt-5.1-mini", maxTokens: 3800 },
-  { name: "gpt-4.1", maxTokens: 3500 },
-  { name: "gpt-4.1-mini", maxTokens: 3200 },
-  { name: "gpt-4o", maxTokens: 3000 },
+  { name: "gpt-4o", maxTokens: 4000 },           // Best: Latest GPT-4o model
+  { name: "gpt-4-turbo", maxTokens: 4000 },      // High quality fallback
+  { name: "gpt-4o-mini", maxTokens: 4000 },      // Cost-effective alternative
+  { name: "gpt-3.5-turbo", maxTokens: 4000 },    // Final fallback
 ];
 
-const SYSTEM_PROMPT = `You are an experienced poker security analyst.
-You receive summarized detections and must determine whether the player is running a bot/RTA/macro/overlay or appears clean.
-Always respond in concise, structured English.`;
+const SYSTEM_PROMPT = `You are an expert poker security analyst specializing in bot/RTA detection.
+
+Your task is to analyze detection signals and provide a clear, actionable assessment.
+
+## Response Format (STRICTLY FOLLOW):
+
+### 🎯 VERDICT
+[HIGH/MEDIUM/LOW] - [Classification: bot | RTA | macro | overlay | clean]
+
+### 📊 CONFIDENCE
+[X]% - Brief explanation of confidence level
+
+### 🔍 KEY EVIDENCE
+• [Detection 1]: [Brief explanation why this is significant]
+• [Detection 2]: [Brief explanation why this is significant]
+• [Detection 3]: [Brief explanation why this is significant]
+
+### ⚠️ RISK FACTORS
+• [Risk 1]
+• [Risk 2]
+
+### 💡 RECOMMENDED ACTIONS
+1. [Action 1]
+2. [Action 2]
+
+## Guidelines:
+- Be concise but thorough
+- Focus on the most critical detections
+- Consider detection combinations (e.g., OpenHoldem + unusual behavior patterns)
+- Explain technical findings in clear terms
+- Provide specific, actionable recommendations`;
 
 function summarizeTopSignals(
   signals: any[],
@@ -707,43 +735,20 @@ Maximum 2200 characters, respond in English and keep it concise.`;
     for (const model of modelsToTry) {
       try {
         console.log(`[Analyze] Trying model: ${model.name}`);
-        const response = await openai.responses.create({
+        
+        // Use the correct OpenAI chat.completions API
+        const response = await openai.chat.completions.create({
           model: model.name,
-          input: [
+          messages: [
             { role: "system", content: SYSTEM_PROMPT },
-            {
-              role: "user",
-              content: [
-                {
-                  type: "input_text",
-                  text: prompt,
-                },
-              ],
-            },
+            { role: "user", content: prompt },
           ],
-          max_output_tokens: model.maxTokens,
+          max_tokens: model.maxTokens,
+          temperature: 0.3, // Lower temperature for more consistent, factual responses
         });
 
-        const outputText =
-          response.output
-            ?.flatMap((item: any) => {
-              // Handle different response output formats
-              if (item.content && Array.isArray(item.content)) {
-                return item.content
-                  .filter(
-                    (chunk: any) =>
-                      chunk.type === "output_text" || chunk.type === "text",
-                  )
-                  .map((chunk: any) => chunk.text || chunk.output_text || "");
-              } else if (item.text) {
-                return [item.text];
-              } else if (item.output_text) {
-                return [item.output_text];
-              }
-              return [];
-            })
-            .join("\n")
-            .trim() || "";
+        // Extract text from standard chat completion response
+        const outputText = response.choices?.[0]?.message?.content?.trim() || "";
 
         if (outputText) {
           analysis = outputText;
@@ -760,8 +765,9 @@ Maximum 2200 characters, respond in English and keep it concise.`;
           modelError.message?.includes("API key") ||
           modelError.message?.includes("authentication")
         ) {
-          throw new Error("OpenAI API key is invalid eller ogiltig");
+          throw new Error("OpenAI API key is invalid or missing");
         }
+        // Continue to try next model
       }
     }
 

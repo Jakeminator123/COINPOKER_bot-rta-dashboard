@@ -764,6 +764,9 @@ function EnhancedDashboardContent() {
   }, [recentDeduped]);
 
   const categoryDetections = useMemo(() => {
+    // Category breakdown should show each unique detection TYPE separately
+    // e.g., OpenHoldem detected by process, hash, signature = 3 separate entries
+    // But exact duplicates (same name + subsection) should be deduplicated
     const bucket: Record<
       string,
       Array<{
@@ -771,15 +774,31 @@ function EnhancedDashboardContent() {
         status: Status;
         timestamp?: number;
         details?: string;
+        subsection?: string; // Track detection method (processes, hash, signatures, etc.)
       }>
     > = {};
 
+    // Use a Map to deduplicate by category:subsection:name
+    // This preserves different detection methods while removing exact duplicates
+    const dedupeMap = new Map<string, {
+      name: string;
+      status: Status;
+      timestamp: number;
+      details?: string;
+      categoryKey: string;
+      subsection: string;
+    }>();
+
     Object.entries(grouped).forEach(([sectionKey, section]) => {
       if (!section?.items?.length) return;
-      const [categoryKey] = sectionKey.split("_");
+      
+      // Parse section key to get category and subsection (e.g., "programs_processes" → ["programs", "processes"])
+      const parts = sectionKey.split("_");
+      const categoryKey = parts[0];
+      const subsection = parts.slice(1).join("_") || "general";
+      
       if (!categoryKey || categoryKey === "system") return;
 
-      bucket[categoryKey] = bucket[categoryKey] || [];
       section.items.forEach((item) => {
         const itemMs =
           typeof item.timestamp === "number"
@@ -790,15 +809,40 @@ function EnhancedDashboardContent() {
         if (sessionStartMs && itemMs < sessionStartMs) {
           return;
         }
-        bucket[categoryKey].push({
-          name: item.name,
-          status: item.status || "INFO",
-          timestamp: item.timestamp,
-          details: item.details,
-        });
+
+        // Deduplication key: category + subsection + name
+        // This ensures same program detected by different methods shows separately
+        // But same program detected by same method doesn't duplicate
+        const dedupeKey = `${categoryKey}:${subsection}:${item.name}`;
+        const existing = dedupeMap.get(dedupeKey);
+        
+        // Keep the most recent detection for each unique combination
+        if (!existing || (item.timestamp || 0) > existing.timestamp) {
+          dedupeMap.set(dedupeKey, {
+            name: item.name,
+            status: item.status || "INFO",
+            timestamp: item.timestamp || 0,
+            details: item.details,
+            categoryKey,
+            subsection,
+          });
+        }
       });
     });
 
+    // Convert deduped map back to bucket format
+    dedupeMap.forEach((item) => {
+      bucket[item.categoryKey] = bucket[item.categoryKey] || [];
+      bucket[item.categoryKey].push({
+        name: item.name,
+        status: item.status,
+        timestamp: item.timestamp,
+        details: item.details,
+        subsection: item.subsection,
+      });
+    });
+
+    // Sort by timestamp (most recent first) and limit to 6 per category
     Object.keys(bucket).forEach((key) => {
       bucket[key].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
       bucket[key] = bucket[key].slice(0, 6);
@@ -1804,19 +1848,26 @@ function EnhancedDashboardContent() {
                           )}
                           {detections.map((item, index) => (
                             <div
-                              key={`${item.name}-${index}`}
+                              key={`${item.name}-${item.subsection || ''}-${index}`}
                               className="flex items-center justify-between gap-3 rounded-xl bg-white/5 border border-white/10 p-3"
                             >
-                              <div className="min-w-0">
+                              <div className="min-w-0 flex-1">
                                 <p className="text-sm font-medium text-white truncate">
                                   {item.name}
                                 </p>
-                                <p className="text-[11px] text-slate-500 truncate">
-                                  {formatDetectionTimestamp(item.timestamp)}
-                                </p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <p className="text-[11px] text-slate-500 truncate">
+                                    {formatDetectionTimestamp(item.timestamp)}
+                                  </p>
+                                  {item.subsection && item.subsection !== "general" && (
+                                    <span className="text-[10px] px-1.5 py-0.5 bg-slate-700/50 text-slate-400 rounded">
+                                      {item.subsection.replace(/_/g, " ")}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                               <span
-                                className={`px-2 py-0.5 text-[10px] font-semibold rounded-full uppercase tracking-wide ${statusBadgeStyles[item.status]}`}
+                                className={`px-2 py-0.5 text-[10px] font-semibold rounded-full uppercase tracking-wide flex-shrink-0 ${statusBadgeStyles[item.status]}`}
                               >
                                 {item.status}
                               </span>

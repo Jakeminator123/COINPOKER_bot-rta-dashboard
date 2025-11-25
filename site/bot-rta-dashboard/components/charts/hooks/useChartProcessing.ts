@@ -719,26 +719,44 @@ export function useChartProcessing({
       // Konvertera till array och säkerställ att varje punkt har full kategori-baseline
       let sorted = normalizedPoints.sort((a, b) => a.timestamp - b.timestamp);
 
-      // For short periods, ensure we have start and end points
-      // For ALL periods, update the last point with real-time data if available
+      // For ALL periods, ensure we have start and end points
+      // This prevents empty gaps at the beginning of the chart
       if (sorted.length > 0) {
         const firstPoint = sorted[0];
         const lastPoint = sorted[sorted.length - 1];
 
-        // Lägg till startpunkt om fönstret börjar före första datapunkten (undviker vertikala hopp)
-        if ((timePreset === "5m" || timePreset === "1h" || timePreset === "3h") && 
-            firstPoint.timestamp > windowStart + START_END_POINT_TOLERANCE) {
-          const startLabel = new Date(windowStart * 1000).toLocaleTimeString("en-US", {
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-          });
+        // Add start point if window starts before first data point (avoids vertical jumps)
+        // Now applies to ALL time periods, not just short ones
+        if (firstPoint.timestamp > windowStart + START_END_POINT_TOLERANCE) {
+          // Format label based on time preset
+          const startLabel = 
+            timePreset === "5m" || timePreset === "1h" || timePreset === "3h"
+              ? new Date(windowStart * 1000).toLocaleTimeString("en-US", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                })
+              : timePreset === "6h" || timePreset === "12h" || timePreset === "24h" || timePreset === "3d"
+                ? new Date(windowStart * 1000).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                  })
+                : new Date(windowStart * 1000).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  });
+
+          // Use 0 as baseline for start if first point is much later (shows the trend from start)
+          // But if first point is relatively close to start, use its value for continuity
+          const timeDiff = firstPoint.timestamp - windowStart;
+          const useZeroBaseline = timeDiff > timeSeconds * 0.3; // If first point is >30% into window, use 0
 
           sorted.unshift({
             timestamp: windowStart,
             label: startLabel,
-            threatScore: firstPoint.threatScore,
-            categories: ensureCategoryBaselines(firstPoint.categories),
+            threatScore: useZeroBaseline ? 0 : firstPoint.threatScore,
+            categories: ensureCategoryBaselines(useZeroBaseline ? {} : firstPoint.categories),
             status: {},
           });
         }
