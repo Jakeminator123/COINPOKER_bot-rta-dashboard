@@ -327,11 +327,8 @@ class WebMonitor(BaseSegment):
             active_timeout=active_timeout,
         )
 
-        # PROTECTED poker client (the one we're securing)
-        self.protected_poker_process = self.config["protected_poker_process"]
-
-        # OTHER poker sites (monitor but less aggressive)
-        self.other_poker_processes = self.config["other_poker_processes"]
+        # Note: protected_poker_process and other_poker_processes are already loaded
+        # from shared_config above (lines 213-216), no need to reload here
 
         # Debug tracking
         self._tick_count = 0
