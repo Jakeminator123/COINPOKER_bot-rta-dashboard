@@ -48,6 +48,7 @@ if (Test-Path "dist") {
 Write-Host ""
 Write-Host "[Build] Building standalone executable..." -ForegroundColor Yellow
 Write-Host "[Build] This may take a few minutes..." -ForegroundColor Yellow
+Write-Host "[Build] Debug log will be saved to: pyinstaller_build.log" -ForegroundColor Yellow
 Write-Host ""
 
 # Embed runtime config
@@ -83,7 +84,7 @@ else {
 # Build with PyInstaller
 if (Test-Path "scanner.spec") {
     Write-Host "[Build] Using scanner.spec configuration..." -ForegroundColor Cyan
-    pyinstaller --clean --noconfirm scanner.spec
+    pyinstaller --clean --noconfirm --log-level=DEBUG scanner.spec 2>&1 | Tee-Object -FilePath "pyinstaller_build.log"
 }
 else {
     Write-Host "[Build] Building with PyInstaller (no spec file found)..." -ForegroundColor Yellow
@@ -134,9 +135,9 @@ else {
     
     $addDataStr = ($addData | ForEach-Object { "--add-data `"$_`"" }) -join " "
     
-    $cmd = "pyinstaller --clean --onefile --name=`"CoinPokerScanner`" $iconParam $addDataStr $hiddenImportsStr --console scanner.py"
+    $cmd = "pyinstaller --clean --onefile --name=`"CoinPokerScanner`" $iconParam $addDataStr $hiddenImportsStr --console --log-level=DEBUG scanner.py"
     Write-Host "[Build] Command: $cmd" -ForegroundColor Gray
-    Invoke-Expression $cmd
+    Invoke-Expression "$cmd 2>&1 | Tee-Object -FilePath pyinstaller_build.log"
 }
 
 if ($LASTEXITCODE -eq 0) {

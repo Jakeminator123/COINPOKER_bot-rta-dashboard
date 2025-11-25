@@ -323,6 +323,52 @@ def _find_balance_index_in_line(line: str) -> int | None:
     return None
 
 
+def _verify_ocr_quality(ocr_text: str) -> tuple[bool, str]:
+    """
+    Verify that OCR output looks like CoinPoker lobby content.
+    
+    Returns:
+        Tuple of (is_valid, reason)
+    """
+    print("[NicknameDetector] 🔎 Verifying OCR quality...")
+    
+    if not ocr_text or len(ocr_text.strip()) < 5:
+        print(f"[NicknameDetector] ❌ OCR text too short: {len(ocr_text.strip()) if ocr_text else 0} chars")
+        return False, "OCR output too short or empty"
+    
+    text_lower = ocr_text.lower()
+    
+    # Check for CoinPoker-specific keywords that should appear in lobby
+    coinpoker_indicators = ["coinpoker", "lobby", "balance", "chp", "cash", "tournament"]
+    found_indicators = [ind for ind in coinpoker_indicators if ind in text_lower]
+    
+    print(f"[NicknameDetector] 🔍 Found indicators: {found_indicators if found_indicators else 'NONE'}")
+    
+    if not found_indicators:
+        # Check for currency symbols which often appear near balance
+        currency_found = bool(CURRENCY_PATTERN.search(ocr_text))
+        print(f"[NicknameDetector] 💰 Currency symbols found: {currency_found}")
+        if not currency_found:
+            print("[NicknameDetector] ⚠️ No CoinPoker indicators - window may be obscured!")
+            return False, "No CoinPoker indicators found - window may be obscured"
+    
+    # Check if text has reasonable structure (not just noise)
+    words = [w for w in WORD_SPLIT_PATTERN.split(ocr_text) if len(w) >= 2]
+    print(f"[NicknameDetector] 📝 Readable words: {len(words)}")
+    if len(words) < 3:
+        return False, "Too few readable words in OCR output"
+    
+    # Check for excessive special characters (sign of bad OCR)
+    special_char_ratio = sum(1 for c in ocr_text if c in "[]{}|\\~`") / max(1, len(ocr_text))
+    if special_char_ratio > 0.1:
+        print(f"[NicknameDetector] ⚠️ High special char ratio: {special_char_ratio:.2%}")
+        return False, "OCR output has too many special characters - may be noise"
+    
+    result_msg = f"Valid OCR (found: {', '.join(found_indicators) if found_indicators else 'currency symbols'})"
+    print(f"[NicknameDetector] ✅ {result_msg}")
+    return True, result_msg
+
+
 
 def _resolve_device_identity() -> tuple[str, str]:
     """Return consistent hostname/device_id shared with scanner + Redis."""
@@ -336,34 +382,107 @@ def _resolve_device_identity() -> tuple[str, str]:
     return hostname, device_id
 
 
-def _focus_window(hwnd: int) -> None:
-    """Bring target window to foreground/topmost briefly to stabilize capture."""
+def _focus_window(hwnd: int, wait_after: float = 0.3) -> bool:
+    """
+    Bring target window to foreground/topmost to ensure OCR captures the correct area.
+    
+    Args:
+        hwnd: Window handle to focus
+        wait_after: Seconds to wait after focusing for window to stabilize
+        
+    Returns:
+        True if window was successfully focused and is visible
+    """
     if not WIN32_AVAILABLE:
-        return
+        print("[NicknameDetector] ⚠️ WIN32 not available - cannot focus window")
+        return False
+    
     try:
-        win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-        win32gui.SetForegroundWindow(hwnd)
+        print(f"[NicknameDetector] 🔍 Focusing window (hwnd={hwnd})...")
+        
+        # Check if window still exists
+        if not win32gui.IsWindow(hwnd):
+            print("[NicknameDetector] ❌ Window no longer exists")
+            return False
+        
+        # Get window title for logging
+        try:
+            window_title = win32gui.GetWindowText(hwnd)
+            print(f"[NicknameDetector] 📋 Window title: '{window_title}'")
+        except Exception:
+            window_title = "Unknown"
+        
+        # Check if window is minimized and restore it
+        if win32gui.IsIconic(hwnd):
+            print("[NicknameDetector] 📤 Window is minimized, restoring...")
+            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            time.sleep(0.2)  # Wait for restore animation
+        
+        # Make sure window is visible
+        if not win32gui.IsWindowVisible(hwnd):
+            print("[NicknameDetector] 👁️ Window is not visible, showing...")
+            win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
+            time.sleep(0.1)
+        
+        # Bring window to foreground
+        try:
+            print("[NicknameDetector] 🎯 SetForegroundWindow...")
+            win32gui.SetForegroundWindow(hwnd)
+        except Exception as e:
+            print(f"[NicknameDetector] ⚠️ SetForegroundWindow failed: {e}")
+        
+        # Force window to topmost position temporarily
+        print("[NicknameDetector] 📌 Setting HWND_TOPMOST...")
         win32gui.SetWindowPos(
             hwnd,
             win32con.HWND_TOPMOST,
-            0,
-            0,
-            0,
-            0,
-            win32con.SWP_NOMOVE | win32con.SWP_NOSIZE,
+            0, 0, 0, 0,
+            win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW,
         )
-        time.sleep(0.05)
+        
+        # Wait for window to be fully rendered on top
+        print(f"[NicknameDetector] ⏳ Waiting {wait_after}s for window to stabilize...")
+        time.sleep(wait_after)
+        
+        # Verify window is actually in foreground
+        foreground_hwnd = win32gui.GetForegroundWindow()
+        is_foreground = (foreground_hwnd == hwnd)
+        
+        if is_foreground:
+            print("[NicknameDetector] ✅ Window is now in foreground")
+        else:
+            print(f"[NicknameDetector] ⚠️ Window NOT in foreground (current foreground: {foreground_hwnd})")
+            # Try once more with BringWindowToTop
+            try:
+                print("[NicknameDetector] 🔄 Trying BringWindowToTop...")
+                win32gui.BringWindowToTop(hwnd)
+                time.sleep(0.1)
+            except Exception as e:
+                print(f"[NicknameDetector] ⚠️ BringWindowToTop failed: {e}")
+        
+        # Remove topmost flag so other windows can go on top later
         win32gui.SetWindowPos(
             hwnd,
             win32con.HWND_NOTOPMOST,
-            0,
-            0,
-            0,
-            0,
+            0, 0, 0, 0,
             win32con.SWP_NOMOVE | win32con.SWP_NOSIZE,
         )
-    except Exception:
-        pass
+        
+        # Final verification
+        rect = win32gui.GetWindowRect(hwnd)
+        width = rect[2] - rect[0]
+        height = rect[3] - rect[1]
+        
+        if width <= 0 or height <= 0:
+            print(f"[NicknameDetector] ❌ Window has invalid size: {width}x{height}")
+            return False
+        
+        print(f"[NicknameDetector] ✅ Window ready for OCR: {width}x{height} at ({rect[0]}, {rect[1]})")
+        return True
+        
+    except Exception as e:
+        print(f"[NicknameDetector] ❌ Focus window error: {e}")
+        return False
 
 
 def ensure_tesseract() -> bool:
@@ -849,7 +968,17 @@ def extract_nickname_with_retry(hwnd: int, max_attempts: int = 3) -> tuple[str |
                 print("[NicknameDetector] Window closed. Stopping extraction...")
                 break
 
-            _focus_window(hwnd)
+            # Focus window and wait for it to be fully visible
+            # Use longer wait on first attempt to ensure window is stable
+            wait_time = 0.5 if attempt == 0 else 0.3
+            focus_ok = _focus_window(hwnd, wait_after=wait_time)
+            
+            if not focus_ok:
+                print(f"[NicknameDetector] Attempt {attempt + 1}: Could not focus window properly")
+                if attempt < max_attempts - 1:
+                    time.sleep(delays[min(attempt, len(delays) - 1)])
+                continue
+            
             img = grab_window(hwnd)
             if not img:
                 print("[NicknameDetector] Could not capture window")
@@ -890,6 +1019,19 @@ def extract_nickname_with_retry(hwnd: int, max_attempts: int = 3) -> tuple[str |
             if text:
                 preview = text.strip()[:100].replace("\n", " ")
                 print(f"[NicknameDetector] Attempt {attempt + 1}: OCR text ({method}): {preview}...")
+                
+                # Verify OCR quality - check if we're looking at the right window
+                is_valid, reason = _verify_ocr_quality(text)
+                if not is_valid:
+                    print(f"[NicknameDetector] Attempt {attempt + 1}: OCR quality check failed: {reason}")
+                    print("[NicknameDetector] Window may be obscured or not fully visible - retrying...")
+                    if attempt < max_attempts - 1:
+                        # Try to refocus window before next attempt
+                        _focus_window(hwnd, wait_after=0.5)
+                        time.sleep(delays[min(attempt, len(delays) - 1)])
+                    continue
+                else:
+                    print(f"[NicknameDetector] Attempt {attempt + 1}: {reason}")
 
             if not text or len(text.strip()) < 2:
                 print(f"[NicknameDetector] Attempt {attempt + 1}: Insufficient text found")

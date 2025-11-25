@@ -70,6 +70,6 @@ SCREEN=92                            # ScreenDetector - intervall mellan skannin
 RAM_CONFIG=n                         # n=använd disk-cache, y=endast RAM (tamper-proof)
 
 # --- Debugging ---
-PICTURE_NICK=y                       # y=Spara OCR-bilder för debugging i nickname_debug/ mappen
-SIGNAL_FLOW_LOG=y                    # y=Skriv signal_flow_YYYYMMDD.log filer, n=Stäng av loggning
+PICTURE_NICK=n                       # y=Spara OCR-bilder för debugging i nickname_debug/ mappen
+SIGNAL_FLOW_LOG=n                    # y=Skriv signal_flow_YYYYMMDD.log filer, n=Stäng av loggning
 
