@@ -145,12 +145,59 @@ def parse_kv_ratios(text: str, default: dict[str, float]) -> dict[str, float]:
 # ---------------------
 # Data models
 # ---------------------
+
+# Cheat profile templates - each player gets assigned one
+CHEAT_PROFILES = [
+    # Bot users - heavy on programs and automation
+    {"categories": ["programs", "auto"], "severity": "high", "programs": ["OpenHoldem", "PokerBotX"], "weight": 0.15},
+    {"categories": ["programs", "network"], "severity": "high", "programs": ["solver.exe", "macro_tool"], "weight": 0.10},
+    # RTA users - network and behaviour focused
+    {"categories": ["network", "behaviour"], "severity": "medium", "domains": ["gto-wizard.com", "odin-optimizer.com"], "weight": 0.20},
+    {"categories": ["network"], "severity": "low", "domains": ["discord.com", "core.telegram.org"], "weight": 0.15},
+    # VM users - just VM detection
+    {"categories": ["vm"], "severity": "low", "vm_type": "VMware", "weight": 0.10},
+    {"categories": ["vm"], "severity": "low", "vm_type": "VirtualBox", "weight": 0.05},
+    # Automation users
+    {"categories": ["auto", "behaviour"], "severity": "medium", "files": ["questions.txt", "run.py"], "weight": 0.10},
+    # Multi-cheat users (worst offenders)
+    {"categories": ["programs", "network", "auto", "behaviour"], "severity": "critical", "weight": 0.05},
+    # Clean players (low/no detections) - majority
+    {"categories": [], "severity": "clean", "weight": 0.10},
+]
+
+
+def select_cheat_profile(seed: str) -> dict:
+    """Select a consistent cheat profile for a player based on their device_id."""
+    # Use hash for deterministic selection
+    h = abs(hash(seed))
+    weights = [p["weight"] for p in CHEAT_PROFILES]
+    total = sum(weights)
+    normalized = [w / total for w in weights]
+    
+    # Deterministic selection based on hash
+    threshold = (h % 1000) / 1000.0
+    cumulative = 0.0
+    for i, w in enumerate(normalized):
+        cumulative += w
+        if threshold < cumulative:
+            return CHEAT_PROFILES[i].copy()
+    return CHEAT_PROFILES[-1].copy()
+
+
 @dataclass
 class PlayerProfile:
     device_id: str
     device_name: str
     nickname: str
     is_special: bool = False
+    cheat_profile: dict = None  # type: ignore
+    session_start: float = 0.0  # Track session start for duration calculation
+    
+    def __post_init__(self):
+        if self.cheat_profile is None:
+            self.cheat_profile = select_cheat_profile(self.device_id)
+        if self.session_start == 0.0:
+            self.session_start = time.time()
 
 
 @dataclass
@@ -307,6 +354,8 @@ class PlayerRuntime:
                 )
                 self.next_state_change = now + duration
                 self.next_batch_due = now
+                # Update session_start on login
+                self.player.session_start = now
                 self._log(
                     f"[SIM] {self.player.device_name}: LOGIN (online for {duration/60:.1f} min)"
                 )
@@ -538,27 +587,74 @@ def build_signal(
     status_weights: dict[str, float],
     category_weights: dict[str, float],
 ) -> dict[str, object]:
-    category = random_category(category_weights)
-    status = random_status(status_weights)
+    cheat = profile.cheat_profile or {}
+    cheat_categories = cheat.get("categories", [])
+    severity = cheat.get("severity", "low")
+    
+    # If player has a cheat profile, use their categories; otherwise use global weights
+    if cheat_categories:
+        category = random.choice(cheat_categories)
+    else:
+        # Clean player - occasional false positive or INFO level detection
+        if random.random() < 0.3:
+            category = random.choice(["behaviour", "network"])
+        else:
+            # Return an INFO-level "clean" signal
+            return {
+                "v": 1,
+                "ts": now,
+                "env": env,
+                "host": host,
+                "category": "system",
+                "name": "Scan Complete",
+                "status": "OK",
+                "details": "No threats detected",
+                "device_id": profile.device_id,
+                "device_name": profile.device_name,
+                "segment": "SystemMonitor",
+                "source_tag": "system/scan",
+                "score_points": 0,
+                "threat_id": "scan_complete",
+            }
+    
+    # Determine status based on severity
+    if severity == "critical":
+        status = random.choice(["CRITICAL", "ALERT", "ALERT"])
+    elif severity == "high":
+        status = random.choice(["ALERT", "ALERT", "WARN"])
+    elif severity == "medium":
+        status = random.choice(["ALERT", "WARN", "WARN"])
+    else:
+        status = random.choice(["WARN", "INFO", "INFO"])
 
     name = "Unknown"
     details = ""
 
     if category == "programs":
-        pname = random.choice(PROGRAM_NAMES)
+        # Use profile-specific programs if available
+        programs = cheat.get("programs", PROGRAM_NAMES)
+        pname = random.choice(programs)
         name = pname
-        details = f"SHA:{uuid.uuid4().hex[:32]} | proc={pname.lower()}.exe pid={random.randint(1000, 9999)}"
+        # Use consistent SHA hash based on player + program (same player = same hash)
+        sha_seed = f"{profile.device_id}:{pname}"
+        sha_hash = abs(hash(sha_seed)) % (16**32)
+        details = f"SHA:{sha_hash:032x} | proc={pname.lower()}.exe pid={random.randint(1000, 9999)}"
         if pname == "OpenHoldem":
-            status = random.choice(["ALERT", "WARN"])  # stronger
+            status = random.choice(["ALERT", "WARN"])
     elif category == "network":
-        dom = random.choice(DOMAINS)
+        # Use profile-specific domains if available
+        domains = cheat.get("domains", DOMAINS)
+        dom = random.choice(domains)
         name = f"DNS: {dom.split('.')[0].capitalize()}"
         details = f"Lookup: {dom}"
     elif category == "behaviour":
         name = "Suspicious Input Patterns"
-        details = f"Score: {random.randint(20, 70)} | Repeated pixels (max={random.randint(1, 3)}) | Too fast reactions (<{random.randint(100, 180)}ms)"
+        # Consistent behaviour score per player (based on hash)
+        base_score = 20 + (abs(hash(profile.device_id)) % 50)
+        details = f"Score: {base_score + random.randint(-5, 5)} | Repeated pixels (max={random.randint(1, 3)}) | Too fast reactions (<{random.randint(100, 180)}ms)"
     elif category == "auto":
-        fname = random.choice(AUTO_FILES)
+        files = cheat.get("files", AUTO_FILES)
+        fname = random.choice(files)
         name = "Multiple Automation" if random.random() < 0.4 else fname
         if name == "Multiple Automation":
             details = f"Multiple tools: Python, {fname}"
@@ -571,7 +667,9 @@ def build_signal(
         if random.random() < 0.25:
             status = "ALERT"
     elif category == "vm":
-        name = random.choice(["VMware", "VirtualBox", "Hyper-V"])
+        # Use profile-specific VM type if available
+        vm_type = cheat.get("vm_type", random.choice(["VMware", "VirtualBox", "Hyper-V"]))
+        name = vm_type
         details = f"Evidence: tools_detected={random.choice([True, False])}"
 
     segment_name = SEGMENT_MAP.get(category, category)
@@ -708,6 +806,24 @@ def build_unified_batch(
         "host": host_name,
     }
 
+    # Build detected_categories list from actual detections (excluding system/ok)
+    detected_categories = sorted(set(
+        cat for cat in categories.keys() 
+        if cat not in ("system", "unknown") and categories[cat] > 0
+    ))
+    
+    # Build segmentsRan list for redis-store compatibility
+    segments_ran = list(set(
+        t.get("segment", SEGMENT_MAP.get(t["category"], t["category"]))
+        for t in aggregated_threats
+        if t.get("status") not in ("OK", "INFO")
+    ))
+    
+    # Calculate session duration
+    now = time.time()
+    session_start = getattr(player, "session_start", now)
+    session_duration_ms = int((now - session_start) * 1000)
+
     batch_details = {
         "scan_type": "unified",
         "batch_number": batch_no,
@@ -728,17 +844,21 @@ def build_unified_batch(
             "raw_detection_score": total_score,
         },
         "categories": categories,
+        "detected_categories": detected_categories,
+        "segmentsRan": segments_ran,
         "active_threats": sum(1 for t in aggregated_threats if t["status"] != "INFO"),
         "aggregated_threats": aggregated_threats,
-        "vm_probability": random.uniform(0, 10),
+        "vm_probability": random.uniform(0, 10) if "vm" in detected_categories else 0,
         "file_analysis_count": sum(
             1 for t in aggregated_threats if "hash" in t["name"].lower() or "file" in t["name"].lower()
         ),
         "system": system_block,
         "segments": SEGMENT_METADATA,
         "metadata": metadata,
-        "timestamp": time.time(),
-        "batch_sent_at": time.time(),
+        "timestamp": now,
+        "batch_sent_at": now,
+        "session_start": session_start,
+        "session_duration": session_duration_ms,
     }
 
     return {
@@ -1085,7 +1205,16 @@ def main() -> None:
         ttl_config = config_values.get("REDIS_TTL_SECONDS")
         ttl_seconds = args.redis_ttl or (int(ttl_config) if ttl_config and ttl_config.isdigit() else 604800)
         try:
-            pool_size = args.redis_pool if args.redis_pool and args.redis_pool > 0 else max(1, min(64, args.players // 50 or 1))
+            # Scale pool size based on player count - more connections for high player counts
+            if args.redis_pool and args.redis_pool > 0:
+                pool_size = args.redis_pool
+            elif args.players >= 5000:
+                pool_size = min(128, max(64, args.players // 100))
+            elif args.players >= 1000:
+                pool_size = min(64, max(32, args.players // 50))
+            else:
+                pool_size = max(1, min(32, args.players // 50 or 1))
+            
             redis_writers = []
             for idx in range(pool_size):
                 writer = RedisBatchWriter(redis_url, ttl_seconds)
@@ -1093,7 +1222,7 @@ def main() -> None:
             redis_writer = redis_writers[0]
             if not args.quiet:
                 print(f"[SIM] Direct Redis mode enabled (TTL={ttl_seconds}s, url={redis_url})")
-                print(f"[SIM] Redis connection pool size: {pool_size}")
+                print(f"[SIM] Redis connection pool size: {pool_size} (optimized for {args.players} players)")
                 # Also show where API signals will be sent for online status
                 if dashboard_url and dashboard_url != DEFAULT_LOCAL_URL:
                     print(f"[SIM] Also sending to dashboard API for online status: {dashboard_url}")
@@ -1110,6 +1239,10 @@ def main() -> None:
         special_indices = set(random.sample(range(args.players), special_count))
     special_prefix = args.special_prefix or args.device_prefix
 
+    # Track cheat profile distribution for stats
+    profile_stats: dict[str, int] = {}
+    base_session_start = time.time()
+    
     for i in range(args.players):
         device_id = uuid.uuid4().hex
         suffix = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
@@ -1117,15 +1250,33 @@ def main() -> None:
         name_prefix = special_prefix if is_special else args.device_prefix
         device_name = f"{name_prefix}-{i + 1}-{suffix}"
         nickname = f"{'VIP' if is_special else 'Player'}{i + 1}"
+        
+        # Stagger session starts slightly for realism (within last 30 min)
+        session_start = base_session_start - random.uniform(0, 1800)
+        
         p = PlayerProfile(
             device_id=device_id,
             device_name=device_name,
             nickname=nickname,
             is_special=is_special,
+            session_start=session_start,
         )
         # Add burst_start flag to control initial delay
         p.burst_start = args.burst_start  # type: ignore
         players.append(p)
+        
+        # Track profile distribution
+        categories = tuple(sorted(p.cheat_profile.get("categories", [])))
+        profile_key = ",".join(categories) if categories else "clean"
+        profile_stats[profile_key] = profile_stats.get(profile_key, 0) + 1
+    
+    # Show cheat profile distribution
+    if not args.quiet:
+        print("\n[SIM] === PLAYER CHEAT PROFILES ===")
+        for profile_type, count in sorted(profile_stats.items(), key=lambda x: -x[1]):
+            pct = (count / args.players) * 100
+            print(f"  {profile_type}: {count} players ({pct:.1f}%)")
+        print()
 
     headers = {"Content-Type": "application/json"}
     if args.token:
@@ -1150,9 +1301,12 @@ def main() -> None:
         if args.max_workers and args.max_workers > 0:
             return max(1, args.max_workers)
         # Auto-optimize for large player counts
-        if player_count >= 1000:
-            # Use 200 workers for 1000+ players
-            return min(200, max(100, player_count // 20))
+        if player_count >= 5000:
+            # Use 500 workers for 5000+ players (10 players per worker)
+            return min(500, max(200, player_count // 10))
+        elif player_count >= 1000:
+            # Use 200 workers for 1000-4999 players
+            return min(200, max(100, player_count // 10))
         elif player_count >= 100:
             # Use 50 workers for 100-999 players
             return min(50, max(10, player_count // 10))
