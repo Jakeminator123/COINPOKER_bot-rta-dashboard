@@ -219,9 +219,15 @@ export default function SimplifiedConfigurationEditor({
     const cvCritical = getThreshold(behaviourConfig, 'thresholds.iki_cv_alert', 'bot_detection_thresholds.keyboard_timing.cv_critical', 0.07);
     const constVelCritical = getThreshold(behaviourConfig, 'thresholds.const_velocity_alert', 'bot_detection_thresholds.mouse_movement.constant_velocity_critical', 0.75);
     
+    // HOW TO READ:
+    // - Lower cvCritical = more lenient (only very bot-like triggers)
+    // - Higher cvCritical = more strict (catches more patterns)
+    // - Higher constVelCritical = more lenient (needs very robotic movement)
+    // - Lower constVelCritical = more strict (catches more mouse patterns)
+    
     // Match to one of three options: low, medium, high
-    if (cvCritical <= 0.05 && constVelCritical >= 0.85) return "high";
-    if (cvCritical >= 0.10 && constVelCritical <= 0.60) return "low";
+    if (cvCritical <= 0.05 && constVelCritical >= 0.80) return "low";   // Lenient thresholds
+    if (cvCritical >= 0.10 && constVelCritical <= 0.60) return "high";  // Strict thresholds
     return "medium"; // Default/standard
   };
 
@@ -283,9 +289,10 @@ export default function SimplifiedConfigurationEditor({
     if (minEvents > 100) return "disabled";
     
     // Get CV threshold from either structure
+    // Remember: lower cvCritical = more lenient, higher = more strict
     const cvCritical = getThreshold(behaviourConfig, 'thresholds.iki_cv_alert', 'bot_detection_thresholds.keyboard_timing.cv_critical', 0.07);
-    if (cvCritical > 0.12) return "relaxed";
-    if (cvCritical < 0.05) return "strict";
+    if (cvCritical <= 0.04) return "relaxed";  // Very low threshold = very lenient
+    if (cvCritical >= 0.12) return "strict";   // High threshold = strict
     return "normal";
   };
 
@@ -335,20 +342,32 @@ export default function SimplifiedConfigurationEditor({
       }
 
       // Sensitivity presets (3 options: low, medium, high)
-      // These affect how strict the detection thresholds are
+      // 
+      // HOW CV THRESHOLDS WORK:
+      // - CV (Coefficient of Variation) measures timing consistency
+      // - LOWER CV = more consistent = more bot-like
+      // - The threshold is: "flag as bot if CV is BELOW this value"
+      // - So LOWER threshold = only very obvious bots flagged (lenient)
+      // - And HIGHER threshold = more behaviors flagged as bot-like (strict)
+      //
+      // For constant_velocity (mouse):
+      // - HIGHER threshold = more strict (flags more as suspicious)
+      // - LOWER threshold = more lenient
       switch (sensitivity) {
         case "low":
-          // More lenient - fewer false positives, may miss some bots
-          behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_critical = 0.05;
-          behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_suspicious = 0.08;
-          behaviourUpdates.bot_detection_thresholds.click_timing.cv_critical = 0.05;
-          behaviourUpdates.bot_detection_thresholds.click_timing.cv_suspicious = 0.08;
-          behaviourUpdates.bot_detection_thresholds.mouse_movement.constant_velocity_critical = 0.60;
-          behaviourUpdates.bot_detection_thresholds.mouse_movement.constant_velocity_suspicious = 0.40;
-          behaviourUpdates.reporting.min_input_events = 50;
+          // LENIENT - Only flag very obvious bots, minimize false positives
+          // Lower CV thresholds = only extremely consistent timing triggers
+          // Lower velocity threshold = only very robotic mouse movement triggers
+          behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_critical = 0.04;
+          behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_suspicious = 0.06;
+          behaviourUpdates.bot_detection_thresholds.click_timing.cv_critical = 0.04;
+          behaviourUpdates.bot_detection_thresholds.click_timing.cv_suspicious = 0.06;
+          behaviourUpdates.bot_detection_thresholds.mouse_movement.constant_velocity_critical = 0.85;
+          behaviourUpdates.bot_detection_thresholds.mouse_movement.constant_velocity_suspicious = 0.70;
+          behaviourUpdates.reporting.min_input_events = 50; // Need more data before flagging
           break;
         case "medium":
-          // Standard/default configuration - balanced
+          // BALANCED - Standard detection, reasonable trade-off
           behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_critical = 0.07;
           behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_suspicious = 0.10;
           behaviourUpdates.bot_detection_thresholds.click_timing.cv_critical = 0.07;
@@ -358,33 +377,38 @@ export default function SimplifiedConfigurationEditor({
           behaviourUpdates.reporting.min_input_events = 20;
           break;
         case "high":
-          // Stricter - catches more, may have more false positives
-          behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_critical = 0.10;
-          behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_suspicious = 0.15;
-          behaviourUpdates.bot_detection_thresholds.click_timing.cv_critical = 0.10;
-          behaviourUpdates.bot_detection_thresholds.click_timing.cv_suspicious = 0.15;
-          behaviourUpdates.bot_detection_thresholds.mouse_movement.constant_velocity_critical = 0.85;
-          behaviourUpdates.bot_detection_thresholds.mouse_movement.constant_velocity_suspicious = 0.65;
-          behaviourUpdates.reporting.min_input_events = 10;
+          // STRICT - Catch more bots, may have more false positives
+          // Higher CV thresholds = even somewhat consistent timing triggers
+          // Lower velocity threshold = catches more mouse patterns
+          behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_critical = 0.12;
+          behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_suspicious = 0.18;
+          behaviourUpdates.bot_detection_thresholds.click_timing.cv_critical = 0.12;
+          behaviourUpdates.bot_detection_thresholds.click_timing.cv_suspicious = 0.18;
+          behaviourUpdates.bot_detection_thresholds.mouse_movement.constant_velocity_critical = 0.55;
+          behaviourUpdates.bot_detection_thresholds.mouse_movement.constant_velocity_suspicious = 0.35;
+          behaviourUpdates.reporting.min_input_events = 10; // Flag with less data
           break;
       }
 
       // Behaviour detection presets (override sensitivity if specific mode selected)
+      // Same logic as sensitivity: lower CV threshold = more lenient
       switch (behaviourDetection) {
         case "disabled":
           behaviourUpdates.reporting.min_input_events = 999999; // Effectively disable
           break;
         case "relaxed":
-          behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_critical = 0.05;
-          behaviourUpdates.bot_detection_thresholds.mouse_movement.constant_velocity_critical = 0.55;
+          // Very lenient - only flag extremely obvious bots
+          behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_critical = 0.03;
+          behaviourUpdates.bot_detection_thresholds.mouse_movement.constant_velocity_critical = 0.90;
           behaviourUpdates.reporting.min_input_events = 40;
           break;
         case "normal":
           // Keep sensitivity settings (don't override)
           break;
         case "strict":
-          behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_critical = 0.10;
-          behaviourUpdates.bot_detection_thresholds.mouse_movement.constant_velocity_critical = 0.90;
+          // Very strict - flag anything slightly suspicious
+          behaviourUpdates.bot_detection_thresholds.keyboard_timing.cv_critical = 0.15;
+          behaviourUpdates.bot_detection_thresholds.mouse_movement.constant_velocity_critical = 0.45;
           behaviourUpdates.reporting.min_input_events = 10;
           break;
       }
