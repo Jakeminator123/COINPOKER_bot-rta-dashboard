@@ -123,13 +123,22 @@ def find_coinpoker_tables(device_id: str | None = None) -> list[dict]:
 
     tables = []
 
+    enum_error = None
+    
     def enum_windows(hwnd, lparam):
+        nonlocal enum_error
+        # Always return True to continue enumeration
         try:
+            # Skip invisible windows
             if not win32gui.IsWindowVisible(hwnd):
                 return True
 
-            title = win32gui.GetWindowText(hwnd)
-            class_name = win32gui.GetClassName(hwnd)
+            # Get window title and class
+            try:
+                title = win32gui.GetWindowText(hwnd) or ""
+                class_name = win32gui.GetClassName(hwnd) or ""
+            except Exception:
+                return True
 
             # Check if it matches expected window class (CoinPoker uses Qt)
             if expected_window_class.lower() not in class_name.lower():
@@ -141,7 +150,7 @@ def find_coinpoker_tables(device_id: str | None = None) -> list[dict]:
                 proc = psutil.Process(pid)
                 proc_name = proc.name().lower()
                 proc_exe = (proc.exe() or "").lower()
-            except Exception:
+            except (psutil.NoSuchProcess, psutil.AccessDenied, Exception):
                 return True
 
             # Must be expected process name from CoinPoker
@@ -205,11 +214,15 @@ def find_coinpoker_tables(device_id: str | None = None) -> list[dict]:
                             }
                         )
                 except Exception:
-                    pass
+                    # Continue enumeration if rect fails
+                    return True
 
-        except Exception:
-            pass
+        except Exception as exc:
+            # Log error but continue enumeration
+            enum_error = str(exc)
+            return True
 
+        # Always return True to continue enumeration
         return True
 
     try:
@@ -217,8 +230,17 @@ def find_coinpoker_tables(device_id: str | None = None) -> list[dict]:
     except Exception as e:
         # Handle Windows API errors gracefully
         import sys
-        print(f"[Snapshot] EnumWindows error in find_coinpoker_tables: {e}", file=sys.stderr)
-        return []
+        error_msg = f"[Snapshot] EnumWindows error in find_coinpoker_tables: {e}"
+        print(error_msg, file=sys.stderr)
+        # Return whatever tables we found before the error
+        return tables
+    
+    # Log any errors that occurred during enumeration
+    if enum_error:
+        import sys
+        print(f"[Snapshot] Error during table enumeration: {enum_error}", file=sys.stderr)
+    
+    return tables
     
     return tables
 
@@ -229,6 +251,8 @@ def find_coinpoker_lobby(device_id: str | None = None) -> dict | None:
     Returns lobby info dict with hwnd, title, pid, etc., or None if not found.
     
     Uses the same strict filtering as tables: window class, process name, exe path.
+    
+    If EnumWindows fails, tries alternative method using process enumeration.
     """
     config = load_coinpoker_config()
     common = config.get("common", {})
@@ -237,15 +261,22 @@ def find_coinpoker_lobby(device_id: str | None = None) -> dict | None:
     expected_window_class = common.get("window_class", "Qt673QWindowIcon")
     
     lobby_info = None
+    enum_error = None
     
     def enum_windows(hwnd, lparam):
-        nonlocal lobby_info
+        nonlocal lobby_info, enum_error
+        # Always return True to continue enumeration, unless we found the lobby
         try:
+            # Skip invisible windows
             if not win32gui.IsWindowVisible(hwnd):
                 return True
             
-            title = win32gui.GetWindowText(hwnd)
-            class_name = win32gui.GetClassName(hwnd)
+            # Get window title and class
+            try:
+                title = win32gui.GetWindowText(hwnd) or ""
+                class_name = win32gui.GetClassName(hwnd) or ""
+            except Exception:
+                return True
             
             # Check if it matches expected window class (CoinPoker uses Qt) - SAME AS TABLES
             if expected_window_class.lower() not in class_name.lower():
@@ -257,7 +288,7 @@ def find_coinpoker_lobby(device_id: str | None = None) -> dict | None:
                 proc = psutil.Process(pid)
                 proc_name = proc.name().lower()
                 proc_exe = (proc.exe() or "").lower()
-            except Exception:
+            except (psutil.NoSuchProcess, psutil.AccessDenied, Exception):
                 return True
             
             # Must be expected process name from CoinPoker - SAME AS TABLES
@@ -295,12 +326,16 @@ def find_coinpoker_lobby(device_id: str | None = None) -> dict | None:
                         },
                     }
                     return False  # Stop enumeration once found
-            except Exception:
-                pass
+            except Exception as rect_exc:
+                # Continue enumeration if rect fails
+                return True
                 
-        except Exception:
-            pass
+        except Exception as exc:
+            # Log error but continue enumeration
+            enum_error = str(exc)
+            return True
         
+        # Always return True to continue enumeration
         return True
     
     try:
@@ -308,10 +343,110 @@ def find_coinpoker_lobby(device_id: str | None = None) -> dict | None:
     except Exception as e:
         # Handle Windows API errors gracefully
         import sys
-        print(f"[Snapshot] EnumWindows error in find_coinpoker_lobby: {e}", file=sys.stderr)
+        error_msg = f"[Snapshot] EnumWindows error in find_coinpoker_lobby: {e}"
+        print(error_msg, file=sys.stderr)
+        # If we got an error but already found lobby, return it anyway
+        if lobby_info:
+            return lobby_info
+        
+        # Try alternative method: enumerate CoinPoker processes and check their windows
+        try:
+            lobby_info = _find_lobby_alternative_method(expected_process_name, expected_window_class)
+            if lobby_info:
+                print("[Snapshot] Found lobby using alternative method", file=sys.stderr)
+                return lobby_info
+        except Exception as alt_exc:
+            print(f"[Snapshot] Alternative lobby search also failed: {alt_exc}", file=sys.stderr)
+        
         return None
     
+    # Log any errors that occurred during enumeration
+    if enum_error and not lobby_info:
+        import sys
+        print(f"[Snapshot] Error during lobby enumeration: {enum_error}", file=sys.stderr)
+    
     return lobby_info
+
+
+def _find_lobby_alternative_method(expected_process_name: str, expected_window_class: str) -> dict | None:
+    """
+    Alternative method to find lobby window by enumerating CoinPoker processes
+    and checking their windows directly. Used as fallback when EnumWindows fails.
+    """
+    try:
+        # Find all CoinPoker processes
+        coinpoker_pids = []
+        for proc in psutil.process_iter(['pid', 'name', 'exe']):
+            try:
+                proc_name = (proc.info.get('name') or '').lower()
+                proc_exe = (proc.info.get('exe') or '').lower()
+                if proc_name == expected_process_name and 'coinpoker' in proc_exe:
+                    coinpoker_pids.append(proc.info['pid'])
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        
+        if not coinpoker_pids:
+            return None
+        
+        # Check windows for each CoinPoker process using EnumWindows
+        lobby_result = None
+        
+        def enum_process_windows(hwnd, _):
+            nonlocal lobby_result
+            try:
+                if not win32gui.IsWindowVisible(hwnd):
+                    return True
+                
+                _, hwnd_pid = win32process.GetWindowThreadProcessId(hwnd)
+                if hwnd_pid not in coinpoker_pids:
+                    return True
+                
+                title = (win32gui.GetWindowText(hwnd) or "").lower()
+                class_name = (win32gui.GetClassName(hwnd) or "").lower()
+                
+                if expected_window_class.lower() not in class_name:
+                    return True
+                
+                if "lobby" in title and "coinpoker" in title:
+                    try:
+                        rect = win32gui.GetWindowRect(hwnd)
+                        width = rect[2] - rect[0]
+                        height = rect[3] - rect[1]
+                        
+                        if width >= 400 and height >= 300:
+                            proc = psutil.Process(hwnd_pid)
+                            lobby_result = {
+                                "hwnd": hwnd,
+                                "pid": hwnd_pid,
+                                "title": win32gui.GetWindowText(hwnd),
+                                "class_name": win32gui.GetClassName(hwnd),
+                                "process_name": proc.name().lower(),
+                                "process_exe": (proc.exe() or "").lower(),
+                                "rect": {
+                                    "left": rect[0],
+                                    "top": rect[1],
+                                    "right": rect[2],
+                                    "bottom": rect[3],
+                                    "width": width,
+                                    "height": height,
+                                },
+                            }
+                            return False  # Stop enumeration
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            return True
+        
+        # Try EnumWindows again with process filtering
+        try:
+            win32gui.EnumWindows(enum_process_windows, None)
+        except Exception:
+            pass
+        
+        return lobby_result
+    except Exception:
+        return None
 
 
 def capture_window_screenshot(hwnd: int) -> Image.Image | None:
