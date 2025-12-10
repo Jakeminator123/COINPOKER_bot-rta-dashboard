@@ -96,6 +96,8 @@ else {
         "win32timezone", "win32api", "win32con", "win32gui", "win32process", "win32ui", "winreg",
         # Image processing
         "pytesseract", "PIL", "PIL.Image", "PIL.ImageEnhance", "PIL.ImageGrab",
+        # Screen capture & video
+        "mss", "cv2",
         # Core dependencies
         "numpy", "psutil", "cryptography", "requests", "certifi", "redis",
         # Optional dependencies (may not be installed but handled gracefully)
@@ -109,7 +111,7 @@ else {
         "utils.admin_check", "utils.config_loader", "utils.config_reader", "utils.file_encryption",
         "utils.kill_coinpoker", "utils.signal_logger", "utils.take_snapshot",
         "utils.nickname_detector", "utils.detection_keepalive", "utils.runtime_flags",
-        "utils.network_info",
+        "utils.network_info", "utils.email_detector", "utils.screen_recorder",
         # Segment modules (dynamically loaded but need to be discoverable)
         "segments.programs.process_scanner", "segments.programs.hash_and_signature_scanner",
         "segments.programs.content_analyzer", "segments.programs.obfuscation_detector",
