@@ -1330,6 +1330,7 @@ export class RedisStore implements StorageAdapter {
           player_nickname_confidence: deviceInfo.player_nickname_confidence
             ? parseFloat(deviceInfo.player_nickname_confidence)
             : undefined,
+          player_email: deviceInfo.player_email,
           last_seen: lastSeenMs,
           signal_count: deviceInfo.signal_count ? parseInt(deviceInfo.signal_count) : 0,
           unique_detection_count: deviceInfo.unique_detection_count

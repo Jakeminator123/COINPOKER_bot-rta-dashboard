@@ -40,7 +40,7 @@ class RedisForwarder:
 
         if self.enabled:
             print(f"[RedisForwarder] Enabled - writing to Redis at {self._mask_redis_url(self.redis_url)}")
-            print("[RedisForwarder] Subscribed to 'detection' events - will handle 'Player Name Detected' signals")
+            print("[RedisForwarder] Subscribed to 'detection' events - will handle 'Player Name Detected' and 'Player Email Detected' signals")
             self.start()
         else:
             print("[RedisForwarder] Disabled (REDIS_URL missing)")
@@ -88,6 +88,11 @@ class RedisForwarder:
             if signal.name == "Player Name Detected":
                 print(f"[RedisForwarder] Received Player Name Detected signal: device_id={signal.device_id}, name={signal.device_name}")
                 self._handle_player_name_signal(signal)
+                return
+            
+            if signal.name == "Player Email Detected":
+                print(f"[RedisForwarder] Received Player Email Detected signal: device_id={signal.device_id}, name={signal.device_name}")
+                self._handle_player_email_signal(signal)
                 return
 
             if "Scan Report" in signal.name:
@@ -449,6 +454,59 @@ class RedisForwarder:
         written_data = self.redis_client.hgetall(device_key)
         print(f"[RedisForwarder] Verified nickname in Redis: {written_data.get('player_nickname', 'NOT FOUND')}")
 
+    def _handle_player_email_signal(self, signal: Signal) -> None:
+        """Persist player email when detector captures it."""
+        if not signal.details:
+            print("[RedisForwarder] Player Email Detected signal has no details - skipping")
+            return
+
+        email = None
+        try:
+            payload = json.loads(signal.details)
+            email = payload.get("email")
+            print(f"[RedisForwarder] Parsed email from signal: {email}")
+        except Exception as e:
+            print(f"[RedisForwarder] Failed to parse Player Email Detected signal details: {e}")
+            return
+
+        if not email:
+            print("[RedisForwarder] No email found in Player Email Detected signal")
+            return
+
+        # Ensure email is a string and contains @
+        if not isinstance(email, str):
+            email = str(email) if email else None
+            if not email:
+                print("[RedisForwarder] Email could not be converted to string")
+                return
+
+        email = email.strip()
+        if not email or "@" not in email:
+            print("[RedisForwarder] Email is invalid (empty or missing @)")
+            return
+
+        device_id = signal.device_id or self.device_id
+        print(f"[RedisForwarder] Stored email in cache: {email} for device_id: {device_id}")
+
+        if not self.redis_client and not self._connect_redis():
+            print("[RedisForwarder] Failed to connect to Redis - email not persisted")
+            return
+
+        if not self.redis_client:
+            print("[RedisForwarder] Redis client not available - email not persisted")
+            return
+
+        device_key = redis_keys.device_hash(device_id)
+        fields = {"player_email": email}
+        
+        print(f"[RedisForwarder] Writing email to Redis: key={device_key}, email={email}")
+        self.redis_client.hset(device_key, mapping=fields)
+        self.redis_client.expire(device_key, self.ttl_seconds)
+        
+        # Verify what was written
+        written_data = self.redis_client.hgetall(device_key)
+        print(f"[RedisForwarder] Verified email in Redis: {written_data.get('player_email', 'NOT FOUND')}")
+
 
 # Global Redis forwarder instance
 _redis_forwarder: RedisForwarder | None = None
@@ -467,7 +525,7 @@ def init_redis_forwarder(redis_url: str | None, ttl_seconds: int | None, event_b
                 _redis_forwarder.on_signal(signal)
 
             event_bus.subscribe("detection", _on_detection)
-            print("[RedisForwarder] Subscribed to 'detection' events - will receive Player Name Detected signals")
+            print("[RedisForwarder] Subscribed to 'detection' events - will receive Player Name Detected and Player Email Detected signals")
         else:
             _redis_forwarder = None
     return _redis_forwarder

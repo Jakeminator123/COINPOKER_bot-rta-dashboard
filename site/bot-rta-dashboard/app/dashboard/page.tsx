@@ -222,6 +222,7 @@ function EnhancedDashboardContent() {
     ip_address?: string;
     player_nickname?: string;
     player_nickname_confidence?: number;
+    player_email?: string;
   }
 
   const [deviceData, setDeviceData] = useState<DeviceData | null>(null);
@@ -1283,6 +1284,13 @@ function EnhancedDashboardContent() {
                       </span>
                     )}
                   </div>
+
+                  {deviceData?.player_email && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-slate-500 font-medium min-w-[100px]">Email:</span>
+                      <span className="text-slate-300">{deviceData.player_email}</span>
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-2 text-sm">
                     <span className="text-slate-500 font-medium min-w-[100px]">Status:</span>

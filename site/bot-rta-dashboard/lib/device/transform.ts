@@ -4,6 +4,7 @@ export interface DeviceRecord {
   device_hostname?: string;
   player_nickname?: string;
   player_nickname_confidence?: number;
+  player_email?: string;
   last_seen: number;
   threat_level: number;
   signal_count: number;
@@ -160,6 +161,9 @@ export function normalizeDeviceRecord(input: unknown): DeviceRecord | null {
     (input.player_nickname_confidence as number | undefined) ??
       (input.nickname_confidence as number | undefined),
   );
+  const playerEmail = toString(
+    input.player_email ?? (input as Record<string, unknown>).email,
+  );
 
   return {
     device_id,
@@ -175,6 +179,7 @@ export function normalizeDeviceRecord(input: unknown): DeviceRecord | null {
     ),
     player_nickname: playerNickname,
     player_nickname_confidence: playerNicknameConfidence,
+    player_email: playerEmail,
     last_seen,
     threat_level,
     signal_count,

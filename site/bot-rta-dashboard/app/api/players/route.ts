@@ -58,6 +58,7 @@ interface PlayerResponse {
   device_name?: string; // Device name (e.g., "JakobsDator")
   player_nickname?: string; // Player nickname (e.g., "FastCarsss")
   player_nickname_confidence?: number; // Confidence level for nickname
+  player_email?: string; // Player email
   status: PlayerStatus;
   lastSeen: number;
   threatLevel: number;
@@ -621,12 +622,13 @@ async function buildPlayersFromRedisBatch(
 
     const categories = parseJson<PlayerCategorySummary>(categorySummaryJson);
 
-    // Extract device_name and player_nickname separately
+    // Extract device_name, player_nickname, and player_email separately
     const deviceName = deviceInfo.device_name || summary?.device_name || null;
     const playerNickname = deviceInfo.player_nickname || null;
     const playerNicknameConfidence = deviceInfo.player_nickname_confidence
       ? parseFloat(deviceInfo.player_nickname_confidence)
       : undefined;
+    const playerEmail = deviceInfo.player_email || null;
 
     players.push({
       id: entry.deviceId,
@@ -634,6 +636,7 @@ async function buildPlayersFromRedisBatch(
       device_name: deviceName || undefined,
       player_nickname: playerNickname || undefined,
       player_nickname_confidence: playerNicknameConfidence,
+      player_email: playerEmail || undefined,
       status,
       lastSeen,
       threatLevel: finalThreatLevel,  // Use finalThreatLevel instead of threatLevel

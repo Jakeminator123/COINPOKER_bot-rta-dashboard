@@ -121,6 +121,7 @@ export class MemoryStore implements StorageAdapter {
       ip_address?: string; // Device IP address
       player_nickname?: string; // Player nickname
       player_nickname_confidence?: number; // Confidence level for nickname
+      player_email?: string; // Player email
     }
   > = new Map();
   private recentSignals: Map<string, number> = new Map();
@@ -149,6 +150,7 @@ export class MemoryStore implements StorageAdapter {
           ip_address?: string;
           player_nickname?: string;
           player_nickname_confidence?: number;
+          player_email?: string;
         }
       | undefined
   ): void {
@@ -1265,6 +1267,7 @@ export class MemoryStore implements StorageAdapter {
       session_duration: number;
       player_nickname?: string;
       player_nickname_confidence?: number;
+      player_email?: string;
       score_per_hour?: number;
       threat_trend: "up" | "down" | "stable";
       is_online: boolean;
@@ -1437,6 +1440,7 @@ export class MemoryStore implements StorageAdapter {
           device_hostname: device.device_name,
           player_nickname: device.player_nickname ?? device.device_name,
           player_nickname_confidence: device.player_nickname_confidence,
+          player_email: device.player_email,
           last_seen: device.last_seen,
           signal_count: device.signal_count,
           unique_detection_count: device.unique_detection_count,

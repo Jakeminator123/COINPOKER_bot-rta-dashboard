@@ -20,6 +20,8 @@ import AnimatedCounter from "@/components/AnimatedCounter";
 type DeviceRecord = {
   device_id: string;
   device_name?: string | null;
+  player_nickname?: string | null;
+  player_email?: string | null;
   ip_address?: string | null;
   is_online?: boolean;
   last_seen?: number | null;
@@ -81,6 +83,7 @@ export default function PublicPlayerHistoryPage() {
   const deviceName = device?.device_name || summaryData?.data?.device_name || null;
   const accountName = summaryData?.data?.device_name || null;
   const sessionStart = device?.session_start ?? null;
+  const playerEmail = device?.player_email || null;
 
   const toMilliseconds = (value: number | null | undefined) => {
     if (!value || typeof value !== "number") return null;
@@ -263,6 +266,13 @@ export default function PublicPlayerHistoryPage() {
                     {deviceName || playerName}
                   </span>
                 </div>
+
+                {playerEmail && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-slate-500 font-medium min-w-[100px]">Email:</span>
+                    <span className="text-slate-300">{playerEmail}</span>
+                  </div>
+                )}
 
                 {accountName && (
                   <div className="flex items-center gap-2 text-sm">

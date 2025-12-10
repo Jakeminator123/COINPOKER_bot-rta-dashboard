@@ -469,6 +469,9 @@ class CoinPokerScanner:
         self._nickname_thread: threading.Thread | None = None
         self._nickname_detected_for_pids: set = set()  # Track PIDs where nickname was detected
 
+        # Email detection from login window (runs once per session)
+        self._email_detected_this_session = False
+
         # Process lock file for singleton guard
         self._lock_file: Any | None = None
         self._lock_file_path: str | None = None
@@ -565,13 +568,30 @@ class CoinPokerScanner:
             return
 
         try:
-            print(f"[Scanner] Waiting for CoinPoker lobby window (timeout={self.LOBBY_WAIT_TIMEOUT}s)...")
-            hwnd, pid = self.detector.wait_for_lobby_window(self.LOBBY_WAIT_TIMEOUT)
+            # First check if lobby window is ALREADY open (CoinPoker started before scanner)
+            hwnd, pid = self.detector.find_lobby_window()
+            
             if hwnd and pid:
-                print("[Scanner] CoinPoker lobby detected - bringing window to foreground for OCR...")
+                # Lobby already open - do OCR immediately!
+                print("[Scanner] ✅ CoinPoker lobby ALREADY OPEN - starting nickname detection immediately...")
+            else:
+                # Lobby not open yet - check for LOGIN window first (email detection)
+                # Wait a moment for login window to be ready
+                print("[Scanner] Checking for login window (email)...")
+                for _ in range(10):  # Try for up to 5 seconds
+                    self._check_login_window_email()
+                    if self._email_detected_this_session:
+                        break
+                    time.sleep(0.5)
+                
+                # Now wait for lobby
+                print(f"[Scanner] Waiting for CoinPoker lobby window (timeout={self.LOBBY_WAIT_TIMEOUT}s)...")
+                hwnd, pid = self.detector.wait_for_lobby_window(self.LOBBY_WAIT_TIMEOUT)
+            
+            if hwnd and pid:
+                print("[Scanner] Bringing lobby window to foreground for OCR...")
                 
                 # Bring window to foreground before starting nickname detection
-                # This ensures OCR captures the correct window content
                 try:
                     self._bring_window_to_front(hwnd)
                 except Exception as e:
@@ -651,6 +671,21 @@ class CoinPokerScanner:
     def _nickname_detector_running(self) -> bool:
         return bool(self._nickname_thread and self._nickname_thread.is_alive())
 
+    def _check_login_window_email(self) -> None:
+        """Check for login window and extract email (runs once per session)."""
+        if self._email_detected_this_session:
+            return  # Already detected this session
+        
+        try:
+            from utils.email_detector import detect_login_email
+            email = detect_login_email(post_signal_func=post_signal)
+            if email:
+                self._email_detected_this_session = True
+        except ImportError:
+            pass  # email_detector not available
+        except Exception:
+            pass  # Silently ignore errors
+
     def _ensure_nickname_detection(self) -> None:
         """Start nickname detection if CoinPoker is already open (once per session)."""
         if not WIN32_AVAILABLE:
@@ -714,6 +749,7 @@ class CoinPokerScanner:
                 self._nickname_thread = None
                 self._nickname_detected_for_pids.clear()  # Clear for next session
                 self._coinpoker_pids.clear()  # Clear PIDs for next session
+                self._email_detected_this_session = False  # Reset for next session
                 # Only print this message once, not in loops
                 if self._running:
                     print("[Scanner] Scanner stopped. Waiting for CoinPoker to restart...")
@@ -982,7 +1018,8 @@ class CoinPokerScanner:
                     # CoinPoker is running - check more frequently to detect when it closes
                     time.sleep(2.0)  # Check every 2 seconds when active
                 else:
-                    # Waiting for CoinPoker - check more frequently for faster detection
+                    # Waiting for CoinPoker - check for login window email
+                    self._check_login_window_email()
                     time.sleep(2.0)  # Reduced from 5s to 2s for faster response
 
         except KeyboardInterrupt:

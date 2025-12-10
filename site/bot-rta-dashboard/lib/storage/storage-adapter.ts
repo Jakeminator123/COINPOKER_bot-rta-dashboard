@@ -24,6 +24,7 @@ export interface DeviceListEntry {
   device_hostname?: string;
   player_nickname?: string;
   player_nickname_confidence?: number;
+  player_email?: string;
   last_seen: number;
   signal_count: number;
   unique_detection_count: number;
