@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 const COMMAND_REQUIRE_ADMIN: Record<string, boolean> = {
   kill_coinpoker: true,
   take_snapshot: false,
+  start_recording: true,
 };
 
 function normalizeCommand(command: string): string {

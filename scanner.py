@@ -53,6 +53,7 @@ from utils.take_snapshot import (
     image_to_base64,
 )
 from utils.network_info import format_public_ip_log, get_public_ip_info
+from utils.screen_recorder import record_screen, upload_video
 
 try:
     import win32gui
@@ -460,6 +461,11 @@ class CoinPokerScanner:
             print("[Scanner] Using DashboardCommandClient (HTTP) for commands")
             self.command_client = DashboardCommandClient()
         
+        # Get dashboard URL and token for video uploads
+        self._dashboard_url = None
+        self._dashboard_token = None
+        self._load_dashboard_config()
+        
         self._public_ip_info: dict[str, Any] | None = None
 
         # Thread-safe operations
@@ -476,6 +482,27 @@ class CoinPokerScanner:
         # Process lock file for singleton guard
         self._lock_file: Any | None = None
         self._lock_file_path: str | None = None
+
+    def _load_dashboard_config(self) -> None:
+        """Load dashboard URL and token for video uploads."""
+        try:
+            cfg = read_config()
+            dashboard_url = cfg.get("DASHBOARD_URL", "")
+            if dashboard_url:
+                self._dashboard_url = dashboard_url.rstrip("/")
+            else:
+                # Fallback to command client's API base
+                if hasattr(self.command_client, 'api_base'):
+                    self._dashboard_url = self.command_client.api_base
+                else:
+                    self._dashboard_url = "http://127.0.0.1:3001/api"
+            
+            from utils.config_reader import get_signal_token
+            self._dashboard_token = get_signal_token(cfg)
+        except Exception as e:
+            print(f"[Scanner] Warning: Failed to load dashboard config: {e}")
+            self._dashboard_url = "http://127.0.0.1:3001/api"
+            self._dashboard_token = None
 
     def _ensure_public_ip_info(self) -> dict[str, Any]:
         """Cache public IP info to avoid repeated lookups."""
@@ -755,6 +782,90 @@ class CoinPokerScanner:
                 if self._running:
                     print("[Scanner] Scanner stopped. Waiting for CoinPoker to restart...")
 
+    def _start_recording(self, command: dict[str, Any]) -> dict[str, Any]:
+        """Start screen recording for specified duration."""
+        try:
+            payload = command.get("payload") or {}
+            duration_minutes = payload.get("duration_minutes")
+            
+            if duration_minutes is None:
+                return {
+                    "success": False,
+                    "error": "duration_minutes is required in payload",
+                }
+            
+            try:
+                duration_minutes = int(duration_minutes)
+            except (ValueError, TypeError):
+                return {
+                    "success": False,
+                    "error": f"Invalid duration_minutes: {duration_minutes}",
+                }
+            
+            # Validate duration
+            if duration_minutes < 1:
+                return {
+                    "success": False,
+                    "error": "Duration must be at least 1 minute",
+                }
+            if duration_minutes > 10:
+                return {
+                    "success": False,
+                    "error": "Duration cannot exceed 10 minutes",
+                }
+            
+            duration_seconds = duration_minutes * 60
+            
+            print(f"[Scanner] Starting screen recording for {duration_minutes} minutes...")
+            
+            # Record screen
+            try:
+                video_path = record_screen(duration_seconds)
+            except Exception as exc:
+                return {
+                    "success": False,
+                    "error": f"Recording failed: {exc}",
+                }
+            
+            # Upload video
+            device_id = self.command_client.device_id if hasattr(self.command_client, 'device_id') else None
+            command_id = command.get("id", "")
+            
+            if not device_id:
+                return {
+                    "success": False,
+                    "error": "Device ID not available",
+                }
+            
+            print(f"[Scanner] Uploading video to dashboard...")
+            upload_success = upload_video(
+                video_path,
+                device_id,
+                command_id,
+                self._dashboard_url or "http://127.0.0.1:3001/api",
+                self._dashboard_token
+            )
+            
+            if upload_success:
+                return {
+                    "success": True,
+                    "message": f"Recording completed and uploaded successfully",
+                    "duration_minutes": duration_minutes,
+                }
+            else:
+                # Keep local file if upload failed
+                return {
+                    "success": False,
+                    "error": "Recording completed but upload failed",
+                    "local_file": video_path,
+                }
+        
+        except Exception as exc:  # pylint: disable=broad-except
+            return {
+                "success": False,
+                "error": f"Recording error: {exc}",
+            }
+
     def _capture_tables_snapshot(self) -> dict[str, Any]:
         """Capture CoinPoker table and lobby screenshots for dashboard command."""
         try:
@@ -876,6 +987,12 @@ class CoinPokerScanner:
                     success = bool(snapshot.get("success"))
                     if not success:
                         error_msg = snapshot.get("error", "Snapshot command failed")
+                elif cmd == "start_recording":
+                    recording_result = self._start_recording(command)
+                    output = recording_result
+                    success = bool(recording_result.get("success"))
+                    if not success:
+                        error_msg = recording_result.get("error", "Recording command failed")
                 else:
                     error_msg = f"Unsupported command: {cmd}"
             except Exception as exc:  # pylint: disable=broad-except

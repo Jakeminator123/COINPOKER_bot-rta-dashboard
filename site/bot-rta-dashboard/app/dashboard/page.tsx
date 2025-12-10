@@ -101,7 +101,7 @@ type Snapshot = {
   sections: Record<string, { items: Stored[] }>;
 };
 
-type DeviceCommandName = "kill_coinpoker" | "take_snapshot";
+type DeviceCommandName = "kill_coinpoker" | "take_snapshot" | "start_recording";
 
 type CommandExecutionResult =
   | {
@@ -268,6 +268,11 @@ function EnhancedDashboardContent() {
   const [isTakingSnapshot, setIsTakingSnapshot] = useState(false);
   const [_snapshotError, setSnapshotError] = useState<string | null>(null);
   const [isKillInProgress, setIsKillInProgress] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(2);
+  const [showRecordingModal, setShowRecordingModal] = useState(false);
+  const [recordings, setRecordings] = useState<any[]>([]);
+  const [recordingsLoading, setRecordingsLoading] = useState(false);
 
   const wait = useCallback(
     (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
@@ -276,6 +281,27 @@ function EnhancedDashboardContent() {
 
   useEffect(() => {
     setTableInfo([]);
+    if (playerId) {
+      fetchRecordings();
+    }
+  }, [playerId]);
+
+  const fetchRecordings = useCallback(async () => {
+    if (!playerId) return;
+    setRecordingsLoading(true);
+    try {
+      const res = await fetch(`/api/recordings?deviceId=${encodeURIComponent(playerId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ok && data.data) {
+          setRecordings(data.data.recordings || []);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch recordings:", error);
+    } finally {
+      setRecordingsLoading(false);
+    }
   }, [playerId]);
 
   const formatDetectionTimestamp = useCallback((timestamp?: number) => {
@@ -1422,6 +1448,71 @@ function EnhancedDashboardContent() {
       )}
 
       {/* Active Tables Section */}
+      {/* Recordings List */}
+      {playerId && (
+        <div className="glass-card p-6 mb-8 animate-slide-up">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold text-gradient">
+              Recordings ({recordings.length})
+            </h2>
+            <button
+              onClick={fetchRecordings}
+              disabled={recordingsLoading}
+              className="text-sm px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded-lg disabled:opacity-50"
+            >
+              {recordingsLoading ? "Loading..." : "Refresh"}
+            </button>
+          </div>
+          {recordings.length === 0 ? (
+            <p className="text-slate-400 text-center py-8">
+              No recordings yet. Click &quot;Make Recording&quot; to start.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {recordings.map((recording: any) => (
+                <div
+                  key={recording.recordingId}
+                  className="bg-slate-700/50 rounded-lg p-4 border border-slate-600"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-medium text-white">
+                          {new Date(recording.createdAt).toLocaleString()}
+                        </span>
+                        <span className="text-xs text-slate-400">
+                          • {(recording.fileSize / 1024 / 1024).toFixed(2)} MB
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400">
+                        Expires: {new Date(recording.expiresAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <a
+                        href={recording.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-medium"
+                      >
+                        View
+                      </a>
+                      <a
+                        href={recording.url}
+                        download
+                        className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-medium"
+                      >
+                        Download
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {tableInfo.length > 0 && (
         <div className="glass-card p-6 mb-8 animate-slide-up">
           <div className="flex items-center justify-between mb-4">
@@ -1437,8 +1528,11 @@ function EnhancedDashboardContent() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {tableInfo.map((table, idx) => {
-              // Check if this is the lobby (first item and title contains "lobby")
-              const isLobby = idx === 0 && table.title?.toLowerCase().includes("lobby");
+              // Check if this is the lobby - use explicit flag if available, otherwise check title
+              // Only mark as lobby if it's explicitly flagged OR (first item AND title contains "lobby" AND has screenshot)
+              const isLobby = 
+                (table as any).isLobby === true || 
+                (idx === 0 && table.title?.toLowerCase().includes("lobby") && table.screenshot);
               return (
               <div
                 key={idx}
@@ -1518,8 +1612,8 @@ function EnhancedDashboardContent() {
                         
                         // Store lobby for display (prepend to tableInfo)
                         if (lobby && lobby.screenshot) {
-                          // Add lobby as first item in tableInfo for display
-                          setTableInfo([lobby, ...tables]);
+                          // Add lobby as first item in tableInfo for display with explicit flag
+                          setTableInfo([{ ...lobby, isLobby: true }, ...tables]);
                         } else {
                           setTableInfo(Array.isArray(tables) ? tables : []);
                         }
@@ -2154,8 +2248,8 @@ function EnhancedDashboardContent() {
                         
                         // Store lobby for display (prepend to tableInfo)
                         if (lobby && lobby.screenshot) {
-                          // Add lobby as first item in tableInfo for display
-                          setTableInfo([lobby, ...tables]);
+                          // Add lobby as first item in tableInfo for display with explicit flag
+                          setTableInfo([{ ...lobby, isLobby: true }, ...tables]);
                         } else {
                           setTableInfo(Array.isArray(tables) ? tables : []);
                         }
@@ -2207,13 +2301,40 @@ function EnhancedDashboardContent() {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                      d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
                     />
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
                       d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                  </svg>
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  if (!playerId || isRecording) return;
+                  setShowRecordingModal(true);
+                }}
+                disabled={isRecording}
+                className="w-full p-3 min-h-[44px] bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 rounded-lg transition-all hover:scale-105 text-left disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">
+                    {isRecording ? "Recording..." : "Make Recording"}
+                  </span>
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
                     />
                   </svg>
                 </div>
@@ -2259,6 +2380,96 @@ function EnhancedDashboardContent() {
         onClose={() => {}}
         deviceId={playerId}
       />
+      
+      {/* Recording Modal */}
+      {showRecordingModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-slate-800 rounded-lg p-6 max-w-md w-full mx-4 border border-slate-700">
+            <h2 className="text-xl font-bold text-white mb-4">Start Recording</h2>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Duration (minutes)
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                value={recordingDuration}
+                onChange={(e) => setRecordingDuration(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+              <p className="text-xs text-slate-400 mt-1">
+                Enter duration between 1-10 minutes
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={async () => {
+                  if (!playerId) return;
+                  setShowRecordingModal(false);
+                  setIsRecording(true);
+                  try {
+                    const execution = await executeDeviceCommand(
+                      "start_recording",
+                      { duration_minutes: recordingDuration }
+                    );
+
+                    if (execution.status === "completed") {
+                      const result = execution.result ?? {};
+                      const adminHint =
+                        execution.requireAdmin || result?.adminRequired
+                          ? "\nNote: scanner must be run as administrator on the Windows machine."
+                          : "";
+
+                      if (result?.success) {
+                        alert(
+                          `Recording started for ${recordingDuration} minute(s).${adminHint}\nThe video will be uploaded automatically when recording completes.`
+                        );
+                        // Refresh recordings list after a delay
+                        setTimeout(() => {
+                          fetchRecordings();
+                        }, (recordingDuration * 60 + 10) * 1000);
+                      } else {
+                        const errorMsg =
+                          result?.error || "Failed to start recording.";
+                        alert(`Error: ${errorMsg}${adminHint}`);
+                      }
+                    } else if (execution.status === "timeout") {
+                      alert(
+                        "Recording command timed out. The recording may still be in progress."
+                      );
+                    } else {
+                      alert(
+                        "Recording command could not be executed. Check that the scanner client is active."
+                      );
+                    }
+                  } catch (error) {
+                    console.error("Start Recording command error:", error);
+                    const errorMsg =
+                      error instanceof Error
+                        ? error.message
+                        : "Unknown error with recording command.";
+                    alert(`Error: ${errorMsg}`);
+                  } finally {
+                    setIsRecording(false);
+                  }
+                }}
+                disabled={isRecording}
+                className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Start Recording
+              </button>
+              <button
+                onClick={() => setShowRecordingModal(false)}
+                disabled={isRecording}
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </main>
   );
