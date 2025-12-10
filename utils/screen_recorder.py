@@ -155,6 +155,7 @@ def upload_video(video_path: str, device_id: str, command_id: str, dashboard_url
         file_size_mb = os.path.getsize(video_path) / (1024 * 1024)
         print(f"[ScreenRecorder] Uploading video: {file_size_mb:.2f} MB")
         
+        upload_ok = False
         with open(video_path, 'rb') as video_file:
             files = {
                 'file': (os.path.basename(video_path), video_file, 'video/mp4')
@@ -179,21 +180,22 @@ def upload_video(video_path: str, device_id: str, command_id: str, dashboard_url
             
             result = response.json()
             if result.get('ok'):
+                upload_ok = True
                 recording_id = result.get('data', {}).get('recordingId')
                 print(f"[ScreenRecorder] Upload successful: recordingId={recording_id}")
-                
-                # Clean up local file after successful upload
-                try:
-                    os.remove(video_path)
-                    print(f"[ScreenRecorder] Local file cleaned up: {video_path}")
-                except Exception as e:
-                    print(f"[ScreenRecorder] Warning: Failed to clean up local file: {e}")
-                
-                return True
             else:
                 error_msg = result.get('error', 'Unknown error')
                 print(f"[ScreenRecorder] Upload failed: {error_msg}")
                 return False
+        
+        # Clean up local file after the file handle is closed
+        if upload_ok:
+            try:
+                os.remove(video_path)
+                print(f"[ScreenRecorder] Local file cleaned up: {video_path}")
+            except Exception as e:
+                print(f"[ScreenRecorder] Warning: Failed to clean up local file: {e}")
+            return True
     
     except requests.exceptions.RequestException as e:
         print(f"[ScreenRecorder] Upload error: {e}")
@@ -201,4 +203,3 @@ def upload_video(video_path: str, device_id: str, command_id: str, dashboard_url
     except Exception as e:
         print(f"[ScreenRecorder] Unexpected upload error: {e}")
         return False
-
