@@ -3,27 +3,51 @@
 # ====================================
 
 # --- Environment ---
-ENV=DEV                              # DEV eller PROD
+ENV=PROD                              # DEV eller PROD
 INPUT_DEBUG=1                        # Debug logging (0=off, 1=on)
 
 # --- Batch System ---
 BATCH_INTERVAL_HEAVY=92              # Batch-rapporter skickas var 92:e sekund
-NEW_BATCHES_LOG=y                     # Spara batch-loggar lokalt (debugging)
+NEW_BATCHES_LOG=n                     # Spara batch-loggar lokalt (debugging)
+BATCH_LOG_DIR=jay                    # Mapp där batch-loggar sparas (default: batch_logs)
 
-# --- Dashboard Connection ---
-WEB=y                                # Aktivera skickning till dashboard
-WEB_URL_DEV=http://localhost:3001/api/signal
-#WEB_URL_PROD=https://bot-rta-dashboard-1.onrender.com/api/signal
+# --- Forwarder-läge (väljer hur batchar skickas) ---
+# OPTION 1 – Direkt till Redis (snabbast, bypass HTTP)
+#   • Ange REDIS_URL
+#   • Sätt FORWARDER_MODE=redis (eller auto för fallback)
+#   • WEB kan vara n
+#
+# OPTION 2 – Via webb-API (dashboard postar vidare till Redis)
+#   • Lämna REDIS_URL kommenterad
+#   • Sätt WEB=y och ange WEB_URL_*
+#   • FORWARDER_MODE=web (eller auto om du vill kunna falla tillbaka)
+#
+# All metadata (nickname, device_id, device_name, IP osv) följer alltid med.
+
+# --- HTTP Dashboard (Option 2) ---
+WEB=n                                # y=Skicka batchar till dashboardens HTTP-endpoint
+TESTING_JSON=y                       # Lägg till metadata i batches (förklarar systemflödet)
+
+# Dashboard URL för att hämta detection configs (alltid aktiv)
+DASHBOARD_URL=https://bot-rta-dashboard-2.onrender.com/api
+
+# Web forwarder settings (endast om WEB=y)
+#WEB_URL_DEV=http://localhost:3001/api/signal
+WEB_URL_PROD=https://bot-rta-dashboard-2.onrender.com/api/signal
 SIGNAL_TOKEN=detector-secret-token-2024
+WEB_FORWARDER_TIMEOUT=10             # Timeout för HTTP requests när batchar skickas
 
-FORWARDER_MODE=auto                  # web=WebForwarder only, auto=WebForwarder+HTTP fallback, panel=HTTP only
-WEB_FORWARDER_TIMEOUT=10             # Timeout i sekunder för HTTP requests när batch-rapporter skickas till dashboard (default: 10s)
+# --- Direkt Redis (Option 1) ---
+REDIS_URL=redis://default:RmJmzvxtcg4PpDPCEly7ap7sHdpgQhmR@redis-12756.c44.us-east-1-2.ec2.redns.redis-cloud.com:12756
+REDIS_TTL_SECONDS=604800                      # TTL för Redis-keys (default: 7 dagar)
+
+FORWARDER_MODE=redis                  # web=HTTP, redis=Redis, auto=försök Redis → HTTP fallback
 
 # --- Detection Features ---
 ENABLEHASHLOOKUP=true                # Hash database lookups
 ENABLEONLINELOOKUPS=true             # Online API calls (VirusTotal)
 CHECKSIGNATURES=true                 # Digital signature verification
-VirusTotalAPIKey=3dc67831fd53e5691fe568944041d9cb4894221be33ed06cf5221cea20b7686b
+VirusTotalAPIKey=22da334f9a3582bf6a93dc6fdedf2fe45fb86a0a91fd7d81803c13c4c5c4cbc7
 
 # --- Runtime Tweaks ---
 # IMPORTANT (English):
@@ -32,7 +56,7 @@ VirusTotalAPIKey=3dc67831fd53e5691fe568944041d9cb4894221be33ed06cf5221cea20b7686
 # values <1 speed up detections (e.g. 0 = no throttling, warnings fire immediately),
 # values >1 slow things down (useful if signals are too noisy). Change once here instead of per file.
 SYNC_SEGMENTS=Y                      # Sprid ut segment-start över första 92s perioden
-COOLDOWN_MULTIPLIER=0                # Standard cooldowns (0=av, 1=normal, 2=dubbel)
+COOLDOWN_MULTIPLIER=1                # Standard cooldowns (0=av, 1=normal, 2=dubbel)
 
 # --- Detection Segments (intervall i sekunder för varje segment) ---
 PROGRAMS=92                          # ProcessScanner - intervall mellan skanningar
@@ -43,4 +67,8 @@ VM=92                                # VMDetector - intervall mellan skanningar
 SCREEN=92                            # ScreenDetector - intervall mellan skanningar
 
 # --- Security ---
-RAM_CONFIG=y                         # n=använd disk-cache, y=endast RAM (tamper-proof)
+RAM_CONFIG=n                         # n=använd disk-cache, y=endast RAM (tamper-proof)
+
+# --- Debugging ---
+PICTURE_NICK=y                       # y=Spara OCR-bilder för debugging i nickname_debug/ mappen
+SIGNAL_FLOW_LOG=n                    # y=Skriv signal_flow_YYYYMMDD.log filer, n=Stäng av loggning
