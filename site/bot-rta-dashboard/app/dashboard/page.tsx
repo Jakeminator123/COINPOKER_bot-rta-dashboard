@@ -439,14 +439,15 @@ function EnhancedDashboardContent() {
   const executeDeviceCommand = useCallback(
     async (
       command: DeviceCommandName,
-      payload?: unknown
+      payload?: unknown,
+      timeoutMs?: number
     ): Promise<CommandExecutionResult> => {
       if (!playerId) {
         throw new Error("Device ID missing");
       }
 
       const queued = await queueDeviceCommand(playerId, command, payload);
-      const outcome = await fetchCommandResult(queued.commandId);
+      const outcome = await fetchCommandResult(queued.commandId, timeoutMs);
 
       return {
         commandId: queued.commandId,
@@ -2409,9 +2410,19 @@ function EnhancedDashboardContent() {
                   setShowRecordingModal(false);
                   setIsRecording(true);
                   try {
+                    // Calculate timeout dynamically: recording duration + upload time + buffer
+                    // Upload time estimate: ~30s per minute of recording (for large files)
+                    // Buffer: 60 seconds for safety
+                    // Formula: (duration_minutes * 60) + (duration_minutes * 30) + 60
+                    // Simplified: duration_minutes * 90 + 60 seconds
+                    const uploadTimeSeconds = recordingDuration * 30; // 30s per minute for upload
+                    const bufferSeconds = 60; // 1 minute buffer
+                    const recordingTimeoutMs = (recordingDuration * 60 + uploadTimeSeconds + bufferSeconds) * 1000;
+                    
                     const execution = await executeDeviceCommand(
                       "start_recording",
-                      { duration_minutes: recordingDuration }
+                      { duration_minutes: recordingDuration },
+                      recordingTimeoutMs
                     );
 
                     if (execution.status === "completed") {
@@ -2436,8 +2447,12 @@ function EnhancedDashboardContent() {
                       }
                     } else if (execution.status === "timeout") {
                       alert(
-                        "Recording command timed out. The recording may still be in progress."
+                        `Recording command timed out after waiting ${Math.round(recordingTimeoutMs / 1000)}s. The recording is still running on the scanner and will upload automatically when complete. Check the recordings list in a few minutes.`
                       );
+                      // Still refresh recordings list after delay, as recording may complete
+                      setTimeout(() => {
+                        fetchRecordings();
+                      }, (recordingDuration * 60 + 30) * 1000); // Wait for recording + 30s buffer
                     } else {
                       alert(
                         "Recording command could not be executed. Check that the scanner client is active."

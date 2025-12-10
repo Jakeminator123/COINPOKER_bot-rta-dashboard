@@ -12,7 +12,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
-const RECORDINGS_DIR = join(process.cwd(), "recordings");
+// Use environment variable for Render Disk, fallback to local recordings folder
+const RECORDINGS_DIR = process.env.RECORDINGS_DIR || join(process.cwd(), "recordings");
 const RETENTION_DAYS = 7;
 
 interface RecordingMetadata {

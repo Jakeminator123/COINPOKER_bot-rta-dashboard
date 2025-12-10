@@ -8,8 +8,9 @@ set "SCRIPT=%~dp0scanner.py"
 REM If you prefer a specific interpreter, set PYTHON_EXE before calling this file.
 if not defined PYTHON_EXE set "PYTHON_EXE=python"
 
+REM Use PowerShell with proper argument escaping for paths with spaces
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "Start-Process '%PYTHON_EXE%' -ArgumentList '\"%SCRIPT%\"' -Verb RunAs"
+  "Start-Process -FilePath '%PYTHON_EXE%' -ArgumentList '%SCRIPT%' -Verb RunAs"
 
 endlocal
 
