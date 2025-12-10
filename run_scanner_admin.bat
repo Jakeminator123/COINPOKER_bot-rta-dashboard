@@ -1,0 +1,15 @@
+@echo off
+REM Launch scanner.py with administrator privileges.
+REM Uses PowerShell to prompt for elevation, then runs python with the scanner path.
+
+setlocal
+set "SCRIPT=%~dp0scanner.py"
+
+REM If you prefer a specific interpreter, set PYTHON_EXE before calling this file.
+if not defined PYTHON_EXE set "PYTHON_EXE=python"
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "Start-Process '%PYTHON_EXE%' -ArgumentList '\"%SCRIPT%\"' -Verb RunAs"
+
+endlocal
+
