@@ -1436,14 +1436,17 @@ function EnhancedDashboardContent() {
             </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {tableInfo.map((table, idx) => (
+            {tableInfo.map((table, idx) => {
+              // Check if this is the lobby (first item and title contains "lobby")
+              const isLobby = idx === 0 && table.title?.toLowerCase().includes("lobby");
+              return (
               <div
                 key={idx}
-                className="surface-panel p-4"
+                className={`surface-panel p-4 ${isLobby ? "ring-2 ring-purple-500/50" : ""}`}
               >
                 <div className="mb-3">
                   <h3 className="font-semibold text-white mb-1">
-                    {table.title || `Table ${idx + 1}`}
+                    {isLobby ? "🎰 Lobby" : table.title || `Table ${idx + 1}`}
                   </h3>
                   <div className="text-xs text-slate-400 space-y-1">
                     <div>PID: {table.pid}</div>
@@ -1470,7 +1473,8 @@ function EnhancedDashboardContent() {
                   <div className="mt-3 text-sm text-red-400">{table.error}</div>
                 )}
               </div>
-            ))}
+            );
+            })}
           </div>
         </div>
       )}
@@ -1503,11 +1507,22 @@ function EnhancedDashboardContent() {
 
                       if (result?.success) {
                         const tables = result?.output?.tables || [];
+                        const lobby = result?.output?.lobby || null;
                         const count =
                           result?.output?.count ??
                           (Array.isArray(tables) ? tables.length : 0);
-                        setTableInfo(Array.isArray(tables) ? tables : []);
-                        alert(`Captured ${count} tables.${adminHint}`);
+                        
+                        // Show lobby info if captured
+                        const lobbyMsg = lobby ? `\nLobby captured: ${lobby.title}` : "";
+                        alert(`Captured ${count} tables.${lobbyMsg}${adminHint}`);
+                        
+                        // Store lobby for display (prepend to tableInfo)
+                        if (lobby && lobby.screenshot) {
+                          // Add lobby as first item in tableInfo for display
+                          setTableInfo([lobby, ...tables]);
+                        } else {
+                          setTableInfo(Array.isArray(tables) ? tables : []);
+                        }
                       } else {
                         const errorMsg =
                           result?.error || "Failed to take snapshots.";
@@ -2128,11 +2143,22 @@ function EnhancedDashboardContent() {
 
                       if (result?.success) {
                         const tables = result?.output?.tables || [];
+                        const lobby = result?.output?.lobby || null;
                         const count =
                           result?.output?.count ??
                           (Array.isArray(tables) ? tables.length : 0);
-                        setTableInfo(Array.isArray(tables) ? tables : []);
-                        alert(`Captured ${count} tables.${adminHint}`);
+                        
+                        // Show lobby info if captured
+                        const lobbyMsg = lobby ? `\nLobby captured: ${lobby.title}` : "";
+                        alert(`Captured ${count} tables.${lobbyMsg}${adminHint}`);
+                        
+                        // Store lobby for display (prepend to tableInfo)
+                        if (lobby && lobby.screenshot) {
+                          // Add lobby as first item in tableInfo for display
+                          setTableInfo([lobby, ...tables]);
+                        } else {
+                          setTableInfo(Array.isArray(tables) ? tables : []);
+                        }
                       } else {
                         const errorMsg =
                           result?.error || "Failed to take snapshots.";

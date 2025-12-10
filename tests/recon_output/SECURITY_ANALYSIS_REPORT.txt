@@ -1,0 +1,88 @@
+================================================================================
+              COINPOKER SECURITY ASSESSMENT - SUMMARY
+================================================================================
+
+Date: November 25-26, 2025
+Target: CoinPoker Desktop Client + Backend
+Method: MITM Proxy + UI Automation + API Testing
+
+================================================================================
+                         CRITICAL FINDINGS
+================================================================================
+
+#1 FINGERPRINT SPOOFING [CRITICAL - CVSS 9.1]
+    Endpoint: https://api.coinpokerbackend.com/init/health/update
+    Issue: Server accepts ANY fingerprint data without validation
+    Proof: Sent fake name "Martina" + fake MAC → Server returned 204 OK
+    Impact: Bots can create unlimited fake identities, banned users can evade bans
+
+#2 LEAKED API KEY [HIGH - CVSS 7.5]
+    Amplitude API Key: c912b5a1d84f24785230476f2cc7d46f
+    Source: Public endpoint (no auth required)
+    Impact: Analytics data can be spoofed/poisoned
+
+#3 NO CERTIFICATE PINNING [MEDIUM - CVSS 5.9]
+    Issue: MITM proxy intercepted all encrypted traffic
+    Impact: All game data can be captured (cards, bets visible to attacker)
+
+#4 FULL INFRASTRUCTURE EXPOSED [MEDIUM - CVSS 5.3]
+    - 15 WebSocket servers discovered (proxy1-15.coinpokerbackend.com)
+    - All internal API URLs revealed
+    - Staging domains leaked in CSP headers (*.sbx.bet, coincasino-uat-fe.tgcloud.dev)
+
+#5 CORS WILDCARD [MEDIUM - CVSS 5.4]
+    Issue: Access-Control-Allow-Origin: *
+    Impact: Any website can make API requests
+
+================================================================================
+                       CAPTURED DATA (MITM)
+================================================================================
+
+LOGIN TOKEN:
+  -Ic_mjPCuGirdvhLqbj_zw:uuht8g8YRmJUPOd-2NfriYVXhf3gRGekQ8cC_faQKXY
+
+DEVICE FINGERPRINT (sent in cleartext):
+  nick: FastCarsss
+  os_login_name: jakob
+  mac_addresses: 74:56:3C:30:01:E6
+  router_mac_address: 74:fe:ce:1e:71:30
+  volume_id: F44AB858
+  device_hash: 208D11B651EB02500A2DD5FE320071FE
+
+WEBSOCKET SERVERS:
+  wss://proxy1-15.coinpokerbackend.com:443
+
+API ENDPOINTS ACCESSIBLE (no auth):
+  https://api.coinpokerbackend.com/init/5/en (full config)
+  https://api.coinpokerbackend.com/init/health/update (fingerprint)
+  https://update.coinpokerbackend.com/poker_replayer/
+  https://web.coinpokerbackend.com/authentication
+
+================================================================================
+                         RISK SUMMARY
+================================================================================
+
+  CRITICAL: 1 (Fingerprint spoofing)
+  HIGH:     1 (API key leak)
+  MEDIUM:   3 (No cert pinning, infrastructure exposure, CORS)
+  
+  OVERALL RISK: HIGH
+
+================================================================================
+                       RECOMMENDATIONS
+================================================================================
+
+1. Validate fingerprint data server-side (reject arbitrary values)
+2. Implement certificate pinning in client
+3. Remove API keys from public responses
+4. Fix CORS policy (not wildcard)
+5. Remove staging domains from CSP headers
+
+================================================================================
+                           FILES
+================================================================================
+
+FIRST_TEST/  - Initial reconnaissance results
+2_RUN/       - Explorer test results
+
+================================================================================

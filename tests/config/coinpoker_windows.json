@@ -1,0 +1,29 @@
+{
+  "timestamp": "2025-11-25T22:45:14.146536",
+  "player_name": "NOVEMBER",
+  "lobby": {
+    "hwnd": 657062,
+    "pid": 60180,
+    "process_name": "game.exe",
+    "process_exe": "C:\\CoinPoker\\game.exe",
+    "window_class": "Qt673QWindowIcon",
+    "window_title_pattern": "CoinPoker - Lobby"
+  },
+  "table": {
+    "hwnd": 656260,
+    "pid": 42080,
+    "process_name": "WindowsTerminal.exe",
+    "process_exe": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.23.12811.0_x64__8wekyb3d8bbwe\\WindowsTerminal.exe",
+    "window_class": "CASCADIA_HOSTING_WINDOW_CLASS",
+    "window_title_pattern": "NL.*Hold'em.*Blinds"
+  },
+  "common": {
+    "process_name": "game.exe",
+    "process_path_pattern": "C:\\\\CoinPoker\\\\game\\.exe",
+    "window_class": "Qt673QWindowIcon",
+    "children_processes": [
+      "crashpad_handler.exe",
+      "QtWebEngineProcess.exe"
+    ]
+  }
+}

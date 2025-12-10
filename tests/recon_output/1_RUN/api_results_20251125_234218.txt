@@ -1,0 +1,107 @@
+COINPOKER API ENDPOINT TEST RESULTS
+==================================================
+
+[200] https://api.coinpokerbackend.com/init/5/en
+  Data: {'api_url': 'https://webapi.coinpokerbackend.com/api/v1/auth/service/2/clientlogin', 'update': 'https://update.coinpokerbackend.com/update.php?franchise=coinpoker', 'registration_url': 'https://webapi
+
+[200] https://api.coinpokerbackend.com/init/health/update
+  Data: {'statusCode': 404, 'obj': {'error': {'message': 'Record not found', 'code': 5}}}
+
+[429] https://webapi.coinpokerbackend.com/api/v1/auth/service/2/clientlogin
+
+[404] https://webapi.coinpokerbackend.com/api/v1/auth/register
+
+[404] https://webapi.coinpokerbackend.com/api/v1/auth/passwordReset
+
+[404] https://webapi.coinpokerbackend.com/api/v1/auth/metamask
+
+[401] https://webapi.coinpokerbackend.com/api/v1/auth/confirmation/civic/confirm
+
+[426] https://proxy1.coinpokerbackend.com/
+
+[426] https://proxy2.coinpokerbackend.com/
+
+[426] https://proxy3.coinpokerbackend.com/
+
+[426] https://proxy4.coinpokerbackend.com/
+
+[426] https://proxy5.coinpokerbackend.com/
+
+[426] https://proxy6.coinpokerbackend.com/
+
+[426] https://proxy7.coinpokerbackend.com/
+
+[426] https://proxy8.coinpokerbackend.com/
+
+[426] https://proxy9.coinpokerbackend.com/
+
+[426] https://proxy10.coinpokerbackend.com/
+
+[426] https://proxy11.coinpokerbackend.com/
+
+[426] https://proxy12.coinpokerbackend.com/
+
+[426] https://proxy13.coinpokerbackend.com/
+
+[426] https://proxy14.coinpokerbackend.com/
+
+[426] https://proxy15.coinpokerbackend.com/
+
+[200] https://update.coinpokerbackend.com/update.php?franchise=coinpoker
+
+[200] https://update.coinpokerbackend.com/support/
+  Data: {'status': 'failed'}
+
+[200] https://update.coinpokerbackend.com/poker_replayer/index.php
+  Data: <!DOCTYPE html>
+<html style="overflow-y: hidden; overflow-x: hidden;">
+    <head>
+        <meta charset="UTF-8">
+        <!--<meta name="viewport" content="user-scalable=0, initial-scale=0.4, maxi
+
+[200] https://web.coinpokerbackend.com/civic_auth/index.html
+  Data: <!DOCTYPE html>
+<html>
+<link rel="stylesheet" href="https://hosted-sip.civic.com/css/civic-modal.min.css">
+<!--<script src="polyfill.min.js"></script>-->
+<script src="https://cdnjs.cloudflare.com/ajax
+
+[200] https://web.coinpokerbackend.com/authentication
+  Data: <!DOCTYPE html><html lang="en"><head>
+  <meta charset="utf-8">
+  <title>CoinPoker</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, u
+
+[200] https://web.coinpokerbackend.com/authenticate/metamask
+  Data: <!DOCTYPE html><html lang="en"><head>
+  <meta charset="utf-8">
+  <title>CoinPoker</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, u
+
+[404] https://mtt-players.coinpokerbackend.com/tours/
+
+[200] https://update.coinpoker.com/assets/
+
+[200] https://update.coinpoker.com/assets/banners/
+
+[200] https://update.coinpoker.com/assets/sliders/
+
+[200] https://api.amplitude.com/2/httpapi
+
+[None] https://coinpoker.com/
+  Error: Connection Error
+
+[None] https://coinpoker.com/api/
+  Error: Connection Error
+
+[None] https://coinpoker.com/promotions/
+  Error: Connection Error
+
+[None] https://coinpoker.com/robots.txt
+  Error: Connection Error
+
+[None] https://coinpoker.com/.well-known/
+  Error: Connection Error
+

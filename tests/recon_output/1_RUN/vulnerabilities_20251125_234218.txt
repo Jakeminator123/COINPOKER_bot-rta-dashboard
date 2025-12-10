@@ -1,0 +1,21 @@
+COINPOKER SECURITY VULNERABILITY REPORT
+==================================================
+
+[MEDIUM] VULN-001: No Certificate Pinning
+  CVSS: 5.9
+  Description: Application does not implement certificate pinning
+  Impact: MITM attacks can intercept all encrypted traffic
+  Remediation: Implement certificate pinning in the client
+
+[LOW] VULN-002: UI Automation Accessible
+  CVSS: 3.3
+  Description: All UI elements accessible via Windows Automation
+  Impact: Sensitive data can be read programmatically
+  Remediation: Implement UI element obfuscation for sensitive data
+
+[MEDIUM] VULN-004: API Information Disclosure
+  CVSS: 5.3
+  Description: 7 API endpoints exposing data
+  Impact: Internal information may be leaked
+  Remediation: Implement proper authentication and rate limiting
+

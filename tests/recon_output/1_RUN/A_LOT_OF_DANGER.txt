@@ -1,0 +1,268 @@
+PowerShell 7.5.4
+PS C:\Users\Propietario\Desktop\detector\tests> .\run_full_recon.bat
+
+============================================================
+  COINPOKER AGGRESSIVE RECONNAISSANCE
+  Security Stress Testing Tool
+============================================================
+
+[ADMIN] Running with administrator privileges
+[!!] CoinPoker is NOT running
+     Please start CoinPoker first!
+
+Press any key to continue . . .
+PS C:\Users\Propietario\Desktop\detector\tests> .\run_full_recon.bat
+
+============================================================
+  COINPOKER AGGRESSIVE RECONNAISSANCE
+  Security Stress Testing Tool
+============================================================
+
+[ADMIN] Running with administrator privileges
+[OK] CoinPoker is running
+
+============================================================
+  PHASES:
+  1. UI Element Extraction (nickname, email, balance)
+  2. Network Connection Analysis
+  3. API Endpoint Stress Testing
+  4. Memory String Scanning
+  5. MITM Proxy (optional)
+  6. Security Vulnerability Analysis
+============================================================
+
+Press any key to start reconnaissance...
+
+======================================================================
+  🔥 COINPOKER SECURITY TESTING 🔥
+======================================================================
+
+  OPTIONS:
+  1. Run reconnaissance only (safe)
+  2. Run with MITM proxy (aggressive)
+  3. Test fingerprint spoofing (send fake identity)
+  4. Full test (recon + spoofing)
+======================================================================
+
+Select [1/2/3/4] (default=1): 4
+
+======================================================================
+  🎭 FINGERPRINT SPOOFING TEST
+======================================================================
+
+  This will send FAKE fingerprint data to CoinPoker's health endpoint.
+  The server should NOT accept arbitrary data, but it does!
+
+  Enter fake name (e.g. 'Martina'): Martina
+
+  📤 Sending fake fingerprint:
+     os_login_name: Martina
+     mac_addresses: AA:BB:CC:DD:EE:FF
+     router_mac: 11:22:33:44:55:66
+     volume_id: FAKEVOLUME
+
+  📥 Response: 204
+
+  ⚠️  SERVER ACCEPTED FAKE FINGERPRINT DATA!
+  ⚠️  This is a SECURITY VULNERABILITY!
+  ⚠️  CoinPoker now thinks your name is 'Martina'
+
+  IMPACT:
+    - Bots can spoof their identity
+    - Users can evade device bans
+    - Fingerprint-based detection is bypassable
+
+======================================================================
+  Press Enter to continue...
+
+======================================================================
+  🔥 COINPOKER AGGRESSIVE RECONNAISSANCE 🔥
+  Security Stress Testing Tool
+======================================================================
+  Admin Mode: YES ✅
+======================================================================
+
+[23:40:20] ℹ️ Searching for CoinPoker...
+[23:40:20] ✅ Found: PID 28228 | 288.9 MB
+[23:40:20] ℹ️
+============================================================
+[23:40:20] 🔥 PHASE 1: UI ELEMENT EXTRACTION
+[23:40:20] ℹ️ ============================================================
+[23:40:20] ℹ️
+Window: 'CoinPoker - Lobby'
+[23:40:20] 📊   nickname: Balance
+[23:40:20] 📊   balance: ₮0.00
+[23:40:20] 📊   chp_balance: 0.00 CHP
+[23:40:20] 📊   players_visible: ['JLO123', 'Scern3', 'Sirnilsson0', 'WhalePerkins', 'hastex', 'AirStrike', 'Linear']
+[23:40:20] 📊   tables: ['NL ₮25 Fast & Furious', 'NL ₮5 Fast & Furious II', 'NL ₮2 Fast & Furious', 'NL ₮100 Fast & Furious', 'NL ₮200 VI', 'NL ₮200 V', 'NL ₮200 IV', 'NL ₮200 III', 'NL ₮200 II', 'NL ₮200', 'NL ₮100 VII', 'NL ₮100 IV', 'NL ₮100 II', 'NL ₮100', 'NL ₮50 IV', 'NL ₮50 II', 'NL ₮50']
+[23:40:20] 📊   total_elements: 131
+[23:40:20] ℹ️
+Window: 'NL ₮200 VI - NL Hold'em - Blinds ₮1.00/₮2.00 Ante ₮0.20'
+[23:40:20] 📊   nickname: Leaderboard
+[23:40:20] 📊   total_elements: 6
+[23:40:20] ℹ️
+============================================================
+[23:40:20] 🌐 PHASE 2: NETWORK CONNECTION ANALYSIS
+[23:40:20] ℹ️ ============================================================
+[23:40:25] 🌐   🔒 172.66.147.172:443 (unknown) - ESTABLISHED
+[23:40:29] 🌐   🔒 104.20.46.242:443 (unknown) - ESTABLISHED
+[23:40:34] 🌐   🔒 185.43.182.26:443 (unknown) - ESTABLISHED
+[23:40:38] 🌐   🔒 172.66.147.172:443 (unknown) - ESTABLISHED
+[23:40:38] 🌐   🔒 34.215.226.103:443 (ec2-34-215-226-103.us-west-2.compute.amazonaws.com) - ESTABLISHED
+[23:40:43] 🌐   🔒 5.255.145.65:443 (unknown) - ESTABLISHED
+[23:40:43] 🌐   🔒 34.120.62.213:443 (213.62.120.34.bc.googleusercontent.com) - ESTABLISHED
+[23:40:48] 🌐   🔒 172.66.147.172:443 (unknown) - ESTABLISHED
+[23:40:52] 🌐   🔒 5.255.145.65:443 (unknown) - ESTABLISHED
+[23:40:52] 🌐   🔒 142.250.200.142:443 (mad41s14-in-f14.1e100.net) - ESTABLISHED
+[23:40:57] 🌐   🔒 104.20.46.242:443 (unknown) - ESTABLISHED
+[23:40:57] ℹ️
+============================================================
+[23:40:57] 🔥 PHASE 3A: TESTING DISCOVERED API ENDPOINTS
+[23:40:57] ℹ️ ============================================================
+[23:40:57] 🔥
+🔥 Fetching server configuration...
+[23:40:57] ✅   ✅ Got server config!
+[23:40:57] 📊      API URL: https://webapi.coinpokerbackend.com/api/v1/auth/service/2/clientlogin
+[23:40:57] 📊      Features: ['GamePoker', 'Cashier', 'Support', 'SportsBook']
+[23:40:57] 📊      WebSocket Servers: 15
+[23:40:57] 📊        - wss://proxy1.coinpokerbackend.com:443
+[23:40:57] 📊        - wss://proxy10.coinpokerbackend.com:443
+[23:40:57] 📊        - wss://proxy2.coinpokerbackend.com:443
+[23:40:57] 📊        ... and 12 more
+[23:40:57] 📊      Internal URLs discovered:
+[23:40:57] 📊        CivicAuthUrl: https://web.coinpokerbackend.com/civic_auth/index....
+[23:40:57] 📊        CivicConfirmationUrl: https://webapi.coinpokerbackend.com/api/v1/auth/co...
+[23:40:57] 📊        LoginUrl: https://webapi.coinpokerbackend.com/api/v1/auth/se...
+[23:40:57] 📊        RegisterUrl: https://webapi.coinpokerbackend.com/api/v1/auth/re...
+[23:40:57] 📊        PasswordResetUrl: https://webapi.coinpokerbackend.com/api/v1/auth/pa...
+[23:40:57] 🔥
+🔥 Testing auth endpoints...
+[23:40:58] 📊   Auth endpoint response: 401
+[23:40:58] 🔥
+🔥 Testing health/fingerprint endpoint...
+[23:40:59] 📊   Health endpoint response: 204
+[23:40:59] ⚠️   ⚠️ Health endpoint accepts arbitrary fingerprint data!
+[23:40:59] 🔥
+🔥 Testing tournament endpoints...
+[23:40:59] 📊   Tournament endpoint: 404
+[23:40:59] ✅ Discovered APIs saved: C:\Users\Propietario\Desktop\detector\tests\recon_output\discovered_apis_20251125_234059.json
+[23:40:59] ✅ Discovered APIs (readable): C:\Users\Propietario\Desktop\detector\tests\recon_output\discovered_apis_20251125_234059.txt
+[23:40:59] ℹ️
+============================================================
+[23:40:59] 🔌 PHASE 3B: API ENDPOINT STRESS TESTING
+[23:40:59] ℹ️ ============================================================
+[23:40:59] ℹ️
+Testing all endpoints...
+[23:41:00] ✅   ✅ 200 https://api.coinpokerbackend.com/init/5/en
+[23:41:01] ✅   ✅ 200 https://api.coinpokerbackend.com/init/health/update
+[23:41:03] ⚠️   ❌ 429 https://webapi.coinpokerbackend.com/api/v1/auth/service/2/clientlogin
+[23:41:05] ℹ️   ⚪ 404 https://webapi.coinpokerbackend.com/api/v1/auth/register
+[23:41:08] ℹ️   ⚪ 404 https://webapi.coinpokerbackend.com/api/v1/auth/passwordReset
+[23:41:10] ℹ️   ⚪ 404 https://webapi.coinpokerbackend.com/api/v1/auth/metamask
+[23:41:13] ⚠️   ❌ 401 https://webapi.coinpokerbackend.com/api/v1/auth/confirmation/civic/confirm
+[23:41:15] ⚠️   ❌ 426 https://proxy1.coinpokerbackend.com/
+[23:41:18] ⚠️   ❌ 426 https://proxy2.coinpokerbackend.com/
+[23:41:21] ⚠️   ❌ 426 https://proxy3.coinpokerbackend.com/
+[23:41:23] ⚠️   ❌ 426 https://proxy4.coinpokerbackend.com/
+[23:41:26] ⚠️   ❌ 426 https://proxy5.coinpokerbackend.com/
+[23:41:28] ⚠️   ❌ 426 https://proxy6.coinpokerbackend.com/
+[23:41:31] ⚠️   ❌ 426 https://proxy7.coinpokerbackend.com/
+[23:41:34] ⚠️   ❌ 426 https://proxy8.coinpokerbackend.com/
+[23:41:36] ⚠️   ❌ 426 https://proxy9.coinpokerbackend.com/
+[23:41:39] ⚠️   ❌ 426 https://proxy10.coinpokerbackend.com/
+[23:41:42] ⚠️   ❌ 426 https://proxy11.coinpokerbackend.com/
+[23:41:44] ⚠️   ❌ 426 https://proxy12.coinpokerbackend.com/
+[23:41:47] ⚠️   ❌ 426 https://proxy13.coinpokerbackend.com/
+[23:41:50] ⚠️   ❌ 426 https://proxy14.coinpokerbackend.com/
+[23:41:53] ⚠️   ❌ 426 https://proxy15.coinpokerbackend.com/
+[23:41:53] ✅   ✅ 200 https://update.coinpokerbackend.com/update.php?franchise=coinpoker
+[23:41:54] ✅   ✅ 200 https://update.coinpokerbackend.com/support/
+[23:41:55] ✅   ✅ 200 https://update.coinpokerbackend.com/poker_replayer/index.php
+[23:41:55] ✅   ✅ 200 https://web.coinpokerbackend.com/civic_auth/index.html
+[23:41:56] ✅   ✅ 200 https://web.coinpokerbackend.com/authentication
+[23:41:57] ✅   ✅ 200 https://web.coinpokerbackend.com/authenticate/metamask
+[23:41:59] ℹ️   ⚪ 404 https://mtt-players.coinpokerbackend.com/tours/
+[23:42:01] ✅   ✅ 200 https://update.coinpoker.com/assets/
+[23:42:03] ✅   ✅ 200 https://update.coinpoker.com/assets/banners/
+[23:42:05] ✅   ✅ 200 https://update.coinpoker.com/assets/sliders/
+[23:42:08] ✅   ✅ 200 https://api.amplitude.com/2/httpapi
+[23:42:10] ⚠️   ❌ None https://coinpoker.com/
+[23:42:12] ⚠️   ❌ None https://coinpoker.com/api/
+[23:42:14] ⚠️   ❌ None https://coinpoker.com/promotions/
+[23:42:16] ⚠️   ❌ None https://coinpoker.com/robots.txt
+[23:42:18] ⚠️   ❌ None https://coinpoker.com/.well-known/
+[23:42:18] ✅ Full API responses saved: C:\Users\Propietario\Desktop\detector\tests\recon_output\api_full_responses_20251125_234218.txt
+[23:42:18] 📊
+API Summary: 12/38 endpoints accessible
+[23:42:18] ℹ️
+============================================================
+[23:42:18] 🔥 PHASE 4: MEMORY STRING SCANNING
+[23:42:18] ℹ️ ============================================================
+[23:42:18] ℹ️ Memory scan complete (limited without kernel access)
+[23:42:18] ℹ️
+============================================================
+[23:42:18] 🔥 PHASE 6: SECURITY VULNERABILITY ANALYSIS
+[23:42:18] ℹ️ ============================================================
+[23:42:18] ⚠️   [MEDIUM] No certificate pinning detected
+[23:42:18] ⚠️   [LOW] UI Automation fully accessible
+[23:42:18] ⚠️   [MEDIUM] 7 API endpoints expose data
+
+======================================================================
+  AGGRESSIVE RECONNAISSANCE REPORT
+======================================================================
+
+╔══════════════════════════════════════════════════════════════════════╗
+║  COINPOKER SECURITY ASSESSMENT                                       ║
+╠══════════════════════════════════════════════════════════════════════╣
+║  PROCESS                                                             ║
+║    PID: 28228                                                       ║
+║    Admin Mode: YES                                                  ║
+║                                                                      ║
+║  EXTRACTED DATA                                                      ║
+║    Nickname: Leaderboard                                             ║
+║    Email: N/A                                                        ║
+║    Balance: ₮0.00                                                    ║
+║    Tables Found: 17                                                 ║
+║    Players Visible: 7                                               ║
+║                                                                      ║
+║  NETWORK                                                             ║
+║    Active Connections: 11                                           ║
+║    Unique Endpoints: 7                                              ║
+║                                                                      ║
+║  API TESTING                                                         ║
+║    Endpoints Tested: 38                                             ║
+║    Accessible (200): 12                                             ║
+║                                                                      ║
+║  SECURITY FINDINGS                                                   ║
+║    Critical: 0                                                       ║
+║    High: 0                                                            ║
+║    Medium: 2                                                          ║
+║    Low: 1                                                             ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+[23:42:18] ✅ Full report: C:\Users\Propietario\Desktop\detector\tests\recon_output\aggressive_recon_20251125_234218.json
+[23:42:18] ✅ Vulnerability report: C:\Users\Propietario\Desktop\detector\tests\recon_output\vulnerabilities_20251125_234218.txt
+[23:42:18] ✅ API results: C:\Users\Propietario\Desktop\detector\tests\recon_output\api_results_20251125_234218.txt
+[23:42:18] ✅ 📋 COMPLETE LOG: C:\Users\Propietario\Desktop\detector\tests\recon_output\COMPLETE_LOG_20251125_234218.txt
+
+======================================================================
+  ✅ RECONNAISSANCE COMPLETE
+  📁 Results saved to: tests/recon_output/
+======================================================================
+
+
+============================================================
+  RESULTS SAVED TO: tests\recon_output\
+============================================================
+
+Generated files:
+aggressive_recon_20251125_234218.json
+discovered_apis_20251125_234059.json
+api_full_responses_20251125_234218.txt
+api_results_20251125_234218.txt
+COMPLETE_LOG_20251125_234218.txt
+discovered_apis_20251125_234059.txt
+vulnerabilities_20251125_234218.txt
+
+Press any key to continue . . .
+Terminate batch job (Y/N)?

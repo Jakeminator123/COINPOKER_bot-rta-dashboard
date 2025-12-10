@@ -1,0 +1,804 @@
+================================================================================
+COINPOKER COMPLETE SECURITY ASSESSMENT LOG
+Generated: 2025-11-25T23:42:18.808019
+================================================================================
+
+PROCESS INFORMATION:
+----------------------------------------
+{
+  "pid": 28228,
+  "exe": "C:\\CoinPoker\\game.exe",
+  "memory_mb": 288.9,
+  "threads": 102,
+  "children": [
+    "crashpad_handler.exe",
+    "QtWebEngineProcess.exe"
+  ]
+}
+
+UI DATA EXTRACTED:
+----------------------------------------
+{
+  "CoinPoker - Lobby": {
+    "nickname": "Balance",
+    "balance": "\u20ae0.00",
+    "chp_balance": "0.00 CHP",
+    "players_visible": [
+      "JLO123",
+      "Scern3",
+      "Sirnilsson0",
+      "WhalePerkins",
+      "hastex",
+      "AirStrike",
+      "Linear"
+    ],
+    "tables": [
+      "NL \u20ae25 Fast & Furious",
+      "NL \u20ae5 Fast & Furious II",
+      "NL \u20ae2 Fast & Furious",
+      "NL \u20ae100 Fast & Furious",
+      "NL \u20ae200 VI",
+      "NL \u20ae200 V",
+      "NL \u20ae200 IV",
+      "NL \u20ae200 III",
+      "NL \u20ae200 II",
+      "NL \u20ae200",
+      "NL \u20ae100 VII",
+      "NL \u20ae100 IV",
+      "NL \u20ae100 II",
+      "NL \u20ae100",
+      "NL \u20ae50 IV",
+      "NL \u20ae50 II",
+      "NL \u20ae50"
+    ],
+    "total_elements": 131
+  },
+  "NL \u20ae200 VI - NL Hold'em - Blinds \u20ae1.00/\u20ae2.00 Ante \u20ae0.20": {
+    "nickname": "Leaderboard",
+    "total_elements": 6
+  }
+}
+
+NETWORK CONNECTIONS:
+----------------------------------------
+{
+  "connections": [
+    {
+      "ip": "172.66.147.172",
+      "port": 443,
+      "hostname": "unknown",
+      "status": "ESTABLISHED",
+      "encrypted": true
+    },
+    {
+      "ip": "104.20.46.242",
+      "port": 443,
+      "hostname": "unknown",
+      "status": "ESTABLISHED",
+      "encrypted": true
+    },
+    {
+      "ip": "185.43.182.26",
+      "port": 443,
+      "hostname": "unknown",
+      "status": "ESTABLISHED",
+      "encrypted": true
+    },
+    {
+      "ip": "172.66.147.172",
+      "port": 443,
+      "hostname": "unknown",
+      "status": "ESTABLISHED",
+      "encrypted": true
+    },
+    {
+      "ip": "34.215.226.103",
+      "port": 443,
+      "hostname": "ec2-34-215-226-103.us-west-2.compute.amazonaws.com",
+      "status": "ESTABLISHED",
+      "encrypted": true
+    },
+    {
+      "ip": "5.255.145.65",
+      "port": 443,
+      "hostname": "unknown",
+      "status": "ESTABLISHED",
+      "encrypted": true
+    },
+    {
+      "ip": "34.120.62.213",
+      "port": 443,
+      "hostname": "213.62.120.34.bc.googleusercontent.com",
+      "status": "ESTABLISHED",
+      "encrypted": true
+    },
+    {
+      "ip": "172.66.147.172",
+      "port": 443,
+      "hostname": "unknown",
+      "status": "ESTABLISHED",
+      "encrypted": true
+    },
+    {
+      "ip": "5.255.145.65",
+      "port": 443,
+      "hostname": "unknown",
+      "status": "ESTABLISHED",
+      "encrypted": true
+    },
+    {
+      "ip": "142.250.200.142",
+      "port": 443,
+      "hostname": "mad41s14-in-f14.1e100.net",
+      "status": "ESTABLISHED",
+      "encrypted": true
+    },
+    {
+      "ip": "104.20.46.242",
+      "port": 443,
+      "hostname": "unknown",
+      "status": "ESTABLISHED",
+      "encrypted": true
+    }
+  ],
+  "endpoints": {
+    "172.66.147.172": {
+      "hostname": "unknown",
+      "ports": [
+        443
+      ]
+    },
+    "104.20.46.242": {
+      "hostname": "unknown",
+      "ports": [
+        443
+      ]
+    },
+    "185.43.182.26": {
+      "hostname": "unknown",
+      "ports": [
+        443
+      ]
+    },
+    "34.215.226.103": {
+      "hostname": "ec2-34-215-226-103.us-west-2.compute.amazonaws.com",
+      "ports": [
+        443
+      ]
+    },
+    "5.255.145.65": {
+      "hostname": "unknown",
+      "ports": [
+        443
+      ]
+    },
+    "34.120.62.213": {
+      "hostname": "213.62.120.34.bc.googleusercontent.com",
+      "ports": [
+        443
+      ]
+    },
+    "142.250.200.142": {
+      "hostname": "mad41s14-in-f14.1e100.net",
+      "ports": [
+        443
+      ]
+    }
+  },
+  "total": 11
+}
+
+DISCOVERED APIS (FULL DATA):
+----------------------------------------
+{
+  "server_config": {
+    "api_url": "https://webapi.coinpokerbackend.com/api/v1/auth/service/2/clientlogin",
+    "update": "https://update.coinpokerbackend.com/update.php?franchise=coinpoker",
+    "registration_url": "https://webapi.coinpokerbackend.com/api/v1/auth/register",
+    "support_url": "https://update.coinpokerbackend.com/support/",
+    "web_replayer_url": "https://update.coinpokerbackend.com/poker_replayer/index.php?skin=5&deck_front=3&deck_back=5",
+    "banner": [
+      {
+        "image": "https://update.coinpoker.com/assets/banners/image.png",
+        "link": "https://coinpoker.com/promotions/weekly-tournament-leaderboards/?token=_RSer1OFMqeYfTc2oLv0K2Nd7ZgqdRLk",
+        "link_title": "",
+        "message_title": "",
+        "message_description": ""
+      },
+      {
+        "image": "https://update.coinpoker.com/assets/banners/Rakeback - Footer Banner.png",
+        "link": "https://coinpoker.com/promotions/rakeback/",
+        "link_title": "",
+        "message_title": "",
+        "message_description": ""
+      },
+      {
+        "image": "https://update.coinpoker.com/assets/banners/Casino LB.png",
+        "link": "https://coinpoker.com/promotions/casino-leaderboard/",
+        "link_title": "",
+        "message_title": "",
+        "message_description": ""
+      },
+      {
+        "image": "https://update.coinpoker.com/assets/banners/LobbyConraces_250x250.jpg",
+        "link": "https://coinpoker.com/promotions/coinraces/",
+        "link_title": "",
+        "message_title": "",
+        "message_description": ""
+      },
+      {
+        "image": "https://update.coinpoker.com/assets/banners/Lobby Bottom Right Banner 250x250.jpg",
+        "link": "https://coinpoker.com/promotions/coinmasters-asia/",
+        "link_title": "",
+        "message_title": "",
+        "message_description": ""
+      },
+      {
+        "image": "https://update.coinpoker.com/assets/banners/coinmasters_rep_250x250_Square (1).png",
+        "link": "https://coinpoker.com/promotions/coinmasters/",
+        "link_title": "",
+        "message_title": "",
+        "message_description": ""
+      },
+      {
+        "image": "https://update.coinpoker.com/assets/banners/CGWC-HS-Lobby250x250-Graphic.jpg",
+        "link": "https://coinpoker.com/promotions/cgwc/high-stakes/",
+        "link_title": "",
+        "message_title": "",
+        "message_description": ""
+      },
+      {
+        "image": "https://update.coinpoker.com/assets/banners/[Graphics][CGWC] PLO AfterPartyCampaign-Lobby-Bottom-Right-250x250.jpg",
+        "link": "https://coinpoker.com/promotions/cgwc/plo/",
+        "link_title": "",
+        "message_title": "",
+        "message_description": ""
+      },
+      {
+        "image": "https://update.coinpoker.com/assets/banners/Lobby Bottom Right Banner_250x250.jpg",
+        "link": "https://coinpoker.com/promotions/black-friday-cyber-monday/",
+        "link_title": "",
+        "message_title": "",
+        "message_description": ""
+      },
+      {
+        "image": "https://update.coinpoker.com/assets/banners/Sports Book 250x250.jpg",
+        "link": "https://coinpoker.com/promotions/bet-combination-boost/",
+        "link_title": "",
+        "message_title": "",
+        "message_description": ""
+      }
+    ],
+    "slider": [
+      {
+        "image": "https://update.coinpoker.com/assets/sliders/Login Lobby Banner Image_1500x1500-min (1).jpg",
+        "mobile_image": "https://update.coinpoker.com/assets/sliders/Cyberstacks.jpg",
+        "link": "https://coinpoker.com/promotions/black-friday-cyber-monday/",
+        "link_title": "Full details! ",
+        "text": "<span style=\"font-size: 33px; TEXT-transform: uppercase;\"><b></b></span><br><br><span style=\"font-size: 13px\"></span>",
+        "message_title": "",
+        "message_description": ""
+      },
+      {
+        "image": "https://update.coinpoker.com/assets/sliders/CGWC-HS-Login-Lobby-Banner-min.jpg",
+        "mobile_image": "https://update.coinpoker.com/assets/sliders/CGWC.jpg",
+        "link": "https://coinpoker.com/promotions/cgwc/high-stakes/",
+        "link_title": "Full details! ",
+        "text": "<span style=\"font-size: 33px; TEXT-transform: uppercase;\"><b></b></span><br><br><span style=\"font-size: 13px\"></span>",
+        "message_title": "",
+        "message_description": ""
+      },
+      {
+        "image": "https://update.coinpoker.com/assets/sliders/Login Lobby Banner Image - 1500x1500 (1)-min.jpg",
+        "mobile_image": "https://update.coinpoker.com/assets/sliders/CoinMastersAsia.jpg",
+        "link": "https://coinpoker.com/promotions/coinmasters-asia/",
+        "link_title": "Full details! ",
+        "text": "<span style=\"font-size: 33px; TEXT-transform: uppercase;\"><b></b></span><br><br><span style=\"font-size: 13px\"></span>",
+        "message_title": "",
+        "message_description": ""
+      },
+      {
+        "image": "https://update.coinpoker.com/assets/sliders/Login Lobby Banner Image_1500x1500.jpg",
+        "mobile_image": "https://update.coinpoker.com/assets/sliders/CoinRaces.jpg",
+        "link": "https://coinpoker.com/promotions/coinraces/",
+        "link_title": "Full details! ",
+        "text": "<span style=\"font-size: 33px; TEXT-transform: uppercase;\"><b></b></span><br><br><span style=\"font-size: 13px\"></span>",
+        "message_title": "",
+        "message_description": ""
+      }
+    ],
+    "notification_message": "",
+    "ofcp_initial_admin_message_regular": null,
+    "ofcp_initial_admin_message_tournament": null,
+    "features": [
+      "GamePoker",
+      "Cashier",
+      "Support",
+      "SportsBook"
+    ],
+    "serverlist": [
+      {
+        "ip": "wss://proxy1.coinpokerbackend.com",
+        "port": 443
+      },
+      {
+        "ip": "wss://proxy10.coinpokerbackend.com",
+        "port": 443
+      },
+      {
+        "ip": "wss://proxy2.coinpokerbackend.com",
+        "port": 443
+      },
+      {
+        "ip": "wss://proxy3.coinpokerbackend.com",
+        "port": 443
+      },
+      {
+        "ip": "wss://proxy13.coinpokerbackend.com",
+        "port": 443
+      },
+      {
+        "ip": "wss://proxy4.coinpokerbackend.com",
+        "port": 443
+      },
+      {
+        "ip": "wss://proxy5.coinpokerbackend.com",
+        "port": 443
+      },
+      {
+        "ip": "wss://proxy6.coinpokerbackend.com",
+        "port": 443
+      },
+      {
+        "ip": "wss://proxy7.coinpokerbackend.com",
+        "port": 443
+      },
+      {
+        "ip": "wss://proxy8.coinpokerbackend.com",
+        "port": 443
+      },
+      {
+        "ip": "wss://proxy9.coinpokerbackend.com",
+        "port": 443
+      },
+      {
+        "ip": "wss://proxy11.coinpokerbackend.com",
+        "port": 443
+      },
+      {
+        "ip": "wss://proxy12.coinpokerbackend.com",
+        "port": 443
+      },
+      {
+        "ip": "wss://proxy14.coinpokerbackend.com",
+        "port": 443
+      },
+      {
+        "ip": "wss://proxy15.coinpokerbackend.com",
+        "port": 443
+      }
+    ],
+    "provider_properties": {
+      "CivicAuthUrl": "https://web.coinpokerbackend.com/civic_auth/index.html",
+      "CivicConfirmationUrl": "https://webapi.coinpokerbackend.com/api/v1/auth/confirmation/civic/confirm",
+      "LoginUrl": "https://webapi.coinpokerbackend.com/api/v1/auth/service/2/clientlogin",
+      "RegisterUrl": "https://webapi.coinpokerbackend.com/api/v1/auth/register",
+      "PasswordResetUrl": "https://webapi.coinpokerbackend.com/api/v1/auth/passwordReset",
+      "AuthenticationUrl": "https://web.coinpokerbackend.com/authentication?token=",
+      "PingStatsTargets": "google.com amazon.com coinpoker.com",
+      "HealthInfoUrl": "https://api.coinpokerbackend.com/init/health/update",
+      "MetamaskFrontendUrl": "https://web.coinpokerbackend.com/authenticate/metamask",
+      "MetamaskApiUrl": "https://webapi.coinpokerbackend.com/api/v1/auth/metamask",
+      "TournamentPlayerListUrl": "https://mtt-players.coinpokerbackend.com/tours/",
+      "AppsflyerAppId": "coinpoker",
+      "AmplitudeApiUrl": "https://api.amplitude.com/2/httpapi",
+      "AmplitudeApiKey": "c912b5a1d84f24785230476f2cc7d46f",
+      "CashLeaderboardUrl": "https://coinpoker.com/promotions/coinraces/?token=_RSer1OFMqeYfTc2oLv0K2Nd7ZgqdRLk",
+      "MttLeaderboardUrl": "https://coinpoker.com/promotions/weekly-tournament-leaderboard/"
+    }
+  },
+  "auth_response": {
+    "status": 401,
+    "headers": {
+      "Date": "Tue, 25 Nov 2025 22:40:59 GMT",
+      "Content-Length": "12",
+      "Connection": "keep-alive",
+      "Server": "cloudflare",
+      "X-Powered-By": "Express",
+      "Access-Control-Allow-Origin": "*",
+      "WWW-Authenticate": "Basic realm=\"Users\"",
+      "cf-cache-status": "DYNAMIC",
+      "CF-RAY": "9a44a6a24e53cbca-MAD"
+    }
+  },
+  "health_response": {
+    "status": 204,
+    "accepts_arbitrary_data": true
+  },
+  "tournament_response": 404
+}
+
+ALL API TEST RESULTS:
+----------------------------------------
+
+[200] https://api.coinpokerbackend.com/init/5/en
+{
+  "api_url": "https://webapi.coinpokerbackend.com/api/v1/auth/service/2/clientlogin",
+  "update": "https://update.coinpokerbackend.com/update.php?franchise=coinpoker",
+  "registration_url": "https://webapi.coinpokerbackend.com/api/v1/auth/register",
+  "support_url": "https://update.coinpokerbackend.com/support/",
+  "web_replayer_url": "https://update.coinpokerbackend.com/poker_replayer/index.php?skin=5&deck_front=3&deck_back=5",
+  "banner": [
+    {
+      "image": "https://update.coinpoker.com/assets/banners/image.png",
+      "link": "https://coinpoker.com/promotions/weekly-tournament-leaderboards/?token=_RSer1OFMqeYfTc2oLv0K2Nd7ZgqdRLk",
+      "link_title": "",
+      "message_title": "",
+      "message_description": ""
+    },
+    {
+      "image": "https://update.coinpoker.com/assets/banners/Rakeback - Footer Banner.png",
+      "link": "https://coinpoker.com/promotions/rakeback/",
+      "link_title": "",
+      "message_title": "",
+      "message_description": ""
+    },
+    {
+      "image": "https://update.coinpoker.com/assets/banners/Casino LB.png",
+      "link": "https://coinpoker.com/promotions/casino-leaderboard/",
+      "link_title": "",
+      "message_title": "",
+      "message_description": ""
+    },
+    {
+      "image": "https://update.coinpoker.com/assets/banners/LobbyConraces_250x250.jpg",
+      "link": "https://coinpoker.com/promotions/coinraces/",
+      "link_title": "",
+      "message_title": "",
+      "message_description": ""
+    },
+    {
+      "image": "https://update.coinpoker.com/assets/banners/Lobby Bottom Right Banner 250x250.jpg",
+      "link": "https://coinpoker.com/promotions/coinmasters-asia/",
+      "link_title": "",
+      "message_title": "",
+      "message_description": ""
+    },
+    {
+      "image": "https://update.coinpoker.com/assets/banners/coinmasters_rep_250x250_Square (1).png",
+      "link": "https://coinpoker.com/promotions/coinmasters/",
+      "link_title": "",
+      "message_title": "",
+      "message_description": ""
+    },
+    {
+      "image": "https://update.coinpoker.com/assets/banners/CGWC-HS-Lobby250x250-Graphic.jpg",
+      "link": "https://coinpoker.com/promotions/cgwc/high-stakes/",
+      "link_title": "",
+      "message_title": "",
+      "message_description": ""
+    },
+    {
+      "image": "https://update.coinpoker.com/assets/banners/[Graphics][CGWC] PLO AfterPartyCampaign-Lobby-Bottom-Right-250x250.jpg",
+      "link": "https://coinpoker.com/promotions/cgwc/plo/",
+      "link_title": "",
+      "message_title": "",
+      "message_description": ""
+    },
+    {
+      "image": "https://update.coinpoker.com/assets/banners/Lobby Bottom Right Banner_250x250.jpg",
+      "link": "https://coinpoker.com/promotions/black-friday-cyber-monday/",
+      "link_title": "",
+      "message_title": "",
+      "message_description": ""
+    },
+    {
+      "image": "https://update.coinpoker.com/assets/banners/Sports Book 250x250.jpg",
+      "link": "https://coinpoker.com/promotions/bet-combination-boost/",
+      "link_title": "",
+      "message_title": "",
+      "message_description": ""
+    }
+  ],
+  "slider": [
+    {
+      "image": "https://update.coinpoker.com/assets/sliders/Login Lobby Banner Image_1500x1500-min (1).jpg",
+      "mobile_image": "https://update.coinpoker.com/assets/sliders/Cyberstacks.jpg",
+      "link": "https://coinpoker.com/promotions/black-friday-cyber-monday/",
+      "link_title": "Full details! ",
+      "text": "<span style=\"font-size: 33px; TEXT-transform: uppercase;\"><b></b></span><br><br><span style=\"font-size: 13px\"></span>",
+      "message_title": "",
+      "message_description": ""
+    },
+    {
+      "image": "https://update.coinpoker.com/assets/sliders/CGWC-HS-Login-Lobby-Banner-min.jpg",
+      "mobile_image": "https://update.coinpoker.com/assets/sliders/CGWC.jpg",
+      "link": "https://coinpoker.com/promotions/cgwc/high-stakes/",
+      "link_title": "Full details! ",
+      "text": "<span style=\"font-size: 33px; TEXT-transform: uppercase;\"><b></b></span><br><br><span style=\"font-size: 13px\"></span>",
+      "message_title": "",
+      "message_description": ""
+    },
+    {
+      "image": "https://update.coinpoker.com/assets/sliders/Login Lobby Banner Image - 1500x1500 (1)-min.jpg",
+      "mobile_image": "https://update.coinpoker.com/assets/sliders/CoinMastersAsia.jpg",
+      "link": "https://coinpoker.com/promotions/coinmasters-asia/",
+      "link_title": "Full details! ",
+      "text": "<span style=\"font-size: 33px; TEXT-transform: uppercase;\"><b></b></span><br><br><span style=\"font-size: 13px\"></span>",
+      "message_title": "",
+      "message_description": ""
+    },
+    {
+      "image": "https://update.coinpoker.com/assets/sliders/Login Lobby Banner Image_1500x1500.jpg",
+      "mobile_image": "https://update.coinpoker.com/assets/sliders/CoinRaces.jpg",
+      "link": "https://coinpoker.com/promotions/coinraces/",
+      "link_title": "Full details! ",
+      "text": "<span style=\"font-size: 33px; TEXT-transform: uppercase;\"><b></b></span><br><br><span style=\"font-size: 13px\"></span>",
+      "message_title": "",
+      "message_description": ""
+    }
+  ],
+  "notification_message": "",
+  "ofcp_initial_admin_message_regular": null,
+  "ofcp_initial_admin_message_tournament": null,
+  "features": [
+    "GamePoker",
+    "Cashier",
+    "Support",
+    "SportsBook"
+  ],
+  "serverlist": [
+    {
+      "ip": "wss://proxy1.coinpokerbackend.com",
+      "port": 443
+    },
+    {
+      "ip": "wss://proxy10.coinpokerbackend.com",
+      "port": 443
+    },
+    {
+      "ip": "wss://proxy2.coinpokerbackend.com",
+      "port": 443
+    },
+    {
+      "ip": "wss://proxy3.coinpokerbackend.com",
+      "port": 443
+    },
+    {
+      "ip": "wss://proxy13.coinpokerbackend.com",
+      "port": 443
+    },
+    {
+      "ip": "wss://proxy4.coinpokerbackend.com",
+      "port": 443
+    },
+    {
+      "ip": "wss://proxy5.coinpokerbackend.com",
+      "port": 443
+    },
+    {
+      "ip": "wss://proxy6.coinpokerbackend.com",
+      "port": 443
+    },
+    {
+      "ip": "wss://proxy7.coinpokerbackend.com",
+      "port": 443
+    },
+    {
+      "ip": "wss://proxy8.coinpokerbackend.com",
+      "port": 443
+    },
+    {
+      "ip": "wss://proxy9.coinpokerbackend.com",
+      "port": 443
+    },
+    {
+      "ip": "wss://proxy11.coinpokerbackend.com",
+      "port": 443
+    },
+    {
+      "ip": "wss://proxy12.coinpokerbackend.com",
+      "port": 443
+    },
+    {
+      "ip": "wss://proxy14.coinpokerbackend.com",
+      "port": 443
+    },
+    {
+      "ip": "wss://proxy15.coinpokerbackend.com",
+      "port": 443
+    }
+  ],
+  "provider_properties": {
+    "CivicAuthUrl": "https://web.coinpokerbackend.com/civic_auth/index.html",
+    "CivicConfirmationUrl": "https://webapi.coinpokerbackend.com/api/v1/auth/confirmation/civic/confirm",
+    "LoginUrl": "https://webapi.coinpokerbackend.com/api/v1/auth/service/2/clientlogin",
+    "RegisterUrl": "https://webapi.coinpokerbackend.com/api/v1/auth/register",
+    "PasswordResetUrl": "https://webapi.coinpokerbackend.com/api/v1/auth/passwordReset",
+    "AuthenticationUrl": "https://web.coinpokerbackend.com/authentication?token=",
+    "PingStatsTargets": "google.com amazon.com coinpoker.com",
+    "HealthInfoUrl": "https://api.coinpokerbackend.com/init/health/update",
+    "MetamaskFrontendUrl": "https://web.coinpokerbackend.com/authenticate/metamask",
+    "MetamaskApiUrl": "https://webapi.coinpokerbackend.com/api/v1/auth/metamask",
+    "TournamentPlayerListUrl": "https://mtt-players.coinpokerbackend.com/tours/",
+    "AppsflyerAppId": "coinpoker",
+    "AmplitudeApiUrl": "https://api.amplitude.com/2/httpapi",
+    "AmplitudeApiKey": "c912b5a1d84f24785230476f2cc7d46f",
+    "CashLeaderboardUrl": "https://coinpoker.com/promotions/coinraces/?token=_RSer1OFMqeYfTc2oLv0K2Nd7ZgqdRLk",
+    "MttLeaderboardUrl": "https://coinpoker.com/promotions/weekly-tournament-leaderboard/"
+  }
+}
+
+[200] https://api.coinpokerbackend.com/init/health/update
+{
+  "statusCode": 404,
+  "obj": {
+    "error": {
+      "message": "Record not found",
+      "code": 5
+    }
+  }
+}
+
+[429] https://webapi.coinpokerbackend.com/api/v1/auth/service/2/clientlogin
+
+[404] https://webapi.coinpokerbackend.com/api/v1/auth/register
+
+[404] https://webapi.coinpokerbackend.com/api/v1/auth/passwordReset
+
+[404] https://webapi.coinpokerbackend.com/api/v1/auth/metamask
+
+[401] https://webapi.coinpokerbackend.com/api/v1/auth/confirmation/civic/confirm
+
+[426] https://proxy1.coinpokerbackend.com/
+
+[426] https://proxy2.coinpokerbackend.com/
+
+[426] https://proxy3.coinpokerbackend.com/
+
+[426] https://proxy4.coinpokerbackend.com/
+
+[426] https://proxy5.coinpokerbackend.com/
+
+[426] https://proxy6.coinpokerbackend.com/
+
+[426] https://proxy7.coinpokerbackend.com/
+
+[426] https://proxy8.coinpokerbackend.com/
+
+[426] https://proxy9.coinpokerbackend.com/
+
+[426] https://proxy10.coinpokerbackend.com/
+
+[426] https://proxy11.coinpokerbackend.com/
+
+[426] https://proxy12.coinpokerbackend.com/
+
+[426] https://proxy13.coinpokerbackend.com/
+
+[426] https://proxy14.coinpokerbackend.com/
+
+[426] https://proxy15.coinpokerbackend.com/
+
+[200] https://update.coinpokerbackend.com/update.php?franchise=coinpoker
+
+[200] https://update.coinpokerbackend.com/support/
+{
+  "status": "failed"
+}
+
+[200] https://update.coinpokerbackend.com/poker_replayer/index.php
+<!DOCTYPE html>
+<html style="overflow-y: hidden; overflow-x: hidden;">
+    <head>
+        <meta charset="UTF-8">
+        <!--<meta name="viewport" content="user-scalable=0, initial-scale=0.4, maximum-scale=0.4">-->
+        <!--<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        html {
+            transform: scale(0.8); /* Scale the entire HTML by 0.8 */
+            transform-origin: top left; /* Ensure scaling starts from the top-left corner */
+  
+
+[200] https://web.coinpokerbackend.com/civic_auth/index.html
+<!DOCTYPE html>
+<html>
+<link rel="stylesheet" href="https://hosted-sip.civic.com/css/civic-modal.min.css">
+<!--<script src="polyfill.min.js"></script>-->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-polyfill/6.26.0/polyfill.min.js"></script>
+<script src="https://hosted-sip.civic.com/js/civic.sip.min.js"></script>
+<style>
+    #civic-sr-frame {
+        width : 100%;
+        height : 480px !important;
+    }
+</style>
+<div></div>
+<script>
+    var qs = (function(a) {
+        if (a == "") 
+
+[200] https://web.coinpokerbackend.com/authentication
+<!DOCTYPE html><html lang="en"><head>
+  <meta charset="utf-8">
+  <title>CoinPoker</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+  <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16x16.png">
+  <link rel="mask-icon" href="assets/safari-pinned-
+
+[200] https://web.coinpokerbackend.com/authenticate/metamask
+<!DOCTYPE html><html lang="en"><head>
+  <meta charset="utf-8">
+  <title>CoinPoker</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+  <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16x16.png">
+  <link rel="mask-icon" href="assets/safari-pinned-
+
+[404] https://mtt-players.coinpokerbackend.com/tours/
+
+[200] https://update.coinpoker.com/assets/
+
+[200] https://update.coinpoker.com/assets/banners/
+
+[200] https://update.coinpoker.com/assets/sliders/
+
+[200] https://api.amplitude.com/2/httpapi
+
+[None] https://coinpoker.com/
+
+[None] https://coinpoker.com/api/
+
+[None] https://coinpoker.com/promotions/
+
+[None] https://coinpoker.com/robots.txt
+
+[None] https://coinpoker.com/.well-known/
+
+SECURITY FINDINGS:
+----------------------------------------
+{
+  "findings": [
+    {
+      "id": "VULN-001",
+      "name": "No Certificate Pinning",
+      "severity": "MEDIUM",
+      "cvss": 5.9,
+      "description": "Application does not implement certificate pinning",
+      "impact": "MITM attacks can intercept all encrypted traffic",
+      "remediation": "Implement certificate pinning in the client"
+    },
+    {
+      "id": "VULN-002",
+      "name": "UI Automation Accessible",
+      "severity": "LOW",
+      "cvss": 3.3,
+      "description": "All UI elements accessible via Windows Automation",
+      "impact": "Sensitive data can be read programmatically",
+      "remediation": "Implement UI element obfuscation for sensitive data"
+    },
+    {
+      "id": "VULN-004",
+      "name": "API Information Disclosure",
+      "severity": "MEDIUM",
+      "cvss": 5.3,
+      "description": "7 API endpoints exposing data",
+      "impact": "Internal information may be leaked",
+      "remediation": "Implement proper authentication and rate limiting"
+    }
+  ],
+  "total_vulnerabilities": 3,
+  "critical": 0,
+  "high": 0,
+  "medium": 2,
+  "low": 1
+}
+
+================================================================================
+END OF COMPLETE LOG
+================================================================================

@@ -212,8 +212,106 @@ def find_coinpoker_tables(device_id: str | None = None) -> list[dict]:
 
         return True
 
-    win32gui.EnumWindows(enum_windows, None)
+    try:
+        win32gui.EnumWindows(enum_windows, None)
+    except Exception as e:
+        # Handle Windows API errors gracefully
+        import sys
+        print(f"[Snapshot] EnumWindows error in find_coinpoker_tables: {e}", file=sys.stderr)
+        return []
+    
     return tables
+
+
+def find_coinpoker_lobby(device_id: str | None = None) -> dict | None:
+    """
+    Find CoinPoker lobby window using the same method as find_coinpoker_tables().
+    Returns lobby info dict with hwnd, title, pid, etc., or None if not found.
+    
+    Uses the same strict filtering as tables: window class, process name, exe path.
+    """
+    config = load_coinpoker_config()
+    common = config.get("common", {})
+    
+    expected_process_name = common.get("process_name", "game.exe").lower()
+    expected_window_class = common.get("window_class", "Qt673QWindowIcon")
+    
+    lobby_info = None
+    
+    def enum_windows(hwnd, lparam):
+        nonlocal lobby_info
+        try:
+            if not win32gui.IsWindowVisible(hwnd):
+                return True
+            
+            title = win32gui.GetWindowText(hwnd)
+            class_name = win32gui.GetClassName(hwnd)
+            
+            # Check if it matches expected window class (CoinPoker uses Qt) - SAME AS TABLES
+            if expected_window_class.lower() not in class_name.lower():
+                return True
+            
+            # Get process info
+            try:
+                _, pid = win32process.GetWindowThreadProcessId(hwnd)
+                proc = psutil.Process(pid)
+                proc_name = proc.name().lower()
+                proc_exe = (proc.exe() or "").lower()
+            except Exception:
+                return True
+            
+            # Must be expected process name from CoinPoker - SAME AS TABLES
+            if proc_name != expected_process_name or "coinpoker" not in proc_exe:
+                return True
+            
+            title_lower = title.lower()
+            
+            # Look specifically for lobby window (must have both "lobby" and "coinpoker" in title)
+            if "lobby" not in title_lower or "coinpoker" not in title_lower:
+                return True
+            
+            # Found lobby window - get window rect
+            try:
+                rect = win32gui.GetWindowRect(hwnd)
+                width = rect[2] - rect[0]
+                height = rect[3] - rect[1]
+                
+                # Only include reasonably sized windows
+                if width >= 400 and height >= 300:
+                    lobby_info = {
+                        "hwnd": hwnd,
+                        "pid": pid,
+                        "title": title,
+                        "class_name": class_name,
+                        "process_name": proc_name,
+                        "process_exe": proc_exe,
+                        "rect": {
+                            "left": rect[0],
+                            "top": rect[1],
+                            "right": rect[2],
+                            "bottom": rect[3],
+                            "width": width,
+                            "height": height,
+                        },
+                    }
+                    return False  # Stop enumeration once found
+            except Exception:
+                pass
+                
+        except Exception:
+            pass
+        
+        return True
+    
+    try:
+        win32gui.EnumWindows(enum_windows, None)
+    except Exception as e:
+        # Handle Windows API errors gracefully
+        import sys
+        print(f"[Snapshot] EnumWindows error in find_coinpoker_lobby: {e}", file=sys.stderr)
+        return None
+    
+    return lobby_info
 
 
 def capture_window_screenshot(hwnd: int) -> Image.Image | None:
@@ -308,28 +406,61 @@ def main():
     def debug_print(msg):
         print(msg, file=sys.stderr)
 
+    # Find CoinPoker lobby first (if available)
+    debug_print("[Snapshot] Finding CoinPoker lobby window...")
+    lobby = find_coinpoker_lobby(device_id)
+    
     # Find all CoinPoker tables
     debug_print("[Snapshot] Finding CoinPoker table windows...")
     tables = find_coinpoker_tables(device_id)
 
-    if not tables:
+    if not tables and not lobby:
         result = {
             "success": False,
-            "error": "No CoinPoker table windows found",
+            "error": "No CoinPoker windows found (no lobby or tables)",
             "tables": [],
+            "lobby": None,
             "count": 0,
         }
         print(json.dumps(result))
         sys.exit(1)
 
-    debug_print(f"[Snapshot] Found {len(tables)} table(s)")
+    debug_print(f"[Snapshot] Found {len(tables)} table(s)" + (f" and lobby" if lobby else ""))
 
     # Generate timestamp for this batch of snapshots
     from datetime import datetime
 
     timestamp = datetime.now().isoformat()
 
-    # Capture screenshots
+    # Capture lobby screenshot first (if found)
+    lobby_result = None
+    if lobby:
+        debug_print(f"[Snapshot] Capturing lobby: {lobby['title']}")
+        img = capture_window_screenshot(lobby["hwnd"])
+        if img:
+            img_base64 = image_to_base64(img)
+            lobby_result = {
+                "hwnd": lobby["hwnd"],
+                "pid": lobby["pid"],
+                "title": lobby["title"],
+                "screenshot": img_base64,
+                "screenshot_format": "PNG",
+                "width": lobby["rect"]["width"],
+                "height": lobby["rect"]["height"],
+                "rect": lobby["rect"],
+            }
+            debug_print(f"[Snapshot] ✓ Captured lobby {lobby['rect']['width']}x{lobby['rect']['height']}")
+        else:
+            debug_print(f"[Snapshot] ✗ Failed to capture lobby {lobby['title']}")
+            lobby_result = {
+                "hwnd": lobby["hwnd"],
+                "pid": lobby["pid"],
+                "title": lobby["title"],
+                "error": "Failed to capture screenshot",
+                "rect": lobby["rect"],
+            }
+
+    # Capture table screenshots
     results = []
     for i, table in enumerate(tables, 1):
         debug_print(f"[Snapshot] Capturing table {i}/{len(tables)}: {table['title']}")
@@ -369,6 +500,7 @@ def main():
         "success": True,
         "count": len(results),
         "tables": results,
+        "lobby": lobby_result,  # Include lobby snapshot
         "device_id": device_id,
         "timestamp": timestamp,
     }

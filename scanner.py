@@ -49,6 +49,7 @@ from utils.config_reader import get_default_config, set_config_override, read_co
 from utils.take_snapshot import (
     capture_window_screenshot,
     find_coinpoker_tables,
+    find_coinpoker_lobby,
     image_to_base64,
 )
 from utils.network_info import format_public_ip_log, get_public_ip_info
@@ -755,8 +756,47 @@ class CoinPokerScanner:
                     print("[Scanner] Scanner stopped. Waiting for CoinPoker to restart...")
 
     def _capture_tables_snapshot(self) -> dict[str, Any]:
-        """Capture CoinPoker table screenshots for dashboard command."""
+        """Capture CoinPoker table and lobby screenshots for dashboard command."""
         try:
+            # Find and capture lobby first
+            lobby_result = None
+            try:
+                lobby = find_coinpoker_lobby()
+                if lobby:
+                    try:
+                        img = capture_window_screenshot(lobby.get("hwnd"))
+                        if img:
+                            lobby_result = {
+                                "hwnd": lobby.get("hwnd"),
+                                "pid": lobby.get("pid"),
+                                "title": lobby.get("title"),
+                                "screenshot": image_to_base64(img),
+                                "screenshot_format": "PNG",
+                                "width": lobby.get("rect", {}).get("width"),
+                                "height": lobby.get("rect", {}).get("height"),
+                                "rect": lobby.get("rect"),
+                            }
+                        else:
+                            lobby_result = {
+                                "hwnd": lobby.get("hwnd"),
+                                "pid": lobby.get("pid"),
+                                "title": lobby.get("title"),
+                                "error": "Failed to capture screenshot",
+                                "rect": lobby.get("rect"),
+                            }
+                    except Exception as exc:  # pylint: disable=broad-except
+                        lobby_result = {
+                            "hwnd": lobby.get("hwnd"),
+                            "pid": lobby.get("pid"),
+                            "title": lobby.get("title"),
+                            "error": str(exc),
+                            "rect": lobby.get("rect"),
+                        }
+            except Exception as exc:  # pylint: disable=broad-except
+                # Lobby capture failed, but continue with tables
+                print(f"[Scanner] Lobby capture error: {exc}")
+            
+            # Find and capture tables
             tables = find_coinpoker_tables()
             results: list[dict[str, Any]] = []
 
@@ -774,6 +814,8 @@ class CoinPokerScanner:
                     if img:
                         entry["screenshot"] = image_to_base64(img)
                         entry["screenshot_format"] = "PNG"
+                        entry["width"] = table.get("rect", {}).get("width")
+                        entry["height"] = table.get("rect", {}).get("height")
                         captured += 1
                     else:
                         entry["error"] = "Failed to capture screenshot"
@@ -782,16 +824,22 @@ class CoinPokerScanner:
 
                 results.append(entry)
 
+            # Success if we captured lobby OR tables
+            has_lobby = lobby_result and "screenshot" in lobby_result
+            success = has_lobby or captured > 0
+
             return {
-                "success": captured > 0,
+                "success": success,
                 "tables": results,
+                "lobby": lobby_result,
                 "count": captured,
-                "error": None if captured > 0 else "No table screenshots captured",
+                "error": None if success else "No CoinPoker windows found (no lobby or tables)",
             }
         except Exception as exc:  # pylint: disable=broad-except
             return {
                 "success": False,
                 "tables": [],
+                "lobby": None,
                 "count": 0,
                 "error": str(exc),
             }
