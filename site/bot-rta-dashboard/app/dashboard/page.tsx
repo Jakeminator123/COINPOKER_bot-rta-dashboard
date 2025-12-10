@@ -377,6 +377,9 @@ function EnhancedDashboardContent() {
         throw new Error("Device ID missing");
       }
 
+      // Handle undefined explicitly (default parameters don't work when undefined is passed)
+      const actualTimeout = timeoutMs ?? 20000;
+
       const request = async (url: string) => {
         const res = await fetch(url, {
           method: "GET",
@@ -402,7 +405,7 @@ function EnhancedDashboardContent() {
 
       const started = Date.now();
 
-      while (Date.now() - started < timeoutMs) {
+      while (Date.now() - started < actualTimeout) {
         let { res, parsed } = await request(
           REDIS_COMMANDS_ENABLED ? redisUrl : httpUrl
         );
