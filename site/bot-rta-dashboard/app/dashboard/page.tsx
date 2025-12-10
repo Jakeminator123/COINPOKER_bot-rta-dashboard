@@ -2305,7 +2305,7 @@ function EnhancedDashboardContent() {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                      d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0 1 10.07 4h3.86a2 2 0 0 1 1.664.89l.812 1.22A2 2 0 0 0 18.07 7H19a2 2 0 012 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z"
                     />
                     <path
                       strokeLinecap="round"
@@ -2412,6 +2412,10 @@ function EnhancedDashboardContent() {
                   if (!playerId) return;
                   setShowRecordingModal(false);
                   setIsRecording(true);
+                  
+                  // Store command ID to track this recording
+                  let commandId: string | null = null;
+                  
                   try {
                     // Calculate timeout dynamically: recording duration + upload time + buffer
                     // Upload time estimate: ~30s per minute of recording (for large files)
@@ -2422,53 +2426,129 @@ function EnhancedDashboardContent() {
                     const bufferSeconds = 60; // 1 minute buffer
                     const recordingTimeoutMs = (recordingDuration * 60 + uploadTimeSeconds + bufferSeconds) * 1000;
                     
-                    const execution = await executeDeviceCommand(
+                    // Queue command first to get command ID
+                    const queued = await queueDeviceCommand(
+                      playerId,
                       "start_recording",
-                      { duration_minutes: recordingDuration },
-                      recordingTimeoutMs
+                      { duration_minutes: recordingDuration }
                     );
-
-                    if (execution.status === "completed") {
-                      const result = execution.result ?? {};
-                      const adminHint =
-                        execution.requireAdmin || result?.adminRequired
-                          ? "\nNote: scanner must be run as administrator on the Windows machine."
-                          : "";
-
-                      if (result?.success) {
-                        alert(
-                          `Recording started for ${recordingDuration} minute(s).${adminHint}\nThe video will be uploaded automatically when recording completes.`
-                        );
-                        // Refresh recordings list after a delay
+                    commandId = queued.commandId;
+                    
+                    // Show immediate feedback popup
+                    const adminHint = queued.requireAdmin
+                      ? "\nNote: scanner must be run as administrator on the Windows machine."
+                      : "";
+                    alert(
+                      `Recording started for ${recordingDuration} minute(s).${adminHint}\nThe video will be uploaded automatically when recording completes.\n\nYou can check the recordings list below once it's ready.`
+                    );
+                    
+                    // Start polling for result in background (non-blocking)
+                    const checkResult = async () => {
+                      try {
+                        const execution = await fetchCommandResult(commandId!, recordingTimeoutMs);
+                        
+                        if (execution.status === "completed") {
+                          const result = execution.result ?? {};
+                          if (result?.success) {
+                            // Recording completed successfully - verify it's uploaded
+                            // Wait a bit for upload to complete, then check
+                            setTimeout(async () => {
+                              try {
+                                await fetchRecordings();
+                                // Check if recording exists in list by commandId
+                                const recordingsResponse = await fetch(`/api/recordings?deviceId=${encodeURIComponent(playerId!)}`).then(r => r.json());
+                                const foundRecording = recordingsResponse?.data?.recordings?.find((r: any) => r.commandId === commandId);
+                                
+                                if (foundRecording) {
+                                  // Verify file is accessible
+                                  try {
+                                    const testResponse = await fetch(foundRecording.url, { method: "HEAD" });
+                                    if (testResponse.ok) {
+                                      alert(
+                                        `✅ Recording completed and uploaded successfully!\n\nFile size: ${(foundRecording.fileSize / 1024 / 1024).toFixed(2)} MB\nCreated: ${new Date(foundRecording.createdAt).toLocaleString()}\n\nYou can view or download it from the recordings list below.`
+                                      );
+                                    } else {
+                                      alert(
+                                        `⚠️ Recording uploaded but file may not be ready yet.\n\nPlease check the recordings list in a few moments or refresh manually.`
+                                      );
+                                    }
+                                  } catch {
+                                    // File check failed, but recording exists in metadata
+                                    alert(
+                                      `✅ Recording uploaded successfully!\n\nFile size: ${(foundRecording.fileSize / 1024 / 1024).toFixed(2)} MB\nCreated: ${new Date(foundRecording.createdAt).toLocaleString()}\n\nYou can view or download it from the recordings list below.`
+                                    );
+                                  }
+                                } else {
+                                  // Recording might still be uploading, check again later
+                                  setTimeout(async () => {
+                                    try {
+                                      await fetchRecordings();
+                                      const recordingsFinal = await fetch(`/api/recordings?deviceId=${encodeURIComponent(playerId!)}`).then(r => r.json());
+                                      const foundFinal = recordingsFinal?.data?.recordings?.find((r: any) => r.commandId === commandId);
+                                      if (foundFinal) {
+                                        alert(
+                                          `✅ Recording uploaded successfully!\n\nFile size: ${(foundFinal.fileSize / 1024 / 1024).toFixed(2)} MB\nCreated: ${new Date(foundFinal.createdAt).toLocaleString()}\n\nYou can view or download it from the recordings list below.`
+                                        );
+                                      } else {
+                                        alert(
+                                          `⚠️ Recording completed but may still be uploading.\n\nPlease check the recordings list in a few moments or refresh manually.`
+                                        );
+                                      }
+                                    } catch (err) {
+                                      console.error("Final recording check error:", err);
+                                      alert(
+                                        `⚠️ Recording completed. Please check the recordings list manually.`
+                                      );
+                                    }
+                                  }, 10000); // Check again after 10s
+                                }
+                              } catch (err) {
+                                console.error("Recording verification error:", err);
+                                alert(
+                                  `✅ Recording completed. Please check the recordings list to verify upload.`
+                                );
+                              }
+                            }, 5000); // Wait 5s for upload to complete
+                          } else {
+                            const errorMsg = result?.error || "Recording failed.";
+                            alert(`❌ Recording error: ${errorMsg}`);
+                          }
+                        } else if (execution.status === "timeout") {
+                          // Timeout - recording might still be running
+                          alert(
+                            `⏱️ Recording command timed out after ${Math.round(recordingTimeoutMs / 1000)}s.\n\nThe recording is still running on the scanner and will upload automatically when complete.\n\nPlease check the recordings list below in a few minutes.`
+                          );
+                          // Refresh recordings list after delay
+                          setTimeout(() => {
+                            fetchRecordings();
+                          }, (recordingDuration * 60 + 30) * 1000);
+                        } else {
+                          alert(
+                            "⚠️ Recording command status unknown.\n\nPlease check the recordings list below or refresh manually."
+                          );
+                        }
+                      } catch (error) {
+                        console.error("Recording result check error:", error);
+                        // Don't show error popup - user already got initial confirmation
+                        // Just refresh recordings list in case it completed
                         setTimeout(() => {
                           fetchRecordings();
-                        }, (recordingDuration * 60 + 10) * 1000);
-                      } else {
-                        const errorMsg =
-                          result?.error || "Failed to start recording.";
-                        alert(`Error: ${errorMsg}${adminHint}`);
+                        }, (recordingDuration * 60 + 30) * 1000);
+                      } finally {
+                        setIsRecording(false);
                       }
-                    } else if (execution.status === "timeout") {
-                      alert(
-                        `Recording command timed out after waiting ${Math.round(recordingTimeoutMs / 1000)}s. The recording is still running on the scanner and will upload automatically when complete. Check the recordings list in a few minutes.`
-                      );
-                      // Still refresh recordings list after delay, as recording may complete
-                      setTimeout(() => {
-                        fetchRecordings();
-                      }, (recordingDuration * 60 + 30) * 1000); // Wait for recording + 30s buffer
-                    } else {
-                      alert(
-                        "Recording command could not be executed. Check that the scanner client is active."
-                      );
-                    }
+                    };
+                    
+                    // Start checking result in background
+                    checkResult();
+                    
                   } catch (error) {
                     console.error("Start Recording command error:", error);
                     const errorMsg =
                       error instanceof Error
                         ? error.message
                         : "Unknown error with recording command.";
-                    alert(`Error: ${errorMsg}`);
-                  } finally {
+                    alert(`❌ Error starting recording: ${errorMsg}`);
                     setIsRecording(false);
                   }
                 }}

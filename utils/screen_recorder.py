@@ -56,33 +56,50 @@ def record_screen(duration_seconds: int, output_path: Optional[str] = None) -> s
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
-    # Screen capture settings
-    fps = 30
+    # Screen capture settings (balance size/quality)
+    fps = 15  # lower fps to reduce file size
     frame_time = 1.0 / fps
-    
+
     # Get screen dimensions
     with mss.mss() as sct:
         monitor = sct.monitors[1]  # Primary monitor (index 1 is full screen)
         width = monitor["width"]
         height = monitor["height"]
-    
-    # Video codec and writer
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    video_writer = cv2.VideoWriter(
-        str(output_path),
-        fourcc,
-        fps,
-        (width, height)
-    )
-    
-    if not video_writer.isOpened():
-        raise RuntimeError("Failed to initialize video writer")
+
+    # Downscale to 1080p max to keep files smaller; preserve aspect ratio
+    max_w, max_h = 1920, 1080
+    scale = min(max_w / width, max_h / height, 1.0)
+    target_w = int(width * scale)
+    target_h = int(height * scale)
+    # Ensure even dimensions for codec compatibility
+    if target_w % 2 == 1:
+        target_w -= 1
+    if target_h % 2 == 1:
+        target_h -= 1
+    target_size = (target_w, target_h)
+
+    # Video codec with fallbacks (try H.264 if available, else mp4v)
+    codec_candidates = ["avc1", "H264", "mp4v"]
+    video_writer = None
+    chosen_codec = None
+    for codec in codec_candidates:
+        fourcc = cv2.VideoWriter_fourcc(*codec)
+        vw = cv2.VideoWriter(str(output_path), fourcc, fps, target_size)
+        if vw.isOpened():
+            video_writer = vw
+            chosen_codec = codec
+            break
+    if video_writer is None:
+        raise RuntimeError("Failed to initialize video writer with available codecs")
     
     try:
         start_time = time.time()
         frame_count = 0
         
-        print(f"[ScreenRecorder] Starting recording: {duration_seconds}s, {width}x{height} @ {fps}fps")
+        print(
+            f"[ScreenRecorder] Starting recording: "
+            f"{duration_seconds}s, {width}x{height} -> {target_w}x{target_h} @ {fps}fps, codec={chosen_codec}"
+        )
         
         with mss.mss() as sct:
             monitor = sct.monitors[1]
@@ -96,6 +113,10 @@ def record_screen(duration_seconds: int, output_path: Optional[str] = None) -> s
                 # Convert to numpy array and then to BGR for OpenCV
                 img = np.array(screenshot)
                 img_bgr = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+
+                # Resize if downscaling
+                if (width, height) != target_size:
+                    img_bgr = cv2.resize(img_bgr, target_size, interpolation=cv2.INTER_AREA)
                 
                 # Write frame
                 video_writer.write(img_bgr)
