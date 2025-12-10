@@ -9,6 +9,8 @@ import os
 import sys
 import time
 import tempfile
+import subprocess
+import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -78,8 +80,10 @@ def record_screen(duration_seconds: int, output_path: Optional[str] = None) -> s
         target_h -= 1
     target_size = (target_w, target_h)
 
-    # Video codec with fallbacks (try H.264 if available, else mp4v)
-    codec_candidates = ["avc1", "H264", "mp4v"]
+    # Video codec with fallbacks.
+    # Try mp4v first to avoid noisy OpenH264 errors in environments without the binary.
+    # avc1/H264 are optional and may fail if OpenH264/FFmpeg support is missing.
+    codec_candidates = ["mp4v", "avc1", "H264"]
     video_writer = None
     chosen_codec = None
     for codec in codec_candidates:
@@ -92,6 +96,47 @@ def record_screen(duration_seconds: int, output_path: Optional[str] = None) -> s
     if video_writer is None:
         raise RuntimeError("Failed to initialize video writer with available codecs")
     
+    def _maybe_transcode_to_h264(path: Path) -> Path:
+        """
+        Optionally transcode to H.264 for better browser playback.
+        Requires ffmpeg in PATH. If unavailable or fails, returns original path.
+        """
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            print("[ScreenRecorder] H.264 transcode skipped: ffmpeg not found")
+            return path
+
+        h264_path = path.with_name(f"{path.stem}_h264.mp4")
+        cmd = [
+            ffmpeg,
+            "-y",
+            "-i",
+            str(path),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "28",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+            str(h264_path),
+        ]
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            if h264_path.exists():
+                print(
+                    f"[ScreenRecorder] H.264 transcode success: {h264_path.name} "
+                    f"({h264_path.stat().st_size / (1024 * 1024):.2f} MB)"
+                )
+                return h264_path
+        except Exception as exc:  # noqa: BLE001
+            print(f"[ScreenRecorder] H.264 transcode skipped: {exc}")
+        return path
+
     try:
         start_time = time.time()
         frame_count = 0
@@ -137,7 +182,10 @@ def record_screen(duration_seconds: int, output_path: Optional[str] = None) -> s
         file_size_mb = output_path.stat().st_size / (1024 * 1024)
         print(f"[ScreenRecorder] Recording complete: {frame_count} frames, {file_size_mb:.2f} MB")
         
-        return str(output_path)
+        # Attempt H.264 transcode for web playback; fallback to original if ffmpeg not available
+        final_path = _maybe_transcode_to_h264(output_path)
+
+        return str(final_path)
     
     except Exception as e:
         # Clean up on error
