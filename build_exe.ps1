@@ -98,6 +98,8 @@ else {
         "pytesseract", "PIL", "PIL.Image", "PIL.ImageEnhance", "PIL.ImageGrab",
         # Screen capture & video
         "mss", "cv2",
+        # Bundled ffmpeg for H.264 transcoding (browser-compatible recordings)
+        "imageio_ffmpeg",
         # Core dependencies
         "numpy", "psutil", "cryptography", "requests", "certifi", "redis",
         # Optional dependencies (may not be installed but handled gracefully)
@@ -137,7 +139,8 @@ else {
     
     $addDataStr = ($addData | ForEach-Object { "--add-data `"$_`"" }) -join " "
     
-    $cmd = "pyinstaller --clean --onefile --name=`"CoinPokerScanner`" $iconParam $addDataStr $hiddenImportsStr --console --log-level=DEBUG scanner.py"
+    # --collect-data=imageio_ffmpeg bundles the ffmpeg binary for H.264 transcoding
+    $cmd = "pyinstaller --clean --onefile --name=`"CoinPokerScanner`" $iconParam $addDataStr $hiddenImportsStr --collect-data=imageio_ffmpeg --console --log-level=DEBUG scanner.py"
     Write-Host "[Build] Command: $cmd" -ForegroundColor Gray
     Invoke-Expression "$cmd 2>&1 | Tee-Object -FilePath pyinstaller_build.log"
 }

@@ -3,6 +3,9 @@ Screen Recorder Utility
 =======================
 Records screen capture for specified duration and saves as MP4 video file.
 Uses mss for screen capture and opencv-python for video encoding.
+
+Optimized for low CPU usage and browser-compatible output (H.264).
+Uses bundled ffmpeg via imageio-ffmpeg for portable H.264 encoding.
 """
 
 import os
@@ -24,6 +27,14 @@ except ImportError as e:
     AVAILABLE = False
     IMPORT_ERROR = str(e)
 
+# Try to get bundled ffmpeg from imageio-ffmpeg (works in .exe builds)
+FFMPEG_PATH = None
+try:
+    import imageio_ffmpeg
+    FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
+except ImportError:
+    pass  # Will fallback to system ffmpeg or skip transcode
+
 
 def record_screen(duration_seconds: int, output_path: Optional[str] = None) -> str:
     """
@@ -34,7 +45,7 @@ def record_screen(duration_seconds: int, output_path: Optional[str] = None) -> s
         output_path: Optional path to save video. If None, uses temp directory.
     
     Returns:
-        Path to saved video file
+        Path to saved video file (H.264 if ffmpeg available, otherwise mp4v)
     
     Raises:
         ValueError: If duration is invalid or dependencies are missing
@@ -58,18 +69,18 @@ def record_screen(duration_seconds: int, output_path: Optional[str] = None) -> s
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
-    # Screen capture settings (balance size/quality)
-    fps = 15  # lower fps to reduce file size
+    # Screen capture settings - balance quality/size/CPU
+    fps = 12  # Slightly higher fps for smoother video
     frame_time = 1.0 / fps
 
     # Get screen dimensions
     with mss.mss() as sct:
-        monitor = sct.monitors[1]  # Primary monitor (index 1 is full screen)
+        monitor = sct.monitors[1]  # Primary monitor
         width = monitor["width"]
         height = monitor["height"]
 
-    # Downscale to 1080p max to keep files smaller; preserve aspect ratio
-    max_w, max_h = 1920, 1080
+    # Downscale to 900p max (better than 720p, still smaller than 1080p)
+    max_w, max_h = 1600, 900
     scale = min(max_w / width, max_h / height, 1.0)
     target_w = int(width * scale)
     target_h = int(height * scale)
@@ -80,70 +91,72 @@ def record_screen(duration_seconds: int, output_path: Optional[str] = None) -> s
         target_h -= 1
     target_size = (target_w, target_h)
 
-    # Video codec with fallbacks.
-    # Try mp4v first to avoid noisy OpenH264 errors in environments without the binary.
-    # avc1/H264 are optional and may fail if OpenH264/FFmpeg support is missing.
-    codec_candidates = ["mp4v", "avc1", "H264"]
-    video_writer = None
-    chosen_codec = None
-    for codec in codec_candidates:
-        fourcc = cv2.VideoWriter_fourcc(*codec)
-        vw = cv2.VideoWriter(str(output_path), fourcc, fps, target_size)
-        if vw.isOpened():
-            video_writer = vw
-            chosen_codec = codec
-            break
-    if video_writer is None:
-        raise RuntimeError("Failed to initialize video writer with available codecs")
+    # Use mp4v codec (works without OpenH264); we'll transcode to H.264 after
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    video_writer = cv2.VideoWriter(str(output_path), fourcc, fps, target_size)
     
-    def _maybe_transcode_to_h264(path: Path) -> Path:
+    if not video_writer.isOpened():
+        raise RuntimeError("Failed to initialize video writer")
+    
+    def _transcode_to_h264(path: Path) -> Path:
         """
-        Optionally transcode to H.264 for better browser playback.
-        Requires ffmpeg in PATH. If unavailable or fails, returns original path.
+        Transcode to H.264 for browser playback.
+        Uses bundled ffmpeg from imageio-ffmpeg, or system ffmpeg as fallback.
         """
-        ffmpeg = shutil.which("ffmpeg")
+        # Use bundled ffmpeg first (works in .exe), then system ffmpeg
+        ffmpeg = FFMPEG_PATH or shutil.which("ffmpeg")
         if not ffmpeg:
-            print("[ScreenRecorder] H.264 transcode skipped: ffmpeg not found")
+            print("[ScreenRecorder] ⚠️ ffmpeg not found - video may not play in browser")
             return path
 
         h264_path = path.with_name(f"{path.stem}_h264.mp4")
         cmd = [
             ffmpeg,
             "-y",
-            "-i",
-            str(path),
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            "28",
-            "-pix_fmt",
-            "yuv420p",
-            "-movflags",
-            "+faststart",
+            "-loglevel", "warning",
+            "-i", str(path),
+            "-c:v", "libx264",
+            "-preset", "veryfast",
+            "-crf", "26",  # slightly better quality than before (28)
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            "-an",  # No audio
             str(h264_path),
         ]
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            if h264_path.exists():
+            print("[ScreenRecorder] Transcoding to H.264 for browser playback...")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            if result.returncode == 0 and h264_path.exists():
+                h264_size = h264_path.stat().st_size / (1024 * 1024)
+                orig_size = path.stat().st_size / (1024 * 1024)
                 print(
-                    f"[ScreenRecorder] H.264 transcode success: {h264_path.name} "
-                    f"({h264_path.stat().st_size / (1024 * 1024):.2f} MB)"
+                    f"[ScreenRecorder] ✓ H.264 transcode success: {h264_size:.2f} MB "
+                    f"(was {orig_size:.2f} MB)"
                 )
+                # Delete original mp4v file to save space
+                try:
+                    path.unlink()
+                except Exception:
+                    pass
                 return h264_path
-        except Exception as exc:  # noqa: BLE001
-            print(f"[ScreenRecorder] H.264 transcode skipped: {exc}")
+            else:
+                stderr = result.stderr[:200] if result.stderr else "unknown error"
+                print(f"[ScreenRecorder] H.264 transcode failed: {stderr}")
+        except subprocess.TimeoutExpired:
+            print("[ScreenRecorder] H.264 transcode timed out")
+        except Exception as exc:
+            print(f"[ScreenRecorder] H.264 transcode error: {exc}")
         return path
 
     try:
         start_time = time.time()
         frame_count = 0
+        dropped_frames = 0
         
         print(
             f"[ScreenRecorder] Starting recording: "
-            f"{duration_seconds}s, {width}x{height} -> {target_w}x{target_h} @ {fps}fps, codec={chosen_codec}"
+            f"{duration_seconds}s, {width}x{height} -> {target_w}x{target_h} @ {fps}fps"
         )
         
         with mss.mss() as sct:
@@ -159,19 +172,22 @@ def record_screen(duration_seconds: int, output_path: Optional[str] = None) -> s
                 img = np.array(screenshot)
                 img_bgr = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
 
-                # Resize if downscaling
+                # Resize if downscaling (use INTER_LINEAR for speed)
                 if (width, height) != target_size:
-                    img_bgr = cv2.resize(img_bgr, target_size, interpolation=cv2.INTER_AREA)
+                    img_bgr = cv2.resize(img_bgr, target_size, interpolation=cv2.INTER_LINEAR)
                 
                 # Write frame
                 video_writer.write(img_bgr)
                 frame_count += 1
                 
-                # Maintain frame rate
+                # Maintain frame rate - skip sleep if we're behind
                 elapsed = time.time() - frame_start
                 sleep_time = frame_time - elapsed
                 if sleep_time > 0:
                     time.sleep(sleep_time)
+                elif elapsed > frame_time * 2:
+                    # We're way behind, note it but continue
+                    dropped_frames += 1
         
         video_writer.release()
         
@@ -180,10 +196,11 @@ def record_screen(duration_seconds: int, output_path: Optional[str] = None) -> s
             raise RuntimeError("Video file was not created")
         
         file_size_mb = output_path.stat().st_size / (1024 * 1024)
-        print(f"[ScreenRecorder] Recording complete: {frame_count} frames, {file_size_mb:.2f} MB")
+        drop_msg = f" ({dropped_frames} slow frames)" if dropped_frames else ""
+        print(f"[ScreenRecorder] Recording complete: {frame_count} frames, {file_size_mb:.2f} MB{drop_msg}")
         
-        # Attempt H.264 transcode for web playback; fallback to original if ffmpeg not available
-        final_path = _maybe_transcode_to_h264(output_path)
+        # Transcode to H.264 for browser playback
+        final_path = _transcode_to_h264(output_path)
 
         return str(final_path)
     
