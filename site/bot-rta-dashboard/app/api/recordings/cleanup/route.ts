@@ -6,7 +6,9 @@ import {
   successResponse,
   validateToken,
 } from "@/lib/utils/api-utils";
-import { getAllRecordings, deleteRecordingMetadata } from "../upload/route";
+import { getAllRecordingsFromRedis, deleteRecordingFromRedis } from "../upload/route";
+import { getRedisClient } from "@/lib/redis/redis-client";
+import { redisKeys } from "@/lib/redis/schema";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,27 +25,45 @@ export async function POST(req: NextRequest) {
     }
 
     const now = Date.now();
-    const allRecordings = getAllRecordings();
     let deletedCount = 0;
     let errorCount = 0;
 
-    for (const recording of allRecordings) {
-      if (recording.expiresAt <= now) {
-        try {
-          // Delete file if it exists
-          if (existsSync(recording.filePath)) {
-            await unlink(recording.filePath);
+    // Get all devices from Redis device index
+    const redis = await getRedisClient();
+    if (!redis) {
+      return errorResponse("Redis not available", 500);
+    }
+
+    const deviceIndex = redisKeys.deviceIndex();
+    const deviceIds = await redis.zRange(deviceIndex, 0, -1);
+
+    // Iterate over all devices and check their recordings
+    for (const deviceId of deviceIds) {
+      try {
+        const recordings = await getAllRecordingsFromRedis(deviceId);
+        
+        for (const recording of recordings) {
+          if (recording.expiresAt <= now) {
+            try {
+              // Delete file if it exists
+              if (existsSync(recording.filePath)) {
+                await unlink(recording.filePath);
+              }
+              // Remove metadata from Redis
+              await deleteRecordingFromRedis(deviceId, recording.recordingId);
+              deletedCount++;
+            } catch (error) {
+              console.error(
+                `[Cleanup] Failed to delete recording ${recording.recordingId}:`,
+                error
+              );
+              errorCount++;
+            }
           }
-          // Remove metadata
-          deleteRecordingMetadata(recording.recordingId);
-          deletedCount++;
-        } catch (error) {
-          console.error(
-            `[Cleanup] Failed to delete recording ${recording.recordingId}:`,
-            error
-          );
-          errorCount++;
         }
+      } catch (error) {
+        console.error(`[Cleanup] Failed to process device ${deviceId}:`, error);
+        errorCount++;
       }
     }
 

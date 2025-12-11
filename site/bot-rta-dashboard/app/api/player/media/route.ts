@@ -3,8 +3,8 @@ import {
   errorResponse,
   successResponse,
 } from "@/lib/utils/api-utils";
-import { getAllRecordingsFromRedis, RecordingMetadata } from "../../recordings/upload/route";
-import { getAllSnapshotsFromRedis, SnapshotMetadata } from "../../snapshots/upload/route";
+import { getAllRecordingsFromRedis } from "../../recordings/upload/route";
+import { getAllSnapshotsFromRedis } from "../../snapshots/upload/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
