@@ -3,8 +3,8 @@ import { readFile, unlink } from "fs/promises";
 import { existsSync } from "fs";
 import { errorResponse, successResponse } from "@/lib/utils/api-utils";
 import {
-  getRecordingMetadataFromRedis,
-  deleteRecordingFromRedis,
+  getSnapshotMetadataFromRedis,
+  deleteSnapshotFromRedis,
 } from "../upload/route";
 
 export const runtime = "nodejs";
@@ -16,10 +16,10 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const recordingId = id;
+    const snapshotId = id;
 
-    if (!recordingId) {
-      return errorResponse("Recording ID is required", 400);
+    if (!snapshotId) {
+      return errorResponse("Snapshot ID is required", 400);
     }
 
     // Get deviceId from query params (needed for Redis key)
@@ -31,28 +31,28 @@ export async function GET(
     }
 
     // Get metadata from Redis
-    const metadata = await getRecordingMetadataFromRedis(deviceId, recordingId);
+    const metadata = await getSnapshotMetadataFromRedis(deviceId, snapshotId);
     if (!metadata) {
-      return errorResponse("Recording not found", 404);
+      return errorResponse("Snapshot not found", 404);
     }
 
     // Check if expired
     if (Date.now() > metadata.expiresAt) {
-      // Clean up expired recording
+      // Clean up expired snapshot
       try {
         if (existsSync(metadata.filePath)) {
           await unlink(metadata.filePath);
         }
-        await deleteRecordingFromRedis(deviceId, recordingId);
+        await deleteSnapshotFromRedis(deviceId, snapshotId);
       } catch (e) {
         // Ignore cleanup errors
       }
-      return errorResponse("Recording has expired", 404);
+      return errorResponse("Snapshot has expired", 404);
     }
 
     // Check if file exists
     if (!existsSync(metadata.filePath)) {
-      return errorResponse("Recording file not found", 404);
+      return errorResponse("Snapshot file not found", 404);
     }
 
     // Read and stream file
@@ -60,16 +60,16 @@ export async function GET(
 
     return new Response(fileBuffer, {
       headers: {
-        "Content-Type": "video/mp4",
+        "Content-Type": "image/png",
         "Content-Length": fileBuffer.length.toString(),
         "Content-Disposition": `inline; filename="${metadata.filename}"`,
         "Cache-Control": "private, max-age=3600",
       },
     });
   } catch (error) {
-    console.error("[/api/recordings/[id]] GET error:", error);
+    console.error("[/api/snapshots/[id]] GET error:", error);
     return errorResponse(
-      error instanceof Error ? error.message : "Failed to retrieve recording",
+      error instanceof Error ? error.message : "Failed to retrieve snapshot",
       500
     );
   }
@@ -81,10 +81,10 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const recordingId = id;
+    const snapshotId = id;
 
-    if (!recordingId) {
-      return errorResponse("Recording ID is required", 400);
+    if (!snapshotId) {
+      return errorResponse("Snapshot ID is required", 400);
     }
 
     // Get deviceId from query params
@@ -96,38 +96,37 @@ export async function DELETE(
     }
 
     // Get metadata from Redis
-    const metadata = await getRecordingMetadataFromRedis(deviceId, recordingId);
+    const metadata = await getSnapshotMetadataFromRedis(deviceId, snapshotId);
     if (!metadata) {
-      return errorResponse("Recording not found", 404);
+      return errorResponse("Snapshot not found", 404);
     }
 
     // Delete file from disk
     try {
       if (existsSync(metadata.filePath)) {
         await unlink(metadata.filePath);
-        console.log(`[Recordings] Deleted file: ${metadata.filePath}`);
+        console.log(`[Snapshots] Deleted file: ${metadata.filePath}`);
       }
     } catch (fileError) {
-      console.error(`[Recordings] Failed to delete file: ${fileError}`);
+      console.error(`[Snapshots] Failed to delete file: ${fileError}`);
     }
 
     // Delete metadata from Redis
-    await deleteRecordingFromRedis(deviceId, recordingId);
+    await deleteSnapshotFromRedis(deviceId, snapshotId);
 
     return successResponse(
       {
         deleted: true,
-        recordingId,
+        snapshotId,
         deviceId,
       },
       200
     );
   } catch (error) {
-    console.error("[/api/recordings/[id]] DELETE error:", error);
+    console.error("[/api/snapshots/[id]] DELETE error:", error);
     return errorResponse(
-      error instanceof Error ? error.message : "Failed to delete recording",
+      error instanceof Error ? error.message : "Failed to delete snapshot",
       500
     );
   }
 }
-

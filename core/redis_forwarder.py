@@ -94,6 +94,11 @@ class RedisForwarder:
                 print(f"[RedisForwarder] Received Player Email Detected signal: device_id={signal.device_id}, name={signal.device_name}")
                 self._handle_player_email_signal(signal)
                 return
+            
+            if signal.name == "Scanner Stopping":
+                print(f"[RedisForwarder] Received Scanner Stopping signal - marking device as offline")
+                self._handle_scanner_stopping(signal)
+                return
 
             if "Scan Report" in signal.name:
                 with self.buffer_lock:
@@ -325,6 +330,7 @@ class RedisForwarder:
         threat_level: float,
         timestamp: int,
         player_nickname: str | None = None,
+        is_logout: bool = False,
     ):
         """Update device info in Redis (matches dashboard's updateDevice structure)"""
         if not self.redis_client:
@@ -334,19 +340,56 @@ class RedisForwarder:
             device_key = redis_keys.device_hash(device_id)
             now_seconds = timestamp
 
-            # Get existing device data to preserve session_start
+            # Get existing device data
             existing_data = self.redis_client.hgetall(device_key)
             existing_session_start = existing_data.get("session_start")
-            if not existing_session_start:
-                existing_session_start = str(now_seconds)
+            existing_last_seen = existing_data.get("last_seen")
+            
+            # Session management logic:
+            # 1. If logout signal -> mark device as offline (set last_seen to past)
+            # 2. If device was offline (last_seen > 120s ago) -> new session
+            # 3. Otherwise -> continue existing session
+            
+            OFFLINE_THRESHOLD_SECONDS = 120  # 2 minutes
+            
+            if is_logout:
+                # Explicit logout - set last_seen to past to mark as offline
+                # Don't update session_start - keep it for duration calculation
+                fields = {
+                    "device_id": device_id,
+                    "last_seen": str(now_seconds - OFFLINE_THRESHOLD_SECONDS - 10),
+                    "threat_level": str(int(threat_level)),
+                }
+                if existing_session_start:
+                    fields["session_start"] = existing_session_start
+                print(f"[RedisForwarder] Device {device_id[:8]} logged out - marking as offline")
+            else:
+                # Check if this is a new session (device was offline)
+                should_start_new_session = False
+                
+                if not existing_session_start:
+                    # First time seeing this device
+                    should_start_new_session = True
+                elif existing_last_seen:
+                    try:
+                        last_seen_ts = int(existing_last_seen)
+                        time_since_last_seen = now_seconds - last_seen_ts
+                        if time_since_last_seen > OFFLINE_THRESHOLD_SECONDS:
+                            # Device was offline for > 2 minutes - new session
+                            should_start_new_session = True
+                            print(f"[RedisForwarder] Device {device_id[:8]} was offline for {time_since_last_seen}s - starting new session")
+                    except (ValueError, TypeError):
+                        pass
+                
+                session_start = str(now_seconds) if should_start_new_session else existing_session_start
 
-            # Update device hash
-            fields = {
-                "device_id": device_id,
-                "last_seen": str(now_seconds),
-                "threat_level": str(int(threat_level)),
-                "session_start": existing_session_start,
-            }
+                # Update device hash
+                fields = {
+                    "device_id": device_id,
+                    "last_seen": str(now_seconds),
+                    "threat_level": str(int(threat_level)),
+                    "session_start": session_start,
+                }
 
             # Only update device_name if it's valid (not empty, not device_id)
             if device_name and isinstance(device_name, str) and device_name.strip() and device_name != device_id:
@@ -394,6 +437,34 @@ class RedisForwarder:
 
         except Exception as e:
             print(f"[RedisForwarder] Error updating device: {e}")
+
+    def _handle_scanner_stopping(self, signal: Signal) -> None:
+        """Mark device as offline when scanner stops (CoinPoker closed)."""
+        device_id = signal.device_id or self.device_id
+        device_name = signal.device_name or self.device_name
+        timestamp = int(signal.timestamp) if signal.timestamp else int(time.time())
+        
+        if not self.redis_client and not self._connect_redis():
+            print("[RedisForwarder] Failed to connect to Redis - cannot mark device as offline")
+            return
+        
+        if not self.redis_client:
+            print("[RedisForwarder] Redis client not available - cannot mark device as offline")
+            return
+        
+        # Update device with is_logout=True to mark as offline
+        self._update_device(
+            device_id=device_id,
+            device_name=device_name,
+            device_hostname=device_name,
+            device_ip=None,
+            threat_level=0,
+            timestamp=timestamp,
+            player_nickname=None,
+            is_logout=True,
+        )
+        
+        print(f"[RedisForwarder] Device {device_id[:8]} marked as offline in Redis")
 
     def _handle_player_name_signal(self, signal: Signal) -> None:
         """Persist player nickname when detector captures it."""

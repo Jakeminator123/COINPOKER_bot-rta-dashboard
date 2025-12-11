@@ -241,8 +241,6 @@ def find_coinpoker_tables(device_id: str | None = None) -> list[dict]:
         print(f"[Snapshot] Error during table enumeration: {enum_error}", file=sys.stderr)
     
     return tables
-    
-    return tables
 
 
 def find_coinpoker_lobby(device_id: str | None = None) -> dict | None:
@@ -452,10 +450,12 @@ def _find_lobby_alternative_method(expected_process_name: str, expected_window_c
 def capture_window_screenshot(hwnd: int) -> Image.Image | None:
     """
     Capture screenshot of window including overlays (topmost layer).
-    Uses PrintWindow first, then falls back to ImageGrab to capture everything including HUDs.
+    Uses PrintWindow first, then falls back to mss/ImageGrab to capture everything including HUDs.
+    
+    Supports multi-monitor setups - uses absolute screen coordinates.
     """
     try:
-        # Get window rect
+        # Get window rect (absolute screen coordinates - works across all monitors)
         rect = win32gui.GetWindowRect(hwnd)
         width = rect[2] - rect[0]
         height = rect[3] - rect[1]
@@ -502,17 +502,38 @@ def capture_window_screenshot(hwnd: int) -> Image.Image | None:
                 win32gui.ReleaseDC(hwnd, hwndDC)
 
                 # Check if image is not completely black/empty
-                # If it seems empty, fall back to ImageGrab
+                # If it seems empty, fall back to screen capture
                 if img.getextrema()[0][1] > 10:  # Not completely black
                     return img
         except Exception:
             pass
 
-        # Fallback: Use ImageGrab to capture screen area (includes all overlays/HUDs)
-        # This captures the topmost rendered layer including any overlays
+        # Fallback: Use mss for multi-monitor support (captures screen area at window position)
+        # mss uses monitor[0] which is the combined virtual screen, so coordinates work across all monitors
+        try:
+            import mss
+            import numpy as np
+            
+            with mss.mss() as sct:
+                # Create monitor dict with absolute coordinates
+                monitor_area = {
+                    "left": rect[0],
+                    "top": rect[1],
+                    "width": width,
+                    "height": height,
+                }
+                screenshot = sct.grab(monitor_area)
+                # Convert to PIL Image
+                img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
+                return img
+        except ImportError:
+            pass
+        except Exception as mss_exc:
+            print(f"[Snapshot] mss capture failed: {mss_exc}", file=sys.stderr)
+        
+        # Final fallback: Use ImageGrab (may have issues with multi-monitor on some systems)
         from PIL import ImageGrab
-
-        img = ImageGrab.grab(bbox=(rect[0], rect[1], rect[2], rect[3]))
+        img = ImageGrab.grab(bbox=(rect[0], rect[1], rect[2], rect[3]), all_screens=True)
         return img
 
     except Exception as e:

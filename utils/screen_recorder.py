@@ -6,6 +6,8 @@ Uses mss for screen capture and opencv-python for video encoding.
 
 Optimized for low CPU usage and browser-compatible output (H.264).
 Uses bundled ffmpeg via imageio-ffmpeg for portable H.264 encoding.
+
+Multi-monitor support: Captures all monitors combined (virtual screen).
 """
 
 import os
@@ -36,13 +38,41 @@ except ImportError:
     pass  # Will fallback to system ffmpeg or skip transcode
 
 
-def record_screen(duration_seconds: int, output_path: Optional[str] = None) -> str:
+def get_monitor_info() -> dict:
     """
-    Record full screen for specified duration and save as MP4 video.
+    Get information about all monitors.
+    
+    Returns:
+        dict with 'monitors' list and 'all' for combined virtual screen
+    """
+    if not AVAILABLE:
+        return {"monitors": [], "all": None}
+    
+    with mss.mss() as sct:
+        # monitors[0] is the combined virtual screen (all monitors)
+        # monitors[1] is primary monitor
+        # monitors[2+] are additional monitors
+        return {
+            "monitors": sct.monitors[1:],  # Individual monitors (skip virtual)
+            "all": sct.monitors[0],  # Combined virtual screen
+            "count": len(sct.monitors) - 1,  # Number of physical monitors
+        }
+
+
+def record_screen(duration_seconds: int, output_path: Optional[str] = None, monitor_index: Optional[int] = None) -> str:
+    """
+    Record screen for specified duration and save as MP4 video.
+    
+    Supports multi-monitor setups by capturing all monitors combined (default)
+    or a specific monitor if monitor_index is provided.
     
     Args:
         duration_seconds: Duration to record in seconds (min 1, max 600)
         output_path: Optional path to save video. If None, uses temp directory.
+        monitor_index: Optional monitor index to capture.
+            - None or 0: Capture all monitors combined (virtual screen) - DEFAULT
+            - 1: Primary monitor only
+            - 2+: Specific additional monitor
     
     Returns:
         Path to saved video file (H.264 if ffmpeg available, otherwise mp4v)
@@ -73,11 +103,25 @@ def record_screen(duration_seconds: int, output_path: Optional[str] = None) -> s
     fps = 12  # Slightly higher fps for smoother video
     frame_time = 1.0 / fps
 
-    # Get screen dimensions
+    # Get screen dimensions - use monitor index 0 for all monitors combined
+    # monitors[0] = combined virtual screen (all monitors)
+    # monitors[1] = primary monitor
+    # monitors[2+] = additional monitors
     with mss.mss() as sct:
-        monitor = sct.monitors[1]  # Primary monitor
+        # Default to all monitors combined (index 0) for multi-monitor support
+        selected_index = monitor_index if monitor_index is not None else 0
+        
+        # Validate monitor index
+        if selected_index >= len(sct.monitors):
+            print(f"[ScreenRecorder] Warning: Monitor index {selected_index} not found, using all monitors")
+            selected_index = 0
+        
+        monitor = sct.monitors[selected_index]
         width = monitor["width"]
         height = monitor["height"]
+        
+        monitor_desc = "all monitors combined" if selected_index == 0 else f"monitor {selected_index}"
+        print(f"[ScreenRecorder] Selected {monitor_desc}: {width}x{height}")
 
     # Downscale to 900p max (better than 720p, still smaller than 1080p)
     max_w, max_h = 1600, 900
@@ -160,7 +204,8 @@ def record_screen(duration_seconds: int, output_path: Optional[str] = None) -> s
         )
         
         with mss.mss() as sct:
-            monitor = sct.monitors[1]
+            # Use the same monitor index selected earlier (default: 0 = all monitors)
+            monitor = sct.monitors[selected_index]
             
             while time.time() - start_time < duration_seconds:
                 frame_start = time.time()

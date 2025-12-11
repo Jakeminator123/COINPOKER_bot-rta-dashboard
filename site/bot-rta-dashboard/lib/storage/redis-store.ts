@@ -597,9 +597,42 @@ export class RedisStore implements StorageAdapter {
     console.log("  - session_start:", existingSessionStart || "(not set)");
     console.log("  - All fields:", Object.keys(existingData).length > 0 ? Object.keys(existingData).join(", ") : "(empty hash)");
     
-    // CRITICAL: A batch is coming in, so device is definitely online now
-    // We should ALWAYS update last_seen when batch comes in (device is online)
-    // If batches stop coming, last_seen will become stale and isOnline will be false
+    // ========== SESSION MANAGEMENT ==========
+    // Check if this should be a new session based on:
+    // 1. Device was offline (last_seen > DEVICE_TIMEOUT_MS ago)
+    // 2. deviceStates map says it's a new session
+    // 3. First time seeing this device
+    
+    const OFFLINE_THRESHOLD_SECONDS = Math.floor(DEVICE_TIMEOUT_MS / 1000); // 120 seconds
+    let sessionStart = existingSessionStart;
+    let isNewSession = false;
+    
+    // Check deviceStates for managed session state
+    const deviceState = this.deviceStates.get(device_id);
+    if (deviceState && deviceState.session_start) {
+      // Use the session_start from deviceStates (managed by checkSessionEvents)
+      sessionStart = deviceState.session_start.toString();
+      console.log("[RedisStore] Using session_start from deviceStates:", sessionStart);
+    } else if (!existingSessionStart) {
+      // First time seeing this device - new session
+      sessionStart = nowSeconds.toString();
+      isNewSession = true;
+      console.log("[RedisStore] First time device - new session:", sessionStart);
+    } else if (existingLastSeen) {
+      // Check if device was offline for too long
+      const lastSeenTs = parseInt(existingLastSeen, 10);
+      const timeSinceLastSeen = nowSeconds - lastSeenTs;
+      if (timeSinceLastSeen > OFFLINE_THRESHOLD_SECONDS) {
+        // Device was offline for > threshold - start new session
+        sessionStart = nowSeconds.toString();
+        isNewSession = true;
+        console.log(`[RedisStore] Device was offline for ${timeSinceLastSeen}s - new session:`, sessionStart);
+      }
+    }
+    
+    console.log("[RedisStore] SESSION DECISION:");
+    console.log("  - isNewSession:", isNewSession);
+    console.log("  - sessionStart:", sessionStart);
     
     console.log("[RedisStore] NAME SANITIZATION:");
     console.log("  - Calling sanitizeDeviceName(", device_name, ",", device_id, ")");
@@ -622,7 +655,7 @@ export class RedisStore implements StorageAdapter {
       // This is the most important field - without it, device will show as offline
       last_seen: nowSeconds.toString(),
       threat_level: threat_level.toString(),
-      session_start: existingSessionStart || nowSeconds.toString(),
+      session_start: sessionStart || nowSeconds.toString(),
     };
     // Only update device_name if we have a valid name (don't overwrite with null/empty)
     if (finalDeviceName && finalDeviceName.trim().length > 0) {
@@ -902,7 +935,7 @@ export class RedisStore implements StorageAdapter {
     const nowMs = timestamp * 1000;
     const state = this.deviceStates.get(device_id);
     
-    // Check for explicit logout signal (e.g., scan_type === "logout" or bot_probability === 0)
+    // Check for explicit logout signal (e.g., scan_type === "logout" or scanner_stopped)
     const isExplicitLogout = batch && (
       (batch as any).scan_type === "logout" || 
       (batch as any).scan_type === "scanner_stopped" ||
@@ -911,17 +944,36 @@ export class RedisStore implements StorageAdapter {
     
     const isDebugDevice = device_id === "462a6a3a5c173a1ea54e05b355ea1790";
     
+    // Also check if device was offline based on Redis data (for cross-instance session management)
+    let wasOfflineInRedis = false;
+    const deviceKey = redisKeys.deviceHash(device_id);
+    const existingData = await this.client.hGetAll(deviceKey);
+    if (existingData?.last_seen) {
+      const lastSeenTs = parseInt(existingData.last_seen, 10);
+      const timeSinceLastSeenRedis = timestamp - lastSeenTs;
+      wasOfflineInRedis = timeSinceLastSeenRedis > Math.floor(DEVICE_TIMEOUT_MS / 1000);
+      if (wasOfflineInRedis) {
+        console.log(`[RedisStore] Device ${device_id.slice(0, 8)} was offline in Redis for ${timeSinceLastSeenRedis}s`);
+      }
+    }
+    
     if (!state) {
-      // First time seeing this device - session start (unless it's a logout)
+      // First time seeing this device in this server instance
       if (!isExplicitLogout) {
+        // Check if device was offline in Redis (cross-instance session handling)
+        const shouldStartNewSession = wasOfflineInRedis || !existingData?.session_start;
+        
         this.deviceStates.set(device_id, {
-          session_start: timestamp,
+          session_start: shouldStartNewSession ? timestamp : parseInt(existingData?.session_start || String(timestamp), 10),
           last_seen: nowMs,
           is_online: true,
         });
         
-        // Save session start event
-        await this.saveSessionEvent(device_id, device_name, "login", timestamp, timestamp);
+        // Only save login event if this is actually a new session
+        if (shouldStartNewSession) {
+          await this.saveSessionEvent(device_id, device_name, "login", timestamp, timestamp);
+          console.log(`[RedisStore] New session started for device ${device_id.slice(0, 8)}`);
+        }
         if (isDebugDevice) {
           console.log("[RedisStore] checkSessionEvents: new session started, allowing updateDevice");
         }
@@ -959,18 +1011,18 @@ export class RedisStore implements StorageAdapter {
         });
         
         // Update Redis to reflect offline status
-        const deviceKey = redisKeys.deviceHash(device_id);
         await this.client.hSet(deviceKey, {
           last_seen: (Math.floor((nowMs - DEVICE_TIMEOUT_MS - 1000) / 1000)).toString(),
         });
         
+        console.log(`[RedisStore] Device ${device_id.slice(0, 8)} explicitly logged out`);
         if (isDebugDevice) {
           console.log("[RedisStore] checkSessionEvents: explicit logout detected, blocking updateDevice");
         }
         // Return false to prevent updateDevice from overwriting logout status
         return false;
-      } else if (timeSinceLastSeen > DEVICE_TIMEOUT_MS) {
-        // Timeout-based logout (no signal for >120s)
+      } else if (timeSinceLastSeen > DEVICE_TIMEOUT_MS || wasOfflineInRedis) {
+        // Timeout-based logout (no signal for >120s) or device was offline in Redis
         const sessionDuration = Math.floor((state.last_seen - (state.session_start || timestamp) * 1000) / 1000);
         
         // Save session end for previous session
@@ -994,6 +1046,7 @@ export class RedisStore implements StorageAdapter {
         
         // Save new session start
         await this.saveSessionEvent(device_id, device_name, "login", timestamp, timestamp);
+        console.log(`[RedisStore] Device ${device_id.slice(0, 8)} started new session after being offline`);
       } else {
         // Continue existing session
         state.last_seen = nowMs;
@@ -1002,10 +1055,10 @@ export class RedisStore implements StorageAdapter {
           console.log("[RedisStore] checkSessionEvents: continuing session, allowing updateDevice");
         }
       }
+    }
     
     // Return true to allow updateDevice to proceed
     return true;
-  }
   }
 
   private async saveSessionEvent(

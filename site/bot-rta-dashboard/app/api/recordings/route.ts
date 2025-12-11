@@ -3,7 +3,7 @@ import {
   errorResponse,
   successResponse,
 } from "@/lib/utils/api-utils";
-import { getAllRecordings } from "./upload/route";
+import { getAllRecordingsFromRedis } from "./upload/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,14 +17,14 @@ export async function GET(req: NextRequest) {
       return errorResponse("deviceId query parameter is required", 400);
     }
 
-    // Get all recordings for device
-    const recordings = getAllRecordings(deviceId);
+    // Get all recordings for device from Redis
+    const recordings = await getAllRecordingsFromRedis(deviceId);
 
     // Filter out expired recordings
     const now = Date.now();
     const activeRecordings = recordings.filter((r) => r.expiresAt > now);
 
-    // Sort by creation date (newest first)
+    // Sort by creation date (newest first) - already sorted from Redis but ensure it
     activeRecordings.sort((a, b) => b.createdAt - a.createdAt);
 
     // Format response
@@ -38,6 +38,7 @@ export async function GET(req: NextRequest) {
       createdAt: r.createdAt,
       expiresAt: r.expiresAt,
       url: `/api/recordings/${r.recordingId}`,
+      type: "recording",
     }));
 
     return successResponse(
