@@ -48,6 +48,8 @@ import AuthGuard from "@/components/AuthGuard";
 import SegmentHistoryModal from "@/components/SegmentHistoryModal";
 import ReportExportModal from "@/components/ReportExportModal";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
+import { DarkModeVideoBackground } from "@/components/DarkModeVideoBackground";
+import { useDarkMode } from "@/lib/DarkModeContext";
 
 // Dynamic imports for client-side components
 const ThreatVisualization = dynamic(
@@ -205,6 +207,7 @@ function SessionDurationDisplay({
 function EnhancedDashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { isDarkMode } = useDarkMode();
   const playerId = searchParams.get("player") || searchParams.get("device");
 
   const [data, setData] = useState<Snapshot | null>(null);
@@ -1299,9 +1302,13 @@ function EnhancedDashboardContent() {
   }, [allDetections, overallThreat, categoryThreats, stats, playerId, analysisTimePreset]);
 
   return (
-    <main className="aurora-background">
-      {/* Animated Background - Same as home page */}
-      <AnimatedBackground intensity="medium" particleCount={20} showFloatingDots={true} />
+    <main className={isDarkMode ? "min-h-screen relative overflow-hidden bg-slate-950" : "aurora-background"}>
+      {/* Background - switches between normal and dark mode */}
+      {isDarkMode ? (
+        <DarkModeVideoBackground />
+      ) : (
+        <AnimatedBackground intensity="medium" particleCount={20} showFloatingDots={true} />
+      )}
       
       {/* Enhanced Header - Sticky Frosted */}
       <motion.header 

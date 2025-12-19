@@ -1792,11 +1792,13 @@ export class RedisStore implements StorageAdapter {
 
     if (!keys.length) {
       const scanned: string[] = [];
-      for await (const key of this.client.scanIterator({
+      for await (const keys of this.client.scanIterator({
         MATCH: `batch:${device_id}:*`,
         COUNT: 100,
       })) {
-        scanned.push(key as string);
+        // scanIterator may return string or string[] depending on Redis client version
+        const keyList = Array.isArray(keys) ? keys : [keys];
+        scanned.push(...keyList);
         if (scanned.length >= limit) {
           break;
         }

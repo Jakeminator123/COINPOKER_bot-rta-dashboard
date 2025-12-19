@@ -1,35 +1,35 @@
+/**
+ * Root Layout
+ * ===========
+ * Alias: "Layout" | "Root" | "App Layout"
+ * File: app/layout.tsx
+ *
+ * The root layout wrapping all pages. Provides:
+ * - NextAuth SessionProvider for authentication
+ * - Global fonts (Space Grotesk, Geist Mono)
+ * - Global styles
+ * - Vercel Analytics
+ */
+import type { Metadata } from "next";
+import { Space_Grotesk, Geist_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
+import SessionProviderWrapper from "@/components/SessionProviderWrapper";
+import { DarkModeProvider } from "@/lib/DarkModeContext";
 import "./globals.css";
-import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
-import Providers from "@/components/Providers";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
 
-// Modern typography: Inter for body text, JetBrains Mono for code/numbers
-const inter = Inter({
+const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
+  variable: "--font-space-grotesk",
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const geistMono = Geist_Mono({
   subsets: ["latin"],
-  variable: "--font-mono",
-  display: "swap",
+  variable: "--font-geist-mono",
 });
 
 export const metadata: Metadata = {
   title: "Bot & RTA Detection Dashboard",
-  description: "Realtime dashboard for detection signals",
-  icons: {
-    icon: "/favicon.ico",
-  },
-};
-
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  maximumScale: 5,
-  userScalable: true,
+  description: "Real-time bot and RTA detection system for online poker",
 };
 
 export default function RootLayout({
@@ -38,15 +38,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html
-      lang="sv"
-      data-scroll-behavior="smooth"
-      className={`${inter.variable} ${jetbrainsMono.variable}`}
-    >
-      <body className="font-sans antialiased">
-        <ErrorBoundary>
-          <Providers>{children}</Providers>
-        </ErrorBoundary>
+    <html lang="en">
+      <body
+        className={`${spaceGrotesk.variable} ${geistMono.variable} font-sans antialiased`}
+      >
+        <SessionProviderWrapper>
+          <DarkModeProvider>{children}</DarkModeProvider>
+        </SessionProviderWrapper>
+        <Analytics />
       </body>
     </html>
   );

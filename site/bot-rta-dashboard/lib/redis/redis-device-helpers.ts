@@ -1,11 +1,6 @@
-import type {
-  RedisClientType,
-  RedisModules,
-  RedisFunctions,
-  RedisScripts,
-} from "redis";
+import { createClient } from "redis";
 
-type RedisClient = RedisClientType<RedisModules, RedisFunctions, RedisScripts>;
+type RedisClient = ReturnType<typeof createClient>;
 
 const DEVICE_KEY_PREFIX = "device:";
 const IGNORED_KEY_PATTERNS = [
@@ -30,10 +25,10 @@ export async function scanPrimaryDeviceIds(
   scanBatchSize = 200
 ): Promise<string[]> {
   const deviceIds = new Set<string>();
-  let cursor = 0;
+  let cursor: string | number = 0;
 
   do {
-    const result = await client.scan(cursor, {
+    const result = await client.scan(String(cursor), {
       MATCH: `${DEVICE_KEY_PREFIX}*`,
       COUNT: scanBatchSize,
     });
@@ -51,7 +46,7 @@ export async function scanPrimaryDeviceIds(
         deviceIds.add(deviceId);
       }
     }
-  } while (cursor !== 0);
+  } while (Number(cursor) !== 0);
 
   return Array.from(deviceIds);
 }

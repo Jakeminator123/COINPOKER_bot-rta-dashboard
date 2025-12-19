@@ -2,11 +2,18 @@
 
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
+import { ParticleWaveBackground } from "./ParticleWaveBackground";
 
 type AnimatedBackgroundProps = {
   intensity?: "low" | "medium" | "high";
   particleCount?: number;
   showFloatingDots?: boolean;
+  /** Enable flowing particle wave animation (Skal-style) */
+  showParticleWaves?: boolean;
+  /** Particle wave color scheme */
+  waveColorScheme?: "purple" | "pink" | "cyan" | "mixed";
+  /** Particle wave density */
+  waveDensity?: "low" | "medium" | "high";
 };
 
 type GlowEffectProps = {
@@ -18,7 +25,10 @@ type GlowEffectProps = {
 export function AnimatedBackground({ 
   intensity = "medium",
   particleCount = 20,
-  showFloatingDots = true 
+  showFloatingDots = true,
+  showParticleWaves = false,
+  waveColorScheme = "mixed",
+  waveDensity = "medium",
 }: AnimatedBackgroundProps = {}) {
   const [particles, setParticles] = useState<Array<{ id: number; x: number; y: number; size: number }>>([]);
 
@@ -34,78 +44,93 @@ export function AnimatedBackground({
 
   // Intensity-based opacity multipliers
   const opacityMultipliers = {
-    low: { orbs: 0.03, dots: 0.03, grid: 0.03 },
-    medium: { orbs: 0.05, dots: 0.05, grid: 0.05 },
-    high: { orbs: 0.08, dots: 0.08, grid: 0.08 },
+    low: { orbs: 0.03, dots: 0.03, grid: 0.03, waves: 0.4 },
+    medium: { orbs: 0.05, dots: 0.05, grid: 0.05, waves: 0.6 },
+    high: { orbs: 0.08, dots: 0.08, grid: 0.08, waves: 0.8 },
   };
 
   const opacity = opacityMultipliers[intensity];
 
   return (
-    <div className="fixed inset-0 overflow-hidden pointer-events-none">
-      {/* Subtle Gradient Orbs */}
-      <motion.div
-        className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500 rounded-full blur-3xl"
-        style={{ opacity: opacity.orbs }}
-        animate={{
-          x: [0, 50, 0],
-          y: [0, -25, 0],
-        }}
-        transition={{
-          duration: 30,
-          repeat: Infinity,
-          ease: "easeInOut",
-        }}
-      />
-      <motion.div
-        className="absolute bottom-0 right-1/4 w-96 h-96 bg-indigo-500 rounded-full blur-3xl"
-        style={{ opacity: opacity.orbs }}
-        animate={{
-          x: [0, -50, 0],
-          y: [0, 25, 0],
-        }}
-        transition={{
-          duration: 35,
-          repeat: Infinity,
-          ease: "easeInOut",
-        }}
-      />
+    <>
+      {/* Particle Wave Animation (Canvas-based, Skal-style) */}
+      {showParticleWaves && (
+        <ParticleWaveBackground 
+          colorScheme={waveColorScheme}
+          particleDensity={waveDensity}
+          speed="medium"
+          opacity={opacity.waves}
+          enabled={true}
+        />
+      )}
 
-      {/* Subtle Floating Dots */}
-      {showFloatingDots && particles.slice(0, Math.floor(particleCount / 2)).map((particle) => (
+      <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 0 }}>
+        {/* Subtle Gradient Orbs */}
         <motion.div
-          key={particle.id}
-          className="absolute bg-white rounded-full"
-          style={{
-            left: `${particle.x}%`,
-            top: `${particle.y}%`,
-            width: `${particle.size}px`,
-            height: `${particle.size}px`,
-            opacity: opacity.dots,
-          }}
+          className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500 rounded-full blur-3xl"
+          style={{ opacity: opacity.orbs }}
           animate={{
-            y: [-10, 10, -10],
-            opacity: [opacity.dots * 0.5, opacity.dots, opacity.dots * 0.5],
+            x: [0, 50, 0],
+            y: [0, -25, 0],
           }}
           transition={{
-            duration: Math.random() * 10 + 10,
+            duration: 30,
             repeat: Infinity,
             ease: "easeInOut",
-            delay: Math.random() * 2,
           }}
         />
-      ))}
+        <motion.div
+          className="absolute bottom-0 right-1/4 w-96 h-96 bg-indigo-500 rounded-full blur-3xl"
+          style={{ opacity: opacity.orbs }}
+          animate={{
+            x: [0, -50, 0],
+            y: [0, 25, 0],
+          }}
+          transition={{
+            duration: 35,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
 
-      {/* Grid Pattern */}
-      <svg className="absolute inset-0 w-full h-full" style={{ opacity: opacity.grid }} xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="0.5" />
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#grid)" />
-      </svg>
-    </div>
+        {/* Subtle Floating Dots (only show if particle waves are off, to avoid clutter) */}
+        {showFloatingDots && !showParticleWaves && particles.slice(0, Math.floor(particleCount / 2)).map((particle) => (
+          <motion.div
+            key={particle.id}
+            className="absolute bg-white rounded-full"
+            style={{
+              left: `${particle.x}%`,
+              top: `${particle.y}%`,
+              width: `${particle.size}px`,
+              height: `${particle.size}px`,
+              opacity: opacity.dots,
+            }}
+            animate={{
+              y: [-10, 10, -10],
+              opacity: [opacity.dots * 0.5, opacity.dots, opacity.dots * 0.5],
+            }}
+            transition={{
+              duration: Math.random() * 10 + 10,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: Math.random() * 2,
+            }}
+          />
+        ))}
+
+        {/* Grid Pattern (subtle, behind everything) */}
+        {!showParticleWaves && (
+          <svg className="absolute inset-0 w-full h-full" style={{ opacity: opacity.grid }} xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="0.5" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#grid)" />
+          </svg>
+        )}
+      </div>
+    </>
   );
 }
 

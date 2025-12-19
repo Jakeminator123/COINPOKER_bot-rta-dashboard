@@ -12,6 +12,8 @@ import AdvancedSettingsEditor from "@/components/config-editors/AdvancedSettings
 import SHADatabaseViewer from "@/components/SHADatabaseViewer";
 import VirusTotalSettings from "@/components/config-editors/VirusTotalSettings";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
+import { DarkModeVideoBackground } from "@/components/DarkModeVideoBackground";
+import { useDarkMode } from "@/lib/DarkModeContext";
 import { SettingsGearIcon, DatabaseIcon, ShieldIcon, ConfigIcon, ArrowIcon, NetworkIcon, DetectionIcon } from "@/components/AnimatedIcons";
 import { GlassCard, FeatureCard } from "@/components/GlassCard";
 import { motion, AnimatePresence } from "framer-motion";
@@ -57,6 +59,7 @@ function FloatingIcon({ delay = 0 }: { delay?: number }) {
 
 function SettingsPageContent() {
   const router = useRouter();
+  const { isDarkMode } = useDarkMode();
   const [activeTab, setActiveTab] = useState<SettingsTab>("configuration");
   
   const { data: configData, error, isLoading, mutate } = useSWR("/api/configs", fetcher);
@@ -105,8 +108,8 @@ function SettingsPageContent() {
 
   if (error) {
     return (
-      <div className="aurora-background flex items-center justify-center relative">
-        <AnimatedBackground intensity="low" />
+      <div className={isDarkMode ? "min-h-screen relative overflow-hidden bg-slate-950 flex items-center justify-center" : "aurora-background flex items-center justify-center relative"}>
+        {isDarkMode ? <DarkModeVideoBackground /> : <AnimatedBackground intensity="low" />}
         <GlassCard className="p-8 max-w-md relative z-10">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-red-400 mb-4">Configuration Error</h2>
@@ -124,9 +127,13 @@ function SettingsPageContent() {
   }
 
   return (
-    <div className="aurora-background">
-      {/* Animated Background */}
-      <AnimatedBackground intensity="low" particleCount={15} showFloatingDots={true} />
+    <div className={isDarkMode ? "min-h-screen relative overflow-hidden bg-slate-950" : "aurora-background"}>
+      {/* Background - switches between normal and dark mode */}
+      {isDarkMode ? (
+        <DarkModeVideoBackground />
+      ) : (
+        <AnimatedBackground intensity="low" particleCount={15} showFloatingDots={true} />
+      )}
       
       {/* Floating Icons */}
       {[...Array(2)].map((_, i) => (

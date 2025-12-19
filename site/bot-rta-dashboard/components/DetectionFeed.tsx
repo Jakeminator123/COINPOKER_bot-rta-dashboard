@@ -244,9 +244,10 @@ function DetectionFeed({ detections, maxItems = 10, onIgnoreDetection }: Detecti
               {isRecent && (
                 <div className="mt-3 h-0.5 bg-slate-700 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-[60s] ease-linear"
+                    className="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all ease-linear"
                     style={{
-                      width: `${100 - (age / 600)}%`
+                      width: `${100 - (age / 600)}%`,
+                      transitionDuration: '60s'
                     }}
                   />
                 </div>

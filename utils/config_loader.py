@@ -45,7 +45,7 @@ class ConfigLoader:
 
     def __init__(self):
         # Initialize with default URL
-        self.base_url = "http://localhost:3001/api"
+        self.base_url = "http://localhost:3000/api"
         self.cache_ttl = 300  # 5 minutes cache validity (reduced for 300 players)
         self.configs: dict[str, Any] = {}  # RAM cache
         self.last_fetch = 0

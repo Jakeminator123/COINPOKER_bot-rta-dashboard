@@ -17,12 +17,9 @@ const nextConfig = {
   experimental: {
     serverActions: { allowedOrigins: ['*'] }
   },
-  // Turbopack configuration (moved from experimental.turbo)
+  // Turbopack configuration
   turbopack: {
-    root: process.cwd(), // Explicitly set the root to current working directory
-    resolveAlias: {
-      // Optimize module resolution
-    }
+    root: process.cwd()
   },
   // Skip type checking during dev for faster builds
   typescript: {

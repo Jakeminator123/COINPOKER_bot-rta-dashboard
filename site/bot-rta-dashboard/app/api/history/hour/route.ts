@@ -68,11 +68,13 @@ export async function GET(req: NextRequest) {
   try {
     await client.connect();
     const sectionKeys: string[] = [];
-    for await (const key of client.scanIterator({
+    for await (const keys of client.scanIterator({
       MATCH: "section:*",
       COUNT: 200,
     })) {
-      sectionKeys.push(key);
+      // scanIterator may return string or string[] depending on Redis client version
+      const keyList = Array.isArray(keys) ? keys : [keys];
+      sectionKeys.push(...keyList);
     }
     const nowSec = Math.floor(Date.now() / 1000);
     const minScore = nowSec - windowSec;

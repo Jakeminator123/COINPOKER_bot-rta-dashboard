@@ -99,6 +99,9 @@ function DevicesPageContent() {
   const [viewMode, setViewMode] = useState<"list" | "leaderboard">(
     "leaderboard"
   );
+  const [aiMinThreat, setAiMinThreat] = useState(60);
+  const [aiActiveDays, setAiActiveDays] = useState(7);
+  const [aiMaxPlayers, setAiMaxPlayers] = useState(1000);
 
   // Fetch leaderboard data
   const { data: leaderboardData } = useSWR<{
@@ -252,6 +255,91 @@ function DevicesPageContent() {
           </div>
         </div>
       </motion.header>
+
+      {/* AI Daily Summary - simple info panel */}
+      <motion.section
+        className="px-4 sm:px-6 pt-4 sm:pt-6 relative z-10"
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.15 }}
+      >
+        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5 shadow-lg shadow-purple-500/10">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <p className="text-xs uppercase tracking-wide text-indigo-200/80">AI daily summary</p>
+              <h3 className="text-lg font-semibold text-white">Scheduled analysis once per day</h3>
+              <p className="text-sm text-white/70">
+                Run /api/analysis/scheduled with ANALYSIS_TOKEN. Results saved in Redis:
+                ai_analysis:&#123;deviceId&#125;:latest and :history (TTL ~3 days). Cost: ~1.2–1.4 USD/run for 4k players.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                className="px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 transition"
+                onClick={() => {
+                  const payload = JSON.stringify({
+                    max: aiMaxPlayers,
+                    minThreat: aiMinThreat,
+                    onlyActiveSinceDays: aiActiveDays,
+                  });
+                  navigator.clipboard
+                    ?.writeText(
+                      `curl -X POST https://<host>/api/analysis/scheduled -H "Authorization: Bearer $ANALYSIS_TOKEN" -H "Content-Type: application/json" -d '${payload}'`
+                    )
+                    .catch(() => {});
+                }}
+              >
+                Copy curl
+              </button>
+              <button
+                className="px-4 py-2 rounded-xl border border-white/15 text-white/80 hover:text-white hover:border-white/30 transition"
+                onClick={() =>
+                  alert(
+                    "AI summary is activated via scheduled runs. Set OPENAI_API_KEY, ANALYSIS_TOKEN and run /api/analysis/scheduled daily. You can control max players, minThreat and active days below."
+                  )
+                }
+              >
+                How it works
+              </button>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm text-white/80">
+            <label className="flex flex-col gap-1">
+              <span>Min threat-level (AI)</span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={aiMinThreat}
+                onChange={(e) => setAiMinThreat(Number(e.target.value) || 0)}
+                className="px-3 py-2 rounded-lg bg-slate-800 border border-white/10 text-white"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span>Active in last (days)</span>
+              <input
+                type="number"
+                min={0}
+                max={365}
+                value={aiActiveDays}
+                onChange={(e) => setAiActiveDays(Number(e.target.value) || 0)}
+                className="px-3 py-2 rounded-lg bg-slate-800 border border-white/10 text-white"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span>Max players per run</span>
+              <input
+                type="number"
+                min={1}
+                max={4000}
+                value={aiMaxPlayers}
+                onChange={(e) => setAiMaxPlayers(Number(e.target.value) || 1)}
+                className="px-3 py-2 rounded-lg bg-slate-800 border border-white/10 text-white"
+              />
+            </label>
+          </div>
+        </div>
+      </motion.section>
 
       <div className="px-4 sm:px-6 py-6 sm:py-8 relative z-10">
         {/* Navigation Tabs */}

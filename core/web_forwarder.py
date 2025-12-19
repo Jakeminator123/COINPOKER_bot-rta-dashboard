@@ -16,7 +16,7 @@ class WebForwarder:
 
     def __init__(self):
         self.enabled = False
-        self.url = "http://localhost:3001/api/signal"
+        self.url = "http://localhost:3000/api/signal"
         self.token = "detector-secret-token-2024"  # Match .env.local in dashboard
         self.buffer: list[Signal] = []
         self.buffer_lock = threading.Lock()

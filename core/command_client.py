@@ -52,7 +52,7 @@ class DashboardCommandClient:
 
     def _resolve_api_base(self) -> str:
         loader = get_config_loader()
-        base_url = getattr(loader, "base_url", "http://127.0.0.1:3001/api")
+        base_url = getattr(loader, "base_url", "http://127.0.0.1:3000/api")
         return base_url.rstrip("/")
 
     def _resolve_token(self) -> str | None:

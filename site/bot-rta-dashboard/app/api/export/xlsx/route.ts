@@ -53,15 +53,19 @@ export async function GET(req: NextRequest) {
 
     if (!comboPairs.length) {
       const comboSet = new Set<string>();
-      for await (const key of client.scanIterator({
+      for await (const keys of client.scanIterator({
         MATCH: `segments:${device}:*:*:hourly`,
         COUNT: 200,
       })) {
-        const match = key.match(
-          new RegExp(`segments:${device}:([^:]+):([^:]+):hourly`)
-        );
-        if (match) {
-          comboSet.add(`${match[1]}:${match[2]}`);
+        // scanIterator may return string or string[] depending on Redis client version
+        const keyList = Array.isArray(keys) ? keys : [keys];
+        for (const key of keyList) {
+          const match = key.match(
+            new RegExp(`segments:${device}:([^:]+):([^:]+):hourly`)
+          );
+          if (match) {
+            comboSet.add(`${match[1]}:${match[2]}`);
+          }
         }
       }
       comboPairs = Array.from(comboSet);
@@ -163,13 +167,15 @@ export async function GET(req: NextRequest) {
 
           // Get segments for this session
           const segmentKeys: string[] = [];
-          for await (const segKey of client.scanIterator({
+          for await (const keys of client.scanIterator({
             MATCH: `session:${device}:${sessionStart}:segment:*`,
             COUNT: 200,
           })) {
-            segmentKeys.push(segKey);
+            // scanIterator may return string or string[] depending on Redis client version
+            const keyList = Array.isArray(keys) ? keys : [keys];
+            segmentKeys.push(...keyList);
           }
-           
+
           const segments: any[] = [];
           for (const segKey of segmentKeys) {
             const segData = await client.hGetAll(segKey);
@@ -238,7 +244,7 @@ export async function GET(req: NextRequest) {
         type === "all" ? "daily" : (type as any)
       );
 
-      return new NextResponse(buffer, {
+      return new NextResponse(new Uint8Array(buffer), {
         headers: {
           "Content-Type":
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -262,7 +268,7 @@ export async function GET(req: NextRequest) {
         type === "all" ? "daily" : (type as any)
       );
 
-      return new NextResponse(buffer, {
+      return new NextResponse(new Uint8Array(buffer), {
         headers: {
           "Content-Type":
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

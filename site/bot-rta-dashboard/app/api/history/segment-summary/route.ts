@@ -61,15 +61,19 @@ export async function GET(req: NextRequest) {
 
     if (comboPairs.length === 0) {
       const comboSet = new Set<string>();
-      for await (const key of client.scanIterator({
+      for await (const keys of client.scanIterator({
         MATCH: `segments:${device}:*:*:daily`,
         COUNT: 200,
       })) {
-        const match = key.match(
-          new RegExp(`segments:${device}:([^:]+):([^:]+):daily`),
-        );
-        if (match) {
-          comboSet.add(`${match[1]}:${match[2]}`);
+        // scanIterator may return string or string[] depending on Redis client version
+        const keyList = Array.isArray(keys) ? keys : [keys];
+        for (const key of keyList) {
+          const match = key.match(
+            new RegExp(`segments:${device}:([^:]+):([^:]+):daily`),
+          );
+          if (match) {
+            comboSet.add(`${match[1]}:${match[2]}`);
+          }
         }
       }
       comboPairs = Array.from(comboSet);

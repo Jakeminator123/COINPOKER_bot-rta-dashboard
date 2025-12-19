@@ -8,13 +8,15 @@
 import { useDebouncedNavigation } from "@/lib/utils/navigation";
 import { signOut } from "next-auth/react";
 import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import useSWR from "swr";
 import AuthGuard from "@/components/AuthGuard";
 import DeviceListModule from "@/components/DeviceListModule";
 import NavigationTabs from "@/components/NavigationTabs";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
-import { SettingsGearIcon, DatabaseIcon, ShieldIcon, ArrowIcon, NetworkIcon, DetectionIcon } from "@/components/AnimatedIcons";
+import { DarkModeVideoBackground } from "@/components/DarkModeVideoBackground";
+import { useDarkMode } from "@/lib/DarkModeContext";
+import { DatabaseIcon, ShieldIcon, ArrowIcon, NetworkIcon, DetectionIcon } from "@/components/AnimatedIcons";
 import { GlassCard, FeatureCard } from "@/components/GlassCard";
 import {
   normalizeDevicesResponse,
@@ -39,6 +41,7 @@ type SegmentFilterId = (typeof SEGMENT_FILTERS)[number]["id"];
 
 function HomePageContent() {
   const { navigateTo } = useDebouncedNavigation();
+  const { isDarkMode, toggleDarkMode } = useDarkMode();
   const [activeSegmentFilter, setActiveSegmentFilter] = useState<SegmentFilterId>("all");
 
   const {
@@ -124,9 +127,31 @@ function HomePageContent() {
   }
 
   return (
-    <div className="aurora-background">
-      {/* Animated Background - Medium intensity for home page */}
-      <AnimatedBackground intensity="medium" particleCount={20} showFloatingDots={true} />
+    <div className={isDarkMode ? "min-h-screen relative overflow-hidden bg-slate-950" : "aurora-background"}>
+      {/* Background - switches between normal and dark mode video */}
+      <AnimatePresence mode="wait">
+        {isDarkMode ? (
+          <motion.div
+            key="dark-bg"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <DarkModeVideoBackground />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="light-bg"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <AnimatedBackground intensity="medium" particleCount={20} showFloatingDots={true} />
+          </motion.div>
+        )}
+      </AnimatePresence>
       
       {/* Enhanced Header - Sticky Frosted */}
       <motion.header 
@@ -180,17 +205,59 @@ function HomePageContent() {
             </div>
 
             <div className="flex items-center gap-4">
+              {/* Dark Mode Toggle */}
               <motion.button
-                onClick={() => navigateTo("/settings")}
+                onClick={toggleDarkMode}
                 className="p-3 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-white/10 hover:border-white/20 transition-all duration-300"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
+                title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
               >
-                <SettingsGearIcon className="w-6 h-6" />
+                <AnimatePresence mode="wait">
+                  {isDarkMode ? (
+                    <motion.svg
+                      key="moon"
+                      initial={{ rotate: -90, opacity: 0 }}
+                      animate={{ rotate: 0, opacity: 1 }}
+                      exit={{ rotate: 90, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="w-6 h-6"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
+                      />
+                    </motion.svg>
+                  ) : (
+                    <motion.svg
+                      key="sun"
+                      initial={{ rotate: 90, opacity: 0 }}
+                      animate={{ rotate: 0, opacity: 1 }}
+                      exit={{ rotate: -90, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="w-6 h-6"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+                      />
+                    </motion.svg>
+                  )}
+                </AnimatePresence>
               </motion.button>
-              
+
               <motion.button
-                onClick={() => signOut()}
+                onClick={() => signOut({ callbackUrl: "/login" })}
                 className="px-5 py-2.5 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-500 hover:to-pink-500 text-white rounded-xl font-semibold shadow-lg shadow-red-500/20 transition-all duration-300"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}

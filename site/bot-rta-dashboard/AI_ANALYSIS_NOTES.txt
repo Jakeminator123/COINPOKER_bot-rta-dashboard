@@ -1,0 +1,36 @@
+AI Scheduled Analysis – draft
+=============================
+
+Purpose
+- Run one AI risk summary per player once per day (budget target ≈30–40 €/month for ~4,000 players).
+
+Flow (backend)
+- Endpoint: POST /api/analysis/scheduled
+  - Auth: Bearer token (ANALYSIS_TOKEN env). If unset, open.
+  - Body: { deviceIds?: string[], max?: number } (defaults to up to 4,000).
+- Data source: getDevices() for recent threat info + top detections.
+- AI call: lib/ai/analysis.ts uses OPENAI_API_KEY and model ANALYSIS_MODEL (default gpt-4o-mini).
+- Storage (Redis):
+  - ai_analysis:{deviceId}:latest (JSON, TTL default 3 days or AI_ANALYSIS_TTL_SECONDS)
+  - ai_analysis:{deviceId}:history (list, kept at 10, TTL same as above)
+
+Cost profile (one run/day, 4,000 players)
+- Target prompt size: ~1,000 tokens (700 in / 300 out).
+- Approx price (mini-tier): ~0.0003–0.00035 USD per player → ~1.2–1.4 USD per run.
+- Monthly at 1 run/day: ~36–42 USD (≈33–39 €). To go lower, process ~3,000/day on rotation.
+
+Env vars
+- OPENAI_API_KEY: required for live calls (otherwise returns fallback message).
+- ANALYSIS_MODEL: optional, default gpt-4o-mini.
+- ANALYSIS_TOKEN: optional bearer for /api/analysis/scheduled.
+- AI_ANALYSIS_TTL_SECONDS: optional TTL override (default 259,200s = 3 days).
+
+Usage example (scheduled)
+curl -X POST https://your-host/api/analysis/scheduled \
+  -H "Authorization: Bearer $ANALYSIS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"max": 4000}'
+
+Next UI step (not implemented here)
+- Show latest AI summary on player dashboard (ai_analysis:{deviceId}:latest) with timestamp and “Re-run” button (manual call).
+

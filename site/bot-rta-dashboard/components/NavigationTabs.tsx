@@ -27,7 +27,7 @@ const TABS: Tab[] = [
   },
   {
     id: "settings",
-    label: "Settings",
+    label: "Admin Settings",
     path: "/settings",
     icon: "⚙️",
   },

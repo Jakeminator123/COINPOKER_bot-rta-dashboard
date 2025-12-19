@@ -379,7 +379,7 @@ async function getHistoricalSignals(
 
           for (let i = 0; i < hourlyKeys.length && i < (results?.length || 0); i++) {
             const hourKey = hourlyKeys[i];
-            const result = results?.[i] as [Error | null, Record<string, string>] | null;
+            const result = results?.[i] as unknown as [Error | null, Record<string, string>] | null;
             
             // Handle Redis pipeline result format: [error, result] tuple
             if (!result) {

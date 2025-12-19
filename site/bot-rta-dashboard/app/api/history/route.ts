@@ -68,15 +68,24 @@ export async function GET(req: NextRequest) {
 
       const out: Array<Record<string, any>> = [];
       for (let i = 0; i < keys.length && i < (dataArray?.length || 0); i++) {
-        const _k = keys[i];
-        const result = dataArray?.[i] as [Error | null, Record<string, string>] | null;
+        const rawResult = dataArray?.[i] as unknown;
+        
+        // Handle both old format [Error | null, Record<string, string>] and new format Record<string, string>
+        let h: Record<string, string> | null = null;
+        if (Array.isArray(rawResult)) {
+          // Old format: [error, data]
+          if (!rawResult[0] && rawResult[1] && typeof rawResult[1] === 'object') {
+            h = rawResult[1] as Record<string, string>;
+          }
+        } else if (rawResult && typeof rawResult === 'object') {
+          // New format: direct data
+          h = rawResult as Record<string, string>;
+        }
         
         // Skip invalid results
-        if (!result || result[0] || !result[1] || typeof result[1] !== 'object' || Object.keys(result[1]).length === 0) {
+        if (!h || Object.keys(h).length === 0) {
           continue;
         }
-
-        const h = result[1];
         const by_category: Record<string, number> = {};
         const by_status: Record<string, number> = {};
         

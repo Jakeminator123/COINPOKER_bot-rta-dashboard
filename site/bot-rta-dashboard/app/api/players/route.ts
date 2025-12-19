@@ -1,9 +1,4 @@
-import type {
-  RedisClientType,
-  RedisModules,
-  RedisFunctions,
-  RedisScripts,
-} from "redis";
+import { createClient } from "redis";
 import { NextRequest } from "next/server";
 import { successResponse, errorResponse } from "@/lib/utils/api-utils";
 import { getDevices } from "@/lib/utils/store";
@@ -30,11 +25,7 @@ const DEVICE_TIMEOUT_MS = 120 * 1000; // 120 seconds (same as redis-store.ts and
 const MAX_PLAYERS_PER_REQUEST = Number(process.env.MAX_PLAYERS_PER_REQUEST) || 100; // Configurable via MAX_PLAYERS_PER_REQUEST env var
 
 type PlayerStatus = "online" | "offline" | "suspicious";
-type RedisClient = RedisClientType<
-  RedisModules,
-  RedisFunctions,
-  RedisScripts
->;
+type RedisClient = ReturnType<typeof createClient>;
 
 interface PlayerCategorySegment {
   name: string;
@@ -74,6 +65,7 @@ interface PlayerResponse {
   isOnline: boolean;
   ipAddress?: string;
   categories?: PlayerCategorySummary | null;
+  detected_categories?: string[]; // ["programs", "network", "behaviour", "vm", "auto"]
 }
 
 interface PlayerSummary {
@@ -510,22 +502,27 @@ async function buildPlayersFromRedisBatch(
       continue;
     }
 
-    const primaryInfoResult = results[baseIndex] as [Error | null, Record<string, string>] | null;
-    const legacyInfoResult = results[baseIndex + 1] as [Error | null, Record<string, string>] | null;
-    const summaryJsonResult = results[baseIndex + 2] as [Error | null, string | null] | null;
-    const threatFallbackResult = results[baseIndex + 3] as [Error | null, string | null] | null;
-    const criticalCountResult = results[baseIndex + 4] as [Error | null, string | null] | null;
-    const warnCountResult = results[baseIndex + 5] as [Error | null, string | null] | null;
-    const categorySummaryResult = results[baseIndex + 6] as [Error | null, string | null] | null;
+    // Helper to extract value from pipeline result (handles both old [error, value] format and new direct value format)
+    const extractHashResult = (result: unknown): Record<string, string> => {
+      if (Array.isArray(result)) {
+        return (!result[0] && result[1] && typeof result[1] === 'object') ? result[1] as Record<string, string> : {};
+      }
+      return (result && typeof result === 'object') ? result as Record<string, string> : {};
+    };
+    const extractStringResult = (result: unknown): string | null => {
+      if (Array.isArray(result)) {
+        return (!result[0] && typeof result[1] === 'string') ? result[1] : null;
+      }
+      return typeof result === 'string' ? result : null;
+    };
 
-    // Extract values only if no error occurred (error is null/falsy means success)
-    const primaryInfo = (primaryInfoResult && !primaryInfoResult[0] && primaryInfoResult[1]) ? primaryInfoResult[1] : {};
-    const legacyInfo = (legacyInfoResult && !legacyInfoResult[0] && legacyInfoResult[1]) ? legacyInfoResult[1] : {};
-    const summaryJson = (summaryJsonResult && !summaryJsonResult[0] && summaryJsonResult[1]) ? summaryJsonResult[1] : null;
-    const threatFallback = (threatFallbackResult && !threatFallbackResult[0] && threatFallbackResult[1]) ? threatFallbackResult[1] : null;
-    const criticalCountStr = (criticalCountResult && !criticalCountResult[0] && criticalCountResult[1]) ? criticalCountResult[1] : null;
-    const warnCountStr = (warnCountResult && !warnCountResult[0] && warnCountResult[1]) ? warnCountResult[1] : null;
-    const categorySummaryJson = (categorySummaryResult && !categorySummaryResult[0] && categorySummaryResult[1]) ? categorySummaryResult[1] : null;
+    const primaryInfo = extractHashResult(results[baseIndex]);
+    const legacyInfo = extractHashResult(results[baseIndex + 1]);
+    const summaryJson = extractStringResult(results[baseIndex + 2]);
+    const threatFallback = extractStringResult(results[baseIndex + 3]);
+    const criticalCountStr = extractStringResult(results[baseIndex + 4]);
+    const warnCountStr = extractStringResult(results[baseIndex + 5]);
+    const categorySummaryJson = extractStringResult(results[baseIndex + 6]);
 
     const deviceInfo = {
       ...legacyInfo,
@@ -625,6 +622,21 @@ async function buildPlayersFromRedisBatch(
     const warnCount = parseInt(warnCountStr || "0", 10);
 
     const categories = parseJson<PlayerCategorySummary>(categorySummaryJson);
+    
+    // Extract detected_categories from category segments that have findings
+    let detectedCategories: string[] | undefined;
+    if (categories?.segments && Array.isArray(categories.segments)) {
+      detectedCategories = categories.segments
+        .filter((seg) => (seg.totalFindings || 0) > 0 || seg.hasFindings)
+        .map((seg) => seg.name?.toLowerCase())
+        .filter((name): name is string => !!name);
+    }
+    // Fallback to segmentsRan if no segments with findings
+    if ((!detectedCategories || detectedCategories.length === 0) && categories?.segmentsRan) {
+      detectedCategories = categories.segmentsRan
+        .map((s) => s.toLowerCase())
+        .filter((s) => ["programs", "network", "behaviour", "vm", "auto"].includes(s));
+    }
 
     // Extract device_name, player_nickname, and player_email separately
     const deviceName = deviceInfo.device_name || summary?.device_name || null;
@@ -660,6 +672,7 @@ async function buildPlayersFromRedisBatch(
       isOnline,
       ipAddress: deviceInfo.ip_address,
       categories: categories,
+      detected_categories: detectedCategories && detectedCategories.length > 0 ? detectedCategories : undefined,
     });
   }
 

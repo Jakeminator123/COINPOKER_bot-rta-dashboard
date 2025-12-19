@@ -106,6 +106,16 @@ export const redisKeys = {
   },
 
   // -------------------------------------------------------------------
+  // AI analysis keys
+  // -------------------------------------------------------------------
+  aiAnalysisLatest(deviceId: string): string {
+    return `ai_analysis:${deviceId}:latest`;
+  },
+  aiAnalysisHistory(deviceId: string): string {
+    return `ai_analysis:${deviceId}:history`;
+  },
+
+  // -------------------------------------------------------------------
   // Device command schema (dashboard -> scanner via Redis)
   // -------------------------------------------------------------------
   deviceCommandQueue(deviceId: string): string {
@@ -147,6 +157,10 @@ export const redisTtl = {
   },
   commandResultSeconds(defaultSeconds = 3600): number {
     return Number(process.env.REDIS_COMMAND_RESULT_TTL_SECONDS) || defaultSeconds;
+  },
+  aiAnalysisSeconds(defaultSeconds = 259200): number {
+    // default 3 days
+    return Number(process.env.AI_ANALYSIS_TTL_SECONDS) || defaultSeconds;
   },
 };
 
