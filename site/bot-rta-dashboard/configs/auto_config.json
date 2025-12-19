@@ -1,0 +1,102 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "description": "Configuration for detecting automation tools (AutoHotkey, scripts, macro tools)"
+  },
+  "_points_mapping": {
+    "0": {
+      "status": "INFO",
+      "description": "Informational - automation tool present but not active"
+    },
+    "5": {
+      "status": "WARN",
+      "description": "Suspicious automation activity detected"
+    },
+    "10": {
+      "status": "ALERT",
+      "description": "Active automation tool with suspicious patterns"
+    },
+    "15": {
+      "status": "CRITICAL",
+      "description": "Confirmed malicious automation (known bot scripts)"
+    }
+  },
+  "enabled": true,
+  "script_extensions": [
+    ".ahk",
+    ".au3",
+    ".py",
+    ".js",
+    ".vbs",
+    ".ps1",
+    ".bat"
+  ],
+  "detection_points": {
+    "_description": "Threat points for different automation detection types",
+    "autohotkey_process": 10,
+    "autohotkey_compiled": 10,
+    "autoit_process": 10,
+    "autoit_compiled": 10,
+    "python_automation": 5,
+    "nodejs_automation": 5,
+    "generic_clicker": 10,
+    "macro_recorder": 10,
+    "known_bot_script": 15
+  },
+  "process_patterns": {
+    "_description": "Process names and patterns to detect automation tools",
+    "autohotkey": {
+      "names": ["autohotkey.exe", "autohotkey64.exe", "autohotkeysc.exe", "ahk.exe"],
+      "window_classes": ["AutoHotkey", "AutoHotkeyGUI"],
+      "points": 10
+    },
+    "autoit": {
+      "names": ["autoit3.exe", "autoit.exe", "aut2exe.exe"],
+      "window_classes": ["AutoIt v3", "AutoIt v3 GUI"],
+      "points": 10
+    },
+    "python": {
+      "names": ["python.exe", "pythonw.exe", "python3.exe"],
+      "suspicious_modules": ["pyautogui", "pynput", "keyboard", "mouse", "win32api"],
+      "points": 5
+    },
+    "clickers": {
+      "names": ["tinytask.exe", "autoclicker.exe", "gs_auto_clicker.exe", "op_auto_clicker.exe"],
+      "points": 10
+    },
+    "macro_tools": {
+      "names": ["macrorecorder.exe", "jitbit.exe", "pulover.exe"],
+      "points": 10
+    }
+  },
+  "header_signatures": {
+    "_description": "Binary header signatures for compiled scripts",
+    "autohotkey_v1": {
+      "signature": "AutoHotkey",
+      "offset": 0,
+      "points": 10
+    },
+    "autohotkey_v2": {
+      "signature": ">AUTOHOTKEY SCRIPT<",
+      "offset": 0,
+      "points": 10
+    },
+    "autoit_v3": {
+      "signature": "AU3!",
+      "offset": 0,
+      "points": 10
+    }
+  },
+  "timing_analysis": {
+    "_description": "Settings for detecting inhuman timing patterns from automation",
+    "enabled": true,
+    "min_interval_ms": 10,
+    "max_perfect_sequences": 5,
+    "cv_threshold": 0.05
+  },
+  "ignored_processes": {
+    "_description": "Processes to ignore even if they match patterns",
+    "list": []
+  }
+}
+

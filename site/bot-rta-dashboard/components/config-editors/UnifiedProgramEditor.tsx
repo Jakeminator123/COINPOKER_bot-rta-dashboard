@@ -14,7 +14,6 @@ interface Program {
   type: string;
   categories: string[];
   description?: string;
-  kill?: boolean; // Auto-kill this process when detected
 }
 
 interface UnifiedProgramEditorProps {
@@ -40,8 +39,7 @@ export default function UnifiedProgramEditor({ programs, categoryDefinitions, on
     points: 10 as PointsLevel,
     type: 'bot',
     categories: [] as string[],
-    description: '',
-    kill: false
+    description: ''
   });
 
   // Get all unique categories from programs
@@ -124,12 +122,11 @@ export default function UnifiedProgramEditor({ programs, categoryDefinitions, on
           type: formData.type,
           categories: formData.categories,
           ...(formData.description && { description: formData.description }),
-          ...(formData.kill && { kill: true })
         }
       };
       handleUpdateWithFeedback(newPrograms);
       setShowAddForm(false);
-      setFormData({ key: '', label: '', points: 10 as PointsLevel, type: 'bot', categories: [], description: '', kill: false });
+      setFormData({ key: '', label: '', points: 10 as PointsLevel, type: 'bot', categories: [], description: '' });
     }
   };
 
@@ -141,8 +138,7 @@ export default function UnifiedProgramEditor({ programs, categoryDefinitions, on
       points: prog.points,
       type: prog.type,
       categories: [...(prog.categories || [])],
-      description: prog.description || '',
-      kill: prog.kill || false
+      description: prog.description || ''
     });
     setEditingKey(key);
   };
@@ -161,24 +157,13 @@ export default function UnifiedProgramEditor({ programs, categoryDefinitions, on
         points: formData.points,
         type: formData.type,
         categories: formData.categories,
-        ...(formData.description && { description: formData.description }),
-        ...(formData.kill && { kill: true })
+        ...(formData.description && { description: formData.description })
       };
 
       handleUpdateWithFeedback(newPrograms);
       setEditingKey(null);
-      setFormData({ key: '', label: '', points: 10 as PointsLevel, type: 'bot', categories: [], description: '', kill: false });
+      setFormData({ key: '', label: '', points: 10 as PointsLevel, type: 'bot', categories: [], description: '' });
     }
-  };
-
-  const handleToggleKill = async (key: string) => {
-    const prog = programs[key];
-    const newPrograms = { ...programs };
-    newPrograms[key] = {
-      ...prog,
-      kill: !prog.kill
-    };
-    await handleUpdateWithFeedback(newPrograms);
   };
 
   const handleDelete = (key: string) => {
@@ -202,7 +187,7 @@ export default function UnifiedProgramEditor({ programs, categoryDefinitions, on
         }
       }
     });
-    onUpdate(newPrograms);
+    handleUpdateWithFeedback(newPrograms);
     setSelectedPrograms(new Set());
   };
 
@@ -269,9 +254,18 @@ export default function UnifiedProgramEditor({ programs, categoryDefinitions, on
     setSaveMessage(null);
 
     try {
+      // Hard-remove any legacy "kill" flags from stored program entries.
+      // This feature is intentionally removed; we strip remnants on every save.
+      const sanitizedPrograms = Object.fromEntries(
+        Object.entries(updatedPrograms).map(([key, prog]) => {
+          const { kill: _kill, ...rest } = (prog as any) || {};
+          return [key, rest];
+        })
+      ) as Record<string, Program>;
+
       // Call the parent's onUpdate which handles the API call
       // It's now async, so we await it
-      await onUpdate(updatedPrograms);
+      await onUpdate(sanitizedPrograms);
 
       // Show success message
       setSaveMessage({ type: 'success', text: 'Changes saved successfully' });
@@ -544,26 +538,6 @@ export default function UnifiedProgramEditor({ programs, categoryDefinitions, on
                   placeholder="Optional description"
                 />
               </div>
-              <div className="sm:col-span-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.kill}
-                    onChange={(e) => setFormData({ ...formData, kill: e.target.checked })}
-                    className="w-4 h-4 text-red-600 bg-slate-700 border-slate-600 rounded focus:ring-red-500"
-                  />
-                  <span className="text-sm text-slate-300">
-                    Auto-kill this process when detected
-                    <Tooltip
-                      content="When enabled, this process will be automatically terminated when detected. Prevents the program from opening or will close CoinPoker client."
-                      position="right"
-                      delay={300}
-                    >
-                      <span className="text-xs text-slate-500 cursor-help ml-1">?</span>
-                    </Tooltip>
-                  </span>
-                </label>
-              </div>
             </div>
             <div className="flex gap-2 mt-4">
               <button
@@ -575,7 +549,7 @@ export default function UnifiedProgramEditor({ programs, categoryDefinitions, on
               <button
                 onClick={() => {
                   setShowAddForm(false);
-                  setFormData({ key: '', label: '', points: 10 as PointsLevel, type: 'bot', categories: [], description: '', kill: false });
+                  setFormData({ key: '', label: '', points: 10 as PointsLevel, type: 'bot', categories: [], description: '' });
                 }}
                 className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded transition-colors"
               >
@@ -604,15 +578,6 @@ export default function UnifiedProgramEditor({ programs, categoryDefinitions, on
               <th className="px-4 py-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wider">Points</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Type</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Categories</th>
-              <th className="px-4 py-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wider">
-                <Tooltip
-                  content="Auto-kill this process when detected. Prevents the program from opening or will close CoinPoker client."
-                  position="top"
-                  delay={300}
-                >
-                  <span className="cursor-help">Kill</span>
-                </Tooltip>
-              </th>
               <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
@@ -678,14 +643,6 @@ export default function UnifiedProgramEditor({ programs, categoryDefinitions, on
                         ))}
                       </select>
                     </td>
-                    <td className="px-4 py-3 text-center">
-                      <input
-                        type="checkbox"
-                        checked={formData.kill}
-                        onChange={(e) => setFormData({ ...formData, kill: e.target.checked })}
-                        className="w-4 h-4 text-red-600 bg-slate-700 border-slate-600 rounded focus:ring-red-500"
-                      />
-                    </td>
                     <td className="px-4 py-3 text-right">
                       <button
                         onClick={handleUpdate}
@@ -696,7 +653,7 @@ export default function UnifiedProgramEditor({ programs, categoryDefinitions, on
                       <button
                         onClick={() => {
                           setEditingKey(null);
-                          setFormData({ key: '', label: '', points: 10 as PointsLevel, type: 'bot', categories: [], description: '', kill: false });
+                          setFormData({ key: '', label: '', points: 10 as PointsLevel, type: 'bot', categories: [], description: '' });
                         }}
                         className="text-slate-400 hover:text-slate-300"
                       >
@@ -779,15 +736,6 @@ export default function UnifiedProgramEditor({ programs, categoryDefinitions, on
                           </span>
                         ))}
                       </div>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <input
-                        type="checkbox"
-                        checked={prog.kill || false}
-                        onChange={() => handleToggleKill(key)}
-                        className="w-4 h-4 text-red-600 bg-slate-700 border-slate-600 rounded focus:ring-red-500 cursor-pointer"
-                        title={prog.kill ? 'Auto-kill enabled' : 'Enable auto-kill'}
-                      />
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button

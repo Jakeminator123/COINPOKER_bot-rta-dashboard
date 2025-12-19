@@ -337,12 +337,27 @@ export class RedisStore implements StorageAdapter {
         
         // Extract IP address from signal or batch
         const deviceIp = sig.device_ip || (batch as any).device_ip || (batch as any).device?.ip || null;
+
+        // OS/platform info (optional; comes from scanner batch.system.*)
+        const osPlatform = (batch as any).system?.os_platform || null;
+        const osRelease = (batch as any).system?.os_release || null;
+        const osVersion = (batch as any).system?.os_version || null;
+        const osArch = (batch as any).system?.os_arch || null;
         
         // CRITICAL: Always update device when batch comes in - device is definitely online
         // Even if checkSessionEvents returns false (explicit logout), we still need to update
         // last_seen and threat_level so the device shows up correctly in the player list
         try {
-          await this.updateDevice(device_id, deviceName, batch.bot_probability || 0, deviceIp);
+          await this.updateDevice(
+            device_id,
+            deviceName,
+            batch.bot_probability || 0,
+            deviceIp,
+            osPlatform,
+            osRelease,
+            osVersion,
+            osArch
+          );
         } catch (error) {
           debugError("[RedisStore] CRITICAL: Failed to update device in Redis:", error);
           // Don't throw - allow processing to continue, but log the error
@@ -566,7 +581,16 @@ export class RedisStore implements StorageAdapter {
     await this.updatePlayerSummary(device_id, batch.bot_probability || 0, timestamp);
   }
 
-  private async updateDevice(device_id: string, device_name: string, threat_level: number, device_ip?: string | null): Promise<void> {
+  private async updateDevice(
+    device_id: string,
+    device_name: string,
+    threat_level: number,
+    device_ip?: string | null,
+    os_platform?: string | null,
+    os_release?: string | null,
+    os_version?: string | null,
+    os_arch?: string | null
+  ): Promise<void> {
     const isConnected = await this.ensureConnected();
     if (!isConnected || !this.client) {
       debugError("[RedisStore] updateDevice() - NOT CONNECTED! Cannot write to Redis.");
@@ -683,6 +707,31 @@ export class RedisStore implements StorageAdapter {
       if (existingIp && existingIp.trim().length > 0) {
         fields.ip_address = existingIp;
       }
+    }
+
+    // OS/platform fields (preserve existing if not provided)
+    if (os_platform && os_platform.trim().length > 0) {
+      (fields as any).os_platform = os_platform;
+    } else if (existingData?.os_platform) {
+      (fields as any).os_platform = existingData.os_platform;
+    }
+
+    if (os_release && os_release.trim().length > 0) {
+      (fields as any).os_release = os_release;
+    } else if (existingData?.os_release) {
+      (fields as any).os_release = existingData.os_release;
+    }
+
+    if (os_version && os_version.trim().length > 0) {
+      (fields as any).os_version = os_version;
+    } else if (existingData?.os_version) {
+      (fields as any).os_version = existingData.os_version;
+    }
+
+    if (os_arch && os_arch.trim().length > 0) {
+      (fields as any).os_arch = os_arch;
+    } else if (existingData?.os_arch) {
+      (fields as any).os_arch = existingData.os_arch;
     }
     
     // Debug logging only in development mode
@@ -1418,6 +1467,10 @@ export class RedisStore implements StorageAdapter {
             ? parseFloat(deviceInfo.player_nickname_confidence)
             : undefined,
           player_email: deviceInfo.player_email,
+          os_platform: (deviceInfo as any).os_platform,
+          os_release: (deviceInfo as any).os_release,
+          os_version: (deviceInfo as any).os_version,
+          os_arch: (deviceInfo as any).os_arch,
           last_seen: lastSeenMs,
           signal_count: deviceInfo.signal_count ? parseInt(deviceInfo.signal_count) : 0,
           unique_detection_count: deviceInfo.unique_detection_count

@@ -323,6 +323,16 @@ class ForwarderService:
                         "local_ip": self.local_ip,  # Alias for device_ip
                         "public_ip_info": self.public_ip_info,
                     }
+                    # OS/platform identification (for dashboard per-player display)
+                    try:
+                        import platform
+
+                        system_info["os_platform"] = platform.system()
+                        system_info["os_release"] = platform.release()
+                        system_info["os_version"] = platform.version()
+                        system_info["os_arch"] = platform.machine()
+                    except Exception:
+                        pass
                     # Add CPU/RAM if psutil is available
                     try:
                         import psutil

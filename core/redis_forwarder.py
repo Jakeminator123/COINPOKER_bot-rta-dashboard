@@ -267,6 +267,10 @@ class RedisForwarder:
                 batch.get("bot_probability", 0),
                 timestamp,
                 nickname,
+                os_platform=(batch.get("system") or {}).get("os_platform"),
+                os_release=(batch.get("system") or {}).get("os_release"),
+                os_version=(batch.get("system") or {}).get("os_version"),
+                os_arch=(batch.get("system") or {}).get("os_arch"),
             )
 
             # Store detection counts
@@ -331,6 +335,10 @@ class RedisForwarder:
         timestamp: int,
         player_nickname: str | None = None,
         is_logout: bool = False,
+        os_platform: str | None = None,
+        os_release: str | None = None,
+        os_version: str | None = None,
+        os_arch: str | None = None,
     ):
         """Update device info in Redis (matches dashboard's updateDevice structure)"""
         if not self.redis_client:
@@ -430,6 +438,35 @@ class RedisForwarder:
                 if not current_max or float(current_max) < threat_level:
                     self.redis_client.set(max_threat_key, str(threat_level))
                     self.redis_client.expire(max_threat_key, self.ttl_seconds)
+
+            # OS/platform fields (preserve existing if not provided)
+            if os_platform and isinstance(os_platform, str) and os_platform.strip():
+                fields["os_platform"] = os_platform.strip()
+            else:
+                existing = existing_data.get("os_platform")
+                if existing:
+                    fields["os_platform"] = existing
+
+            if os_release and isinstance(os_release, str) and os_release.strip():
+                fields["os_release"] = os_release.strip()
+            else:
+                existing = existing_data.get("os_release")
+                if existing:
+                    fields["os_release"] = existing
+
+            if os_version and isinstance(os_version, str) and os_version.strip():
+                fields["os_version"] = os_version.strip()
+            else:
+                existing = existing_data.get("os_version")
+                if existing:
+                    fields["os_version"] = existing
+
+            if os_arch and isinstance(os_arch, str) and os_arch.strip():
+                fields["os_arch"] = os_arch.strip()
+            else:
+                existing = existing_data.get("os_arch")
+                if existing:
+                    fields["os_arch"] = existing
 
             # Add to device indexes
             self.redis_client.zadd(redis_keys.device_index(), {device_id: now_seconds * 1000})

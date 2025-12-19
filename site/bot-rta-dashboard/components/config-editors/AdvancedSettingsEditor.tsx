@@ -19,58 +19,99 @@ interface AdvancedSettingsEditorProps {
   obfuscationConfig?: any;
   sharedConfig?: any;
   securityConfig?: any;
+  autoConfig?: any;
   onSave: (category: string, updates: any) => Promise<void>;
   initialGroup?: string;
   initialSection?: string;
 }
 
 // =============================================================================
-// RESTRUCTURED SETTINGS - Clearer, more logical organization
+// SEGMENT-BASED SETTINGS - Mirrors scanner segment structure (7 categories)
 // =============================================================================
 const SETTINGS_GROUPS = [
   // =========================================================================
-  // GROUP 1: THREAT DATABASE - What programs/sites trigger alerts
+  // SEGMENT 1: PROGRAMS - Process detection, hash scanning, signatures
   // =========================================================================
   {
-    id: "threats",
-    title: "Threat Database",
-    icon: "🎯",
-    description: "Programs and websites that trigger detection alerts",
-    color: "from-red-500 to-rose-600",
-    gradient: "bg-gradient-to-br from-red-500/20 to-rose-600/20",
-    borderColor: "border-red-500/30",
+    id: "programs",
+    title: "Programs",
+    icon: "🖥️",
+    description: "Process scanning, hash detection, and executable analysis",
+    color: "from-purple-500 to-violet-600",
+    gradient: "bg-gradient-to-br from-purple-500/20 to-violet-600/20",
+    borderColor: "border-purple-500/30",
     explanation:
-      "This database contains TWO SEPARATE categories of threats:\n\n" +
-      "1️⃣ PROGRAMS (.exe files) - Detected by scanning running processes\n" +
-      "2️⃣ WEBSITES/DOMAINS - Detected by monitoring browser titles and DNS\n\n" +
-      "⚠️ IMPORTANT: Don't mix them! Websites go in 'Network Threats', programs go in 'Program Threats'.",
+      "Detects suspicious programs by scanning running processes. Includes:\n" +
+      "• Process name matching against known threats\n" +
+      "• SHA-256 hash lookups in the hash database\n" +
+      "• Signature scanning for macro/script headers\n" +
+      "• Code obfuscation detection (packers, entropy)",
     sections: [
       {
         id: "programs_registry",
-        title: "🖥️ Program Threats (.exe files)",
-        description:
-          "Executable programs detected by process scanning. Add ONLY .exe process names here - NOT websites!",
+        title: "🎯 Program Threat Registry",
+        description: "Database of known threats - executables and their detection parameters.",
         config: "programsRegistry",
         editor: "unified",
         details: [
-          "✅ CORRECT: warbot.exe, holdembot.exe, autohotkey.exe, piosolver.exe",
-          "❌ WRONG: gtowizard.com, rta.poker (these are WEBSITES, not programs!)",
           "🤖 Bots: WarBot, HoldemBot, OpenHoldem (15 points - CRITICAL)",
           "📊 RTA Tools: PioSolver, GTO+, MonkerSolver (10 points - ALERT)",
           "⌨️ Macros: AutoHotkey, AutoIt, TinyTask (10 points - ALERT)",
-          "⚠️ Kill Flag: If enabled, CoinPoker closes when this program is detected",
         ],
       },
       {
+        id: "process_scanner",
+        title: "⚙️ Scanner Settings",
+        description: "How the process scanner operates - paths, signatures, safe processes.",
+        config: "programsConfig",
+        editor: "smart",
+        details: [
+          "📁 Expected Locations: Where legitimate programs should be",
+          "⚠️ Suspicious Paths: Temp folders, user downloads",
+          "🔍 Macro Headers: Binary signatures for macro detection",
+          "✅ Safe Processes: Windows system processes to ignore",
+        ],
+      },
+      {
+        id: "obfuscation",
+        title: "🔐 Obfuscation Detection",
+        description: "Detects packed, encrypted, or obfuscated executables.",
+        config: "obfuscationConfig",
+        editor: "smart",
+        details: [
+          "📦 Packer Signatures: UPX, Themida, VMProtect",
+          "🔢 Entropy Analysis: High entropy = likely packed",
+          "🛡️ Anti-Debug: Techniques to evade analysis",
+        ],
+      },
+    ],
+  },
+
+  // =========================================================================
+  // SEGMENT 2: NETWORK - DNS, browser monitoring, connections
+  // =========================================================================
+  {
+    id: "network",
+    title: "Network",
+    icon: "🌐",
+    description: "DNS queries, browser monitoring, and connection analysis",
+    color: "from-blue-500 to-cyan-600",
+    gradient: "bg-gradient-to-br from-blue-500/20 to-cyan-600/20",
+    borderColor: "border-blue-500/30",
+    explanation:
+      "Monitors network activity for suspicious patterns:\n" +
+      "• RTA website visits (GTO Wizard, etc.)\n" +
+      "• DNS queries to known threat domains\n" +
+      "• Browser window titles\n" +
+      "• Suspicious port connections",
+    sections: [
+      {
         id: "network_threats",
-        title: "🌐 Network Threats (Websites & Domains)",
-        description:
-          "Websites and domains detected by browser monitoring and DNS. Add URLs and domain patterns here - NOT .exe files!",
+        title: "🎯 Network Threats",
+        description: "Websites and domains that trigger detection alerts.",
         config: "networkConfig",
         editor: "web",
         details: [
-          "✅ CORRECT: gtowizard.com, rta.poker, telegram.org, ngrok.io",
-          "❌ WRONG: piosolver.exe, warbot.exe (these are PROGRAMS, not websites!)",
           "🎯 RTA Websites: gtowizard.com, rta.poker (CRITICAL)",
           "🔗 Tunneling: ngrok.io, .onion, tor2web (ALERT)",
           "💬 Communication: telegram.org, discord.com (WARN)",
@@ -78,179 +119,242 @@ const SETTINGS_GROUPS = [
         ],
       },
       {
+        id: "network_settings",
+        title: "⚙️ Network Scanner Settings",
+        description: "How the network scanner operates - monitoring intervals, thresholds.",
+        config: "networkConfig",
+        editor: "smart",
+        details: [
+          "📡 DNS Monitoring: Query interception settings",
+          "🌐 Browser Detection: Window title scanning",
+          "🔌 Port Analysis: Suspicious connection detection",
+        ],
+      },
+    ],
+  },
+
+  // =========================================================================
+  // SEGMENT 3: BEHAVIOUR - Mouse, keyboard, click patterns
+  // =========================================================================
+  {
+    id: "behaviour",
+    title: "Behaviour",
+    icon: "🎯",
+    description: "Mouse movements, keyboard input, and timing analysis",
+    color: "from-amber-500 to-orange-600",
+    gradient: "bg-gradient-to-br from-amber-500/20 to-orange-600/20",
+    borderColor: "border-amber-500/30",
+    explanation:
+      "Detects bot-like input patterns by analyzing:\n" +
+      "• Mouse movement speed and trajectory\n" +
+      "• Click timing and precision\n" +
+      "• Keyboard input intervals\n" +
+      "• Action timing consistency",
+    sections: [
+      {
+        id: "behaviour_config",
+        title: "🖱️ Behaviour Analysis",
+        description: "Configure mouse, keyboard, and click pattern detection.",
+        config: "behaviourConfig",
+        editor: "behaviour",
+        details: [
+          "📊 Polling: How often to sample input (frequency)",
+          "🎯 Thresholds: What patterns trigger alerts",
+          "⚖️ Scoring: How much each pattern contributes",
+          "📤 Reporting: Alert cooldowns and aggregation",
+        ],
+      },
+    ],
+  },
+
+  // =========================================================================
+  // SEGMENT 4: VM - Virtual machine detection
+  // =========================================================================
+  {
+    id: "vm",
+    title: "Virtual Machines",
+    icon: "💻",
+    description: "VMware, VirtualBox, Hyper-V, and sandbox detection",
+    color: "from-emerald-500 to-teal-600",
+    gradient: "bg-gradient-to-br from-emerald-500/20 to-teal-600/20",
+    borderColor: "border-emerald-500/30",
+    explanation:
+      "Detects if the scanner is running inside a virtual machine:\n" +
+      "• VM guest tools (VirtualBox additions, VMware tools)\n" +
+      "• Virtual hardware fingerprints\n" +
+      "• Registry markers from VM software\n" +
+      "• Combined probability scoring",
+    sections: [
+      {
+        id: "vm_config",
+        title: "💻 VM Detection",
+        description: "Configure virtual machine detection parameters.",
+        config: "vmConfig",
+        editor: "smart",
+        details: [
+          "🔧 VM Processes: VirtualBox, VMware, Hyper-V",
+          "🖥️ Hardware Fingerprints: Virtual devices",
+          "📝 Registry Markers: VM-specific entries",
+          "📈 Probability Scoring: Likelihood calculation",
+        ],
+      },
+    ],
+  },
+
+  // =========================================================================
+  // SEGMENT 5: AUTO - Automation tools, macros, scripts
+  // =========================================================================
+  {
+    id: "auto",
+    title: "Automation",
+    icon: "⚙️",
+    description: "AutoHotkey, Python scripts, macro detection",
+    color: "from-rose-500 to-pink-600",
+    gradient: "bg-gradient-to-br from-rose-500/20 to-pink-600/20",
+    borderColor: "border-rose-500/30",
+    explanation:
+      "Detects automation tools and scripting environments:\n" +
+      "• AutoHotkey scripts and compiled macros\n" +
+      "• Python automation (pyautogui, etc.)\n" +
+      "• AutoIt scripts\n" +
+      "• Generic auto-clicker patterns",
+    sections: [
+      {
+        id: "auto_config",
+        title: "⚙️ Automation Detection",
+        description: "Configure macro and script detection parameters.",
+        config: "autoConfig",
+        editor: "smart",
+        details: [
+          "🎹 Macro Tools: AutoHotkey, AutoIt signatures",
+          "📜 Script Detection: Python, Node.js patterns",
+          "🔘 Auto-Clickers: Generic clicker detection",
+          "⚡ Timing Analysis: Inhuman timing patterns",
+        ],
+      },
+    ],
+  },
+
+  // =========================================================================
+  // SEGMENT 6: SCREEN - Overlays, HUDs, window analysis
+  // =========================================================================
+  {
+    id: "screen",
+    title: "Screen",
+    icon: "🖼️",
+    description: "Overlay detection, HUD windows, screen capture",
+    color: "from-sky-500 to-blue-600",
+    gradient: "bg-gradient-to-br from-sky-500/20 to-blue-600/20",
+    borderColor: "border-sky-500/30",
+    explanation:
+      "Detects suspicious screen activity:\n" +
+      "• Transparent overlays on poker windows\n" +
+      "• Known HUD window classes\n" +
+      "• Window hierarchy analysis\n" +
+      "• Hidden automation windows",
+    sections: [
+      {
+        id: "screen_config",
+        title: "🖼️ Screen Monitoring",
+        description: "Configure overlay and HUD detection parameters.",
+        config: "screenConfig",
+        editor: "smart",
+        details: [
+          "🪟 Overlay Detection: Transparent windows",
+          "📊 HUD Patterns: Known HUD classes/titles",
+          "🔄 Window Hierarchy: Parent-child relationships",
+          "🤖 Background Automation: Hidden windows",
+        ],
+      },
+    ],
+  },
+
+  // =========================================================================
+  // SEGMENT 7: SECURITY - MITM, certificates, proxy detection
+  // =========================================================================
+  {
+    id: "security",
+    title: "Security",
+    icon: "🔒",
+    description: "MITM detection, certificate analysis, proxy detection",
+    color: "from-red-500 to-rose-600",
+    gradient: "bg-gradient-to-br from-red-500/20 to-rose-600/20",
+    borderColor: "border-red-500/30",
+    explanation:
+      "Detects security threats that could compromise traffic:\n" +
+      "• MITM proxy tools (mitmproxy, Burp, Fiddler)\n" +
+      "• Suspicious root certificates\n" +
+      "• Corporate SSL inspection\n" +
+      "• Traffic interception attempts",
+    sections: [
+      {
+        id: "security_config",
+        title: "🔒 Security Detection",
+        description: "Configure MITM and certificate detection parameters.",
+        config: "securityConfig",
+        editor: "smart",
+        details: [
+          "🕵️ MITM Tools: mitmproxy, Burp Suite, Fiddler",
+          "🏢 Corporate SSL: Zscaler, Blue Coat, Fortinet",
+          "📜 Certificate Stores: Root and CA analysis",
+          "⚠️ Traffic Interception: Proxy detection",
+        ],
+      },
+    ],
+  },
+
+  // =========================================================================
+  // SYSTEM: Shared configuration and whitelist
+  // =========================================================================
+  {
+    id: "system",
+    title: "System",
+    icon: "📚",
+    description: "Shared definitions, whitelist, and detection points",
+    color: "from-slate-500 to-gray-600",
+    gradient: "bg-gradient-to-br from-slate-500/20 to-gray-600/20",
+    borderColor: "border-slate-500/30",
+    explanation:
+      "System-wide settings used by all detection modules:\n" +
+      "• Whitelist for false positives\n" +
+      "• Detection point configuration\n" +
+      "• Shared reference data (browsers, poker sites)",
+    sections: [
+      {
         id: "whitelist",
         title: "✅ Whitelist / Ignore List",
-        description:
-          "Programs and websites that should NEVER trigger alerts. Use this for false positives or legitimate tools.",
+        description: "Programs and websites that should NEVER trigger alerts.",
         config: "programsConfig",
         editor: "whitelist",
         details: [
           "🖥️ Program Whitelist: .exe files to never flag",
           "🌐 Website Whitelist: Domains to never flag",
-          "⚠️ Use sparingly - only for confirmed false positives",
-        ],
-      },
-    ],
-  },
-
-  // =========================================================================
-  // GROUP 2: DETECTION METHODS - How the scanner detects threats
-  // =========================================================================
-  {
-    id: "detection_methods",
-    title: "Detection Methods",
-    icon: "🔍",
-    description: "Configure HOW each detection method works: sensitivity, thresholds, and analysis parameters",
-    color: "from-blue-500 to-cyan-600",
-    gradient: "bg-gradient-to-br from-blue-500/20 to-cyan-600/20",
-    borderColor: "border-blue-500/30",
-    explanation:
-      "These settings control the SENSITIVITY and BEHAVIOR of each detection method. They don't define WHAT to detect (that's in Threat Database), but HOW to detect it. For example: how fast mouse movements must be to trigger bot detection, what entropy level indicates obfuscated code, or which paths are suspicious for executables.",
-    sections: [
-      {
-        id: "behaviour",
-        title: "🖱️ Behavior Analysis",
-        description:
-          "Detects bot-like input patterns: robotic mouse movements, inhuman click timing, perfect keyboard intervals.",
-        config: "behaviourConfig",
-        editor: "behaviour",
-        details: [
-          "📊 Data Collection: How often to sample mouse/keyboard (polling frequency)",
-          "🎯 Thresholds: What patterns are considered 'too perfect' or 'too fast'",
-          "⚖️ Scoring: How much each pattern contributes to the bot score",
-          "📤 Reporting: When to send alerts and cooldown periods",
-        ],
-      },
-      {
-        id: "process_scanner",
-        title: "⚙️ Process Scanner",
-        description:
-          "Scans running processes for threats: checks executable names, paths, command lines, and PE headers.",
-        config: "programsConfig",
-        editor: "smart",
-        details: [
-          "📁 Expected Locations: Where legitimate programs should be installed",
-          "⚠️ Suspicious Paths: Temp folders, user downloads (higher risk)",
-          "🔍 Macro Headers: Binary signatures for AutoHotkey, AutoIt, CheatEngine",
-          "✅ Safe Processes: Windows system processes to ignore",
-          "🚫 Ignored Programs: False positives to skip",
-        ],
-      },
-      {
-        id: "screen",
-        title: "🖼️ Screen Monitoring",
-        description:
-          "Detects suspicious overlays, HUD windows, and screen automation tools.",
-        config: "screenConfig",
-        editor: "smart",
-        details: [
-          "🪟 Overlay Detection: Transparent windows over poker tables",
-          "📊 HUD Patterns: Known HUD window classes and titles",
-          "🔄 Window Hierarchy: Parent-child window relationships",
-          "🤖 Background Automation: Hidden windows with automation",
-        ],
-      },
-      {
-        id: "vm",
-        title: "💻 VM Detection",
-        description:
-          "Detects if poker is running inside a virtual machine (often used to run bots).",
-        config: "vmConfig",
-        editor: "smart",
-        details: [
-          "🔧 VM Processes: VirtualBox, VMware, Hyper-V guest tools",
-          "🖥️ Hardware Fingerprints: Virtual hardware identifiers",
-          "📝 Registry Markers: VM-specific registry entries",
-          "📈 Probability Scoring: Combined VM likelihood score",
-        ],
-      },
-      {
-        id: "obfuscation",
-        title: "🔐 Code Obfuscation",
-        description:
-          "Detects packed, encrypted, or obfuscated executables (often indicates malicious intent).",
-        config: "obfuscationConfig",
-        editor: "smart",
-        details: [
-          "📦 Packer Signatures: UPX, Themida, VMProtect detection",
-          "🔢 Entropy Analysis: High entropy = likely encrypted/packed",
-          "🛡️ Anti-Debug: Techniques to evade analysis",
-          "📊 Code Structure: Unusual PE sections and imports",
-        ],
-      },
-      {
-        id: "virustotal",
-        title: "🦠 VirusTotal Integration",
-        description:
-          "Checks unknown executables against VirusTotal's database of 70+ antivirus engines.",
-        config: "programsConfig",
-        editor: "smart",
-        details: [
-          "🔑 API Key: Stored in config.txt (VirusTotalAPIKey) for security",
-          "⏱️ Rate Limiting: Free tier = 4 requests/min (20s between lookups)",
-          "💾 Caching: Results cached for 24h to avoid repeated lookups",
-          "🎯 Thresholds: 5+ AV detections = CRITICAL, 2+ = ALERT",
-          "🎰 Poker Keywords: Auto-detect poker-related tools in VT results",
+          "⚠️ Use sparingly - only for false positives",
         ],
       },
       {
         id: "detection_points",
-        title: "⚡ Detection Points Configuration",
-        description:
-          "Configure how many threat points each type of detection generates. Higher points = more severe alert.",
+        title: "⚡ Detection Points",
+        description: "Configure threat points for each detection type.",
         config: "all",
         editor: "points",
         details: [
-          "0 = INFO (informational, no action)",
-          "5 = WARN (suspicious, monitor)",
-          "10 = ALERT (likely threat, investigate)",
-          "15 = CRITICAL (confirmed threat, immediate action)",
+          "0 = INFO (informational)",
+          "5 = WARN (suspicious)",
+          "10 = ALERT (likely threat)",
+          "15 = CRITICAL (confirmed threat)",
         ],
       },
-      {
-        id: "security",
-        title: "🔒 Security / MITM Detection",
-        description:
-          "Detects suspicious root certificates that could intercept encrypted traffic (MITM attacks, SSL inspection).",
-        config: "securityConfig",
-        editor: "smart",
-        details: [
-          "🕵️ MITM Tools: mitmproxy, Burp Suite, Fiddler, Charles (CRITICAL)",
-          "🏢 Corporate SSL: Zscaler, Blue Coat, Fortinet (ALERT)",
-          "📜 Certificate Stores: Scans Windows Root and CA stores",
-          "⚠️ Why Important: Attackers could intercept poker traffic and steal credentials",
-        ],
-      },
-    ],
-  },
-
-  // =========================================================================
-  // GROUP 3: SYSTEM REFERENCE - Shared definitions and identifiers
-  // =========================================================================
-  {
-    id: "system",
-    title: "System Reference",
-    icon: "📚",
-    description: "Shared definitions used by all detection modules: poker site identifiers, browser lists, point mappings",
-    color: "from-purple-500 to-violet-600",
-    gradient: "bg-gradient-to-br from-purple-500/20 to-violet-600/20",
-    borderColor: "border-purple-500/30",
-    explanation:
-      "This is REFERENCE DATA - shared definitions that multiple detection modules use. It defines things like 'what is the CoinPoker process name?', 'what browsers exist?', and 'what do the threat levels mean?'. This is NOT where you add programs to detect - that's in Threat Database. This is for system-wide identifiers and mappings.",
-    sections: [
       {
         id: "shared",
         title: "🔧 Shared Configuration",
-        description:
-          "System-wide reference data: protected poker site (CoinPoker), browser process names, point level definitions.",
+        description: "System-wide reference data and identifiers.",
         config: "sharedConfig",
         editor: "smart",
         details: [
-          "🎰 Protected Poker: CoinPoker process name, window class, path hints",
-          "🌐 Browser List: Known browser processes (for context, not detection)",
-          "📱 Communication Apps: Telegram, Discord, etc. (reference list)",
-          "📊 Points Mapping: What 0/5/10/15 points mean (INFO/WARN/ALERT/CRITICAL)",
-          "🎲 Other Poker Sites: PokerStars, GGPoker, etc. (for context)",
+          "🎰 Protected Poker: CoinPoker identifiers",
+          "🌐 Browser List: Known browser processes",
+          "📊 Points Mapping: Threat level definitions",
         ],
       },
     ],
@@ -267,12 +371,13 @@ export default function AdvancedSettingsEditor({
   obfuscationConfig,
   sharedConfig,
   securityConfig,
+  autoConfig,
   onSave,
   initialGroup,
   initialSection,
 }: AdvancedSettingsEditorProps) {
   const [activeGroup, setActiveGroup] = useState<string>(
-    initialGroup || "threats"
+    initialGroup || "programs"
   );
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(initialSection ? [initialSection] : ["programs_registry"])
@@ -307,6 +412,8 @@ export default function AdvancedSettingsEditor({
         return sharedConfig;
       case "securityConfig":
         return securityConfig;
+      case "autoConfig":
+        return autoConfig;
       case "all":
         // Return a truthy value for sections that need multiple configs
         return { loaded: true };
@@ -344,13 +451,28 @@ export default function AdvancedSettingsEditor({
         const portCount = Object.keys(config.traffic_monitoring?.suspicious_ports || {}).length;
         return `${rtaCount} RTA sites, ${domainCount} domains, ${portCount} ports`;
       }
-      case "behaviour":
+      case "behaviour_config":
         return "Mouse, keyboard, and click analysis";
       case "process_scanner": {
-        const safeCount = Object.keys(config.ioc?.safe_processes || {}).length;
-        const hashCount = Object.keys(config.ioc?.bad_hashes || {}).length;
-        return `${safeCount} safe processes, ${hashCount} known bad hashes`;
+        const ignoredCount = (config.ignored_programs || []).length;
+        const sysCount = (config.process_scanner?.windows_system_processes || []).length;
+        const expectedLocations =
+          config.process_scanner?.expected_program_locations ||
+          config.process_scanner?.expected_locations ||
+          {};
+        const expectedCount = Object.keys(expectedLocations || {}).length;
+        return `${ignoredCount} ignored, ${sysCount} system, ${expectedCount} expected locations`;
       }
+      case "vm_config":
+        return "VMware, VirtualBox, Hyper-V detection";
+      case "auto_config":
+        return "AutoHotkey, Python, script detection";
+      case "screen_config":
+        return "Overlay and HUD detection";
+      case "security_config":
+        return "MITM and certificate detection";
+      case "obfuscation":
+        return "Packer and entropy analysis";
       default:
         return null;
     }
@@ -358,42 +480,73 @@ export default function AdvancedSettingsEditor({
 
   return (
     <div className="space-y-6">
-      {/* Quick Stats Banner */}
+      {/* Quick Stats Banner - 7 Segment Categories */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="grid grid-cols-3 gap-4 mb-6"
+        className="grid grid-cols-4 lg:grid-cols-7 gap-3 mb-6"
       >
-        <div className="bg-gradient-to-br from-red-500/10 to-rose-600/10 border border-red-500/20 rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🎯</span>
-            <div>
-              <div className="text-sm text-slate-400">Program Threats</div>
-              <div className="text-xl font-bold text-white">
-                {Object.keys(programsRegistry?.programs || {}).length}
-              </div>
+        <div className="bg-gradient-to-br from-purple-500/10 to-violet-600/10 border border-purple-500/20 rounded-xl p-3">
+          <div className="flex flex-col items-center text-center">
+            <span className="text-xl mb-1">🖥️</span>
+            <div className="text-xs text-slate-400">Programs</div>
+            <div className="text-lg font-bold text-white">
+              {Object.keys(programsRegistry?.programs || {}).length}
             </div>
           </div>
         </div>
-        <div className="bg-gradient-to-br from-blue-500/10 to-cyan-600/10 border border-blue-500/20 rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🌐</span>
-            <div>
-              <div className="text-sm text-slate-400">Network Patterns</div>
-              <div className="text-xl font-bold text-white">
-                {Object.keys(networkConfig?.web_monitoring?.rta_websites || {}).length +
-                  Object.keys(networkConfig?.web_monitoring?.suspicious_domains || {}).length +
-                  Object.keys(networkConfig?.traffic_monitoring?.suspicious_ports || {}).length}
-              </div>
+        <div className="bg-gradient-to-br from-blue-500/10 to-cyan-600/10 border border-blue-500/20 rounded-xl p-3">
+          <div className="flex flex-col items-center text-center">
+            <span className="text-xl mb-1">🌐</span>
+            <div className="text-xs text-slate-400">Network</div>
+            <div className="text-lg font-bold text-white">
+              {Object.keys(networkConfig?.web_monitoring?.rta_websites || {}).length +
+                Object.keys(networkConfig?.web_monitoring?.suspicious_domains || {}).length}
             </div>
           </div>
         </div>
-        <div className="bg-gradient-to-br from-purple-500/10 to-violet-600/10 border border-purple-500/20 rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🔍</span>
-            <div>
-              <div className="text-sm text-slate-400">Detection Methods</div>
-              <div className="text-xl font-bold text-white">5</div>
+        <div className="bg-gradient-to-br from-amber-500/10 to-orange-600/10 border border-amber-500/20 rounded-xl p-3">
+          <div className="flex flex-col items-center text-center">
+            <span className="text-xl mb-1">🎯</span>
+            <div className="text-xs text-slate-400">Behaviour</div>
+            <div className="text-lg font-bold text-white">
+              {behaviourConfig?.enabled !== false ? "ON" : "OFF"}
+            </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-br from-emerald-500/10 to-teal-600/10 border border-emerald-500/20 rounded-xl p-3">
+          <div className="flex flex-col items-center text-center">
+            <span className="text-xl mb-1">💻</span>
+            <div className="text-xs text-slate-400">VM</div>
+            <div className="text-lg font-bold text-white">
+              {vmConfig?.enabled !== false ? "ON" : "OFF"}
+            </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-br from-rose-500/10 to-pink-600/10 border border-rose-500/20 rounded-xl p-3">
+          <div className="flex flex-col items-center text-center">
+            <span className="text-xl mb-1">⚙️</span>
+            <div className="text-xs text-slate-400">Auto</div>
+            <div className="text-lg font-bold text-white">
+              {autoConfig?.enabled !== false ? "ON" : "OFF"}
+            </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-br from-sky-500/10 to-blue-600/10 border border-sky-500/20 rounded-xl p-3">
+          <div className="flex flex-col items-center text-center">
+            <span className="text-xl mb-1">🖼️</span>
+            <div className="text-xs text-slate-400">Screen</div>
+            <div className="text-lg font-bold text-white">
+              {screenConfig?.enabled !== false ? "ON" : "OFF"}
+            </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-br from-red-500/10 to-rose-600/10 border border-red-500/20 rounded-xl p-3">
+          <div className="flex flex-col items-center text-center">
+            <span className="text-xl mb-1">🔒</span>
+            <div className="text-xs text-slate-400">Security</div>
+            <div className="text-lg font-bold text-white">
+              {securityConfig?.enabled !== false ? "ON" : "OFF"}
             </div>
           </div>
         </div>
@@ -652,7 +805,7 @@ export default function AdvancedSettingsEditor({
                                     }}
                                   />
                                 ) : section.editor === "behaviour" &&
-                                  section.id === "behaviour" ? (
+                                  section.id === "behaviour_config" ? (
                                   <BehaviourConfigEditor
                                     config={config}
                                     onSave={onSave}
@@ -744,6 +897,30 @@ export default function AdvancedSettingsEditor({
                                         });
                                       }}
                                     />
+                                    <DetectionPointsEditor
+                                      title="Automation"
+                                      icon="⚙️"
+                                      description="Points for automation tools and scripts"
+                                      detectionPoints={autoConfig?.detection_points || {}}
+                                      onSave={async (points) => {
+                                        await onSave("auto_config", {
+                                          ...autoConfig,
+                                          detection_points: points,
+                                        });
+                                      }}
+                                    />
+                                    <DetectionPointsEditor
+                                      title="Security"
+                                      icon="🔒"
+                                      description="Points for MITM and certificate-based threats"
+                                      detectionPoints={securityConfig?.detection_points || {}}
+                                      onSave={async (points) => {
+                                        await onSave("security_config", {
+                                          ...securityConfig,
+                                          detection_points: points,
+                                        });
+                                      }}
+                                    />
                                   </div>
                                 ) : (
                                   <SmartConfigEditor
@@ -752,12 +929,18 @@ export default function AdvancedSettingsEditor({
                                         ? "programs_config"
                                         : section.id === "shared"
                                         ? "shared_config"
-                                        : section.id === "screen"
+                                        : section.id === "screen_config"
                                         ? "screen_config"
-                                        : section.id === "vm"
+                                        : section.id === "vm_config"
                                         ? "vm_config"
+                                        : section.id === "auto_config"
+                                        ? "auto_config"
+                                        : section.id === "security_config"
+                                        ? "security_config"
                                         : section.id === "obfuscation"
                                         ? "obfuscation_config"
+                                        : section.id === "network_settings"
+                                        ? "network_config"
                                         : `${section.id}_config`
                                     }
                                     config={config}

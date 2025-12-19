@@ -4,3 +4,6 @@ hack-coin
 build
 jay
 dist
+
+.nextnode_modules
+tests

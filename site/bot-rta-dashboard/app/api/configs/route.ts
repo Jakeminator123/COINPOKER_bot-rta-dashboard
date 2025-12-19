@@ -41,7 +41,7 @@ async function loadConfigs() {
   };
 
   try {
-    // Load all JSON config files
+    // Load all JSON config files (mirrors segment structure)
     const configFiles = [
       "programs_registry.json", // Master source for ALL programs
       "programs_config.json", // Process scanner settings ONLY (no programs)
@@ -49,10 +49,10 @@ async function loadConfigs() {
       "behaviour_config.json",
       "screen_config.json",
       "vm_config.json",
+      "auto_config.json", // Automation tools (AutoHotkey, scripts, macros)
       "obfuscation_config.json",
       "shared_config.json",
       "security_config.json", // MITM/certificate detection
-      // automation_programs.json removed - deprecated, use programs_registry.json instead
     ];
 
     // Track which configs were successfully loaded

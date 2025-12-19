@@ -21,6 +21,10 @@ class RedisKeys:
     def device_hash(self, device_id: str) -> str:
         return f"device:{device_id}"
 
+    def legacy_device_info(self, device_id: str) -> str:
+        """Legacy auxiliary hash used by some dashboard readers."""
+        return f"device:{device_id}:info"
+
     def device_categories(self, device_id: str) -> str:
         return f"device:{device_id}:categories"
 
@@ -29,6 +33,10 @@ class RedisKeys:
 
     def device_threat(self, device_id: str) -> str:
         return f"device:{device_id}:threat"
+
+    def device_max_threat(self, device_id: str) -> str:
+        """Historical max threat score for offline sorting."""
+        return f"device:{device_id}:max_threat"
 
     def batch_record(self, device_id: str, timestamp: int) -> str:
         return f"batch:{device_id}:{timestamp}"
@@ -68,6 +76,21 @@ class RedisKeys:
 
     def global_updates_channel(self) -> str:
         return "updates:all"
+
+    # ---------------------------------------------------------------------
+    # Device command schema (RedisCommandClient <-> dashboard)
+    # ---------------------------------------------------------------------
+    def device_command_queue(self, device_id: str) -> str:
+        """Sorted set (ZSET): value=commandId score=timestamp_ms."""
+        return f"device:{device_id}:command_queue"
+
+    def device_command(self, device_id: str, command_id: str) -> str:
+        """String (JSON): command envelope."""
+        return f"device:{device_id}:commands:{command_id}"
+
+    def device_command_result(self, device_id: str, command_id: str) -> str:
+        """String (JSON): command execution result."""
+        return f"device:{device_id}:command_result:{command_id}"
 
 
 redis_keys = RedisKeys()

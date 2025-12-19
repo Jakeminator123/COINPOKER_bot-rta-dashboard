@@ -59,6 +59,10 @@ interface PlayerResponse {
   player_nickname?: string; // Player nickname (e.g., "FastCarsss")
   player_nickname_confidence?: number; // Confidence level for nickname
   player_email?: string; // Player email
+  os_platform?: string; // "Windows" | "Linux" | "Darwin" etc
+  os_release?: string;
+  os_version?: string;
+  os_arch?: string;
   status: PlayerStatus;
   lastSeen: number;
   threatLevel: number;
@@ -629,6 +633,10 @@ async function buildPlayersFromRedisBatch(
       ? parseFloat(deviceInfo.player_nickname_confidence)
       : undefined;
     const playerEmail = deviceInfo.player_email || null;
+    const osPlatform = (deviceInfo as any).os_platform || undefined;
+    const osRelease = (deviceInfo as any).os_release || undefined;
+    const osVersion = (deviceInfo as any).os_version || undefined;
+    const osArch = (deviceInfo as any).os_arch || undefined;
 
     players.push({
       id: entry.deviceId,
@@ -637,6 +645,10 @@ async function buildPlayersFromRedisBatch(
       player_nickname: playerNickname || undefined,
       player_nickname_confidence: playerNicknameConfidence,
       player_email: playerEmail || undefined,
+      os_platform: osPlatform,
+      os_release: osRelease,
+      os_version: osVersion,
+      os_arch: osArch,
       status,
       lastSeen,
       threatLevel: finalThreatLevel,  // Use finalThreatLevel instead of threatLevel

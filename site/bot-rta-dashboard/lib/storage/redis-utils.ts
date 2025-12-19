@@ -1,4 +1,5 @@
 import { createClient } from "redis";
+import { redisKeys as schemaKeys, redisTtl as schemaTtl } from "@/lib/redis/schema";
 
 type RedisClient = ReturnType<typeof createClient>;
 let redisClient: RedisClient | null = null;
@@ -52,34 +53,38 @@ export function isRedisAvailable(): boolean {
 
 export const redisKeys = {
   // Command queue keys
-  deviceCommandQueue: (deviceId: string) => `device:${deviceId}:command_queue`,
-  deviceCommand: (deviceId: string, commandId: string) => `device:${deviceId}:commands:${commandId}`,
-  deviceCommandResult: (deviceId: string, commandId: string) => `device:${deviceId}:command_result:${commandId}`,
+  deviceCommandQueue: (deviceId: string) => schemaKeys.deviceCommandQueue(deviceId),
+  deviceCommand: (deviceId: string, commandId: string) =>
+    schemaKeys.deviceCommand(deviceId, commandId),
+  deviceCommandResult: (deviceId: string, commandId: string) =>
+    schemaKeys.deviceCommandResult(deviceId, commandId),
   
   // Existing keys for compatibility
-  deviceHash: (deviceId: string) => `device:${deviceId}`,
-  batchRecord: (deviceId: string, timestamp: number) => `batch:${deviceId}:${timestamp}`,
-  deviceDetections: (deviceId: string, level: string) => `device:${deviceId}:detections:${level}`,
-  deviceThreat: (deviceId: string) => `device:${deviceId}:threat`,
+  deviceHash: (deviceId: string) => schemaKeys.deviceHash(deviceId),
+  batchRecord: (deviceId: string, timestamp: number) =>
+    schemaKeys.batchRecord(deviceId, timestamp),
+  deviceDetections: (deviceId: string, level: string) =>
+    `device:${deviceId}:detections:${level}`,
+  deviceThreat: (deviceId: string) => schemaKeys.deviceThreat(deviceId),
   
   // Indexes
-  deviceIndex: () => "devices:index",
-  topPlayers: () => "top_players",
-  batchesHourly: (deviceId: string) => `batches:hourly:${deviceId}`,
-  batchesDaily: (deviceId: string) => `batches:daily:${deviceId}`,
+  deviceIndex: () => schemaKeys.deviceIndex(),
+  topPlayers: () => schemaKeys.topPlayers(),
+  batchesHourly: (deviceId: string) => schemaKeys.batchesHourly(deviceId),
+  batchesDaily: (deviceId: string) => schemaKeys.batchesDaily(deviceId),
   
   // Stats
-  dayStats: (deviceId: string, day: string) => `stats:${deviceId}:daily:${day}`,
-  hourStats: (deviceId: string, hour: string) => `stats:${deviceId}:hourly:${hour}`,
+  dayStats: (deviceId: string, day: string) => schemaKeys.dayStats(deviceId, day),
+  hourStats: (deviceId: string, hour: string) => schemaKeys.hourStats(deviceId, hour),
   
   // Pub/Sub channels
-  deviceUpdatesChannel: (deviceId: string) => `updates:device:${deviceId}`,
-  globalUpdatesChannel: () => "updates:global",
+  deviceUpdatesChannel: (deviceId: string) => schemaKeys.deviceUpdatesChannel(deviceId),
+  globalUpdatesChannel: () => schemaKeys.globalUpdatesChannel(),
 };
 
 export const redisTTL = {
-  command: 300, // 5 minutes for commands
-  commandResult: 3600, // 1 hour for results
-  batch: 86400, // 24 hours for batch reports
-  device: 604800, // 7 days for device info
+  command: schemaTtl.commandSeconds(), // 5 minutes for commands (default)
+  commandResult: schemaTtl.commandResultSeconds(), // 1 hour for results (default)
+  batch: schemaTtl.batchSeconds(), // Uses REDIS_TTL_SECONDS (default 7 days)
+  device: schemaTtl.batchSeconds(), // Same policy as batch unless overridden elsewhere
 };

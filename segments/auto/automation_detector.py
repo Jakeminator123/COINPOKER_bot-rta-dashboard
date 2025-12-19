@@ -148,8 +148,45 @@ def _load_ignored_programs():
         return []
 
 
+def _load_auto_config() -> dict:
+    """Load auto_config.json from ConfigLoader (preferred) or local JSON fallback."""
+    if _use_config_loader:
+        try:
+            config = get_config("auto_config")
+            if config:
+                return config
+        except Exception as e:
+            print(f"[AutomationDetector] WARNING: ConfigLoader error (auto_config): {e}")
+
+    try:
+        possible_paths = [
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), "auto_config.json"),
+            os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                "site",
+                "bot-rta-dashboard",
+                "configs",
+                "auto_config.json",
+            ),
+            os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                "configs",
+                "auto_config.json",
+            ),
+        ]
+        for config_path in possible_paths:
+            if os.path.exists(config_path):
+                with open(config_path, encoding="utf-8") as f:
+                    return json.load(f)
+    except Exception as e:
+        print(f"[AutomationDetector] WARNING: Failed to load auto_config.json: {e}")
+
+    return {}
+
+
 _shared_config = _load_shared_config()
 _ignored_programs = _load_ignored_programs()
+_auto_config = _load_auto_config()
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -187,6 +224,15 @@ class AutomationDetector(BaseSegment):
         self.debug = _env_flag("INPUT_DEBUG", False)
         self._report_cooldown = apply_cooldown(self.REPORT_COOLDOWN_S)
 
+        # Segment-wide enable switch (auto_config.json)
+        self._enabled = bool(_auto_config.get("enabled", True))
+
+        # Script extensions for cmdline inspection (optional; defaults to built-ins)
+        configured_exts = _auto_config.get("script_extensions") or self.SCRIPT_EXTENSIONS
+        self._script_extensions = [
+            str(ext).lower() for ext in (configured_exts or []) if str(ext).strip()
+        ]
+
         # Build compact automation process map {exe_name_lower: (display, points, type)}
         self.automation_processes: dict[str, tuple[str, int, str]] = {}
         self._load_automation_config()
@@ -213,6 +259,8 @@ class AutomationDetector(BaseSegment):
     # --------------------------
     def tick(self) -> None:
         """Main detection pass."""
+        if not self._enabled:
+            return
         procs = self._snapshot_processes()
 
         # Detect automation processes (runs regardless of poker status, like other segments)
@@ -567,7 +615,7 @@ class AutomationDetector(BaseSegment):
             for arg in cmdline:
                 a = (arg or "").strip().strip('"').strip("'")
                 low = a.lower()
-                if any(low.endswith(ext) for ext in self.SCRIPT_EXTENSIONS):
+                if any(low.endswith(ext) for ext in self._script_extensions):
                     return os.path.basename(a)
         except Exception:
             pass
@@ -639,7 +687,9 @@ class AutomationDetector(BaseSegment):
         # Load from unified registry - filter by automation categories
         if registry_config and "programs" in registry_config:
             programs = registry_config.get("programs", {})
-            automation_categories = {"automation", "macros", "bots", "rta_tools"}
+            # Only include true automation/macro categories in the "auto" segment.
+            # Bots and RTA tools are detected under the "programs" segment.
+            automation_categories = {"automation", "macros"}
 
             for exe_name, program_info in programs.items():
                 # Check if program belongs to automation-related categories
@@ -672,13 +722,34 @@ class AutomationDetector(BaseSegment):
                 if self.debug and "python" in exe_name.lower():
                     print(f"[AutomationDetector] DEBUG: Loaded Python entry - exe={exe_name}, label={label}, points={points}, categories={categories}")
 
+        # Fallback: if no registry entries exist for automation, use auto_config.process_patterns
+        if loaded_count == 0:
+            patterns = _auto_config.get("process_patterns", {}) or {}
+            ignored = set(
+                str(x).lower()
+                for x in ((_auto_config.get("ignored_processes", {}) or {}).get("list", []) or [])
+                if str(x).strip()
+            )
+
+            for group_key, group in patterns.items():
+                if not isinstance(group, dict):
+                    continue
+                display = str(group_key).replace("_", " ").title()
+                points = int(group.get("points", 10) or 10)
+                for exe_name in (group.get("names", []) or []):
+                    exe = str(exe_name).strip()
+                    if not exe:
+                        continue
+                    if exe.lower() in ignored:
+                        continue
+                    self._add_proc(exe, display, points, str(group_key))
+                    loaded_count += 1
+
         if self.debug:
             if loaded_count > 0:
-                print(f"[AutomationDetector] Loaded {loaded_count} programs from unified registry")
+                print(f"[AutomationDetector] Loaded {loaded_count} automation entries")
             else:
-                print(
-                    "[AutomationDetector] ERROR: No programs loaded! Check programs_registry.json"
-                )
+                print("[AutomationDetector] WARNING: No automation entries loaded")
 
     def _add_proc(self, exe_name: str, display: str, points: int, kind: str) -> None:
         """Lowercase key insert with overwrite protection.

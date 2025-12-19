@@ -524,6 +524,11 @@ class ReportBatcher:
             "segments_running": system_info.get("segments_running", 0) if system_info else 0,
             "env": system_info.get("env", "PROD") if system_info else "PROD",
             "host": system_info.get("host", "unknown") if system_info else "unknown",
+            # OS/platform info (optional)
+            "os_platform": system_info.get("os_platform") if system_info else None,
+            "os_release": system_info.get("os_release") if system_info else None,
+            "os_version": system_info.get("os_version") if system_info else None,
+            "os_arch": system_info.get("os_arch") if system_info else None,
         }
 
         # Resolve final display/stored name using shared identity priority

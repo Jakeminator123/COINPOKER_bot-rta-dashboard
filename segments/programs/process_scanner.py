@@ -103,15 +103,27 @@ class ProcessScanner(BaseSegment):
         # Load configuration
         scanner_config = _config.get("process_scanner", {})
 
+        # Ignore patterns (from programs_config.json)
+        self._ignored_programs = [
+            str(x).lower()
+            for x in (_config.get("ignored_programs", []) or [])
+            if str(x).strip()
+        ]
+
         # Protected poker app
         protected = scanner_config.get("protected_poker", {})
         self.PROTECTED_EXE = str(protected.get("exe", "game.exe")).lower()
         self.PROTECTED_PATH_KEY = str(protected.get("path_key", "coinpoker")).lower()
 
         # Quick macro header scan (convert from strings to bytes)
+        macro_headers = (
+            scanner_config.get("macro_headers")
+            or (scanner_config.get("macro_detection", {}) or {}).get("headers")
+            or ["AUT0HOOK", "AUT0IT", "CHEATENG"]
+        )
         self._macro_headers: list[bytes] = [
             h.encode()
-            for h in scanner_config.get("macro_headers", ["AUT0HOOK", "AUT0IT", "CHEATENG"])
+            for h in (macro_headers or [])
         ]
 
         # Windows system processes to skip
@@ -120,17 +132,14 @@ class ProcessScanner(BaseSegment):
         ]
 
         # Expected locations for binaries
-        self._expected_locations = scanner_config.get("expected_locations", {})
+        self._expected_locations = (
+            scanner_config.get("expected_locations")
+            or scanner_config.get("expected_program_locations")
+            or {}
+        )
 
         # Other poker sites
         self._other_poker = scanner_config.get("other_poker_sites", [])
-
-        # Auto-kill configuration
-        self._kill_enabled = os.environ.get("KILL_AUTO_ENABLED", "false").lower() == "true"
-        self._kill_cooldown: dict[str, float] = {}  # program_name -> last_kill_time
-        self._kill_cooldown_seconds = apply_cooldown(
-            60.0
-        )  # Don't kill same program more than once per minute
 
         # Keepalive helper to keep detections present between heavy scans
         keepalive_seconds = float(scanner_config.get("keepalive_seconds", 45.0))
@@ -145,8 +154,6 @@ class ProcessScanner(BaseSegment):
         )
 
         print("[ProcessScanner] Ready (protected app + renames + compiled macros)")
-        if self._kill_enabled:
-            print("[ProcessScanner] Auto-kill enabled (direct kill_coinpoker.py)")
 
     def tick(self):
         """Main loop"""
@@ -168,6 +175,16 @@ class ProcessScanner(BaseSegment):
 
                 key = f"{name}:{pid}"
                 seen_aliases.add(key)
+
+                # Skip ignored programs early (but never skip the protected CoinPoker check)
+                if not (name == self.PROTECTED_EXE and self.PROTECTED_PATH_KEY in exe):
+                    exe_base = os.path.basename(exe) if exe else ""
+                    if any(
+                        pat and (pat in name or (exe_base and pat in exe_base))
+                        for pat in self._ignored_programs
+                    ):
+                        self._keepalive.refresh_alias(key)
+                        continue
                 
                 if now - self._last.get(key, 0.0) < self._cooldown:
                     self._keepalive.refresh_alias(key)
@@ -249,10 +266,6 @@ class ProcessScanner(BaseSegment):
                         f"PID: {pid} | {rename}",
                         alias=key,
                     )
-
-                # 4) Check if program should be auto-killed
-                if self._kill_enabled and coinpoker_active:
-                    self._check_and_kill_program(name, pid, now)
 
             except Exception:
                 continue
@@ -477,104 +490,6 @@ class ProcessScanner(BaseSegment):
                 )
         except Exception as e:
             print(f"[ProcessScanner] Error detecting tables: {e}")
-
-
-
-    def _check_and_kill_program(self, process_name: str, pid: int, now: float):
-        """Check if program should be auto-killed and trigger kill if needed"""
-        try:
-            # Load programs config to check kill flag
-            programs_config = get_config("programs_config")
-            if not programs_config:
-                return
-
-            programs = programs_config.get("programs", {})
-
-            # Check if this process name matches any configured program with kill:true
-            for program_key, program_data in programs.items():
-                program_name = program_data.get("label", "").lower()
-                kill_enabled = program_data.get("kill", False)
-
-                # Check if process name matches (with or without .exe)
-                process_name_clean = process_name.replace(".exe", "").lower()
-                program_name_clean = program_name.replace(".exe", "").lower()
-
-                if kill_enabled and (
-                    process_name_clean == program_name_clean
-                    or process_name.lower() == program_name.lower()
-                ):
-                    # Check cooldown
-                    last_kill_time = self._kill_cooldown.get(program_key, 0.0)
-                    if now - last_kill_time < self._kill_cooldown_seconds:
-                        continue
-
-                    # Update cooldown
-                    self._kill_cooldown[program_key] = now
-
-                    # Trigger kill
-                    print(
-                        f"[ProcessScanner] Auto-killing {program_name} (PID: {pid}) - kill flag enabled"
-                    )
-                    self._trigger_kill(program_name, pid)
-
-                    # Log kill action
-                    post_signal(
-                        "system",
-                        "Auto-Kill Triggered",
-                        "ALERT",
-                        f"Program: {program_name} (PID: {pid}) | Auto-killed due to kill flag in config",
-                    )
-                    break
-        except Exception as e:
-            print(f"[ProcessScanner] Error checking kill flag: {e}")
-
-    def _trigger_kill(self, program_name: str, pid: int):
-        """Trigger kill_coinpoker.py to kill CoinPoker processes"""
-        try:
-            # Import kill function directly
-            import os
-            import sys
-            import subprocess
-
-            kill_module_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                "utils",
-                "kill_coinpoker.py",
-            )
-
-            # Try to import and call directly
-            if os.path.exists(kill_module_path):
-                import importlib.util
-
-                spec = importlib.util.spec_from_file_location("kill_coinpoker", kill_module_path)
-                if spec and spec.loader:
-                    kill_module = importlib.util.module_from_spec(spec)
-                    spec.loader.exec_module(kill_module)
-
-                    # Call kill function
-                    success, message, killed_pids = kill_module.kill_coinpoker_processes()
-
-                    if success:
-                        print(f"[ProcessScanner] Kill triggered successfully: {message}")
-                    else:
-                        print(f"[ProcessScanner] Kill failed: {message}")
-                    return
-
-            # Fallback: try subprocess
-            python_cmd = sys.executable
-            result = subprocess.run(
-                [python_cmd, kill_module_path],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-
-            if result.returncode == 0:
-                print("[ProcessScanner] Kill triggered successfully")
-            else:
-                print(f"[ProcessScanner] Kill failed: {result.stderr}")
-        except Exception as e:
-            print(f"[ProcessScanner] Error triggering kill: {e}")
 
     def cleanup(self):
         """Clean up resources and reset flags."""

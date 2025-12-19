@@ -9,8 +9,8 @@
 import AuthGuard from "@/components/AuthGuard";
 import NavigationTabs from "@/components/NavigationTabs";
 import AdvancedSettingsEditor from "@/components/config-editors/AdvancedSettingsEditor";
-import SimplifiedConfigurationEditor from "@/components/config-editors/SimplifiedConfigurationEditor";
 import SHADatabaseViewer from "@/components/SHADatabaseViewer";
+import VirusTotalSettings from "@/components/config-editors/VirusTotalSettings";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
 import { SettingsGearIcon, DatabaseIcon, ShieldIcon, ConfigIcon, ArrowIcon, NetworkIcon, DetectionIcon } from "@/components/AnimatedIcons";
 import { GlassCard, FeatureCard } from "@/components/GlassCard";
@@ -30,8 +30,7 @@ const fetcher = (url: string) =>
       return response;
     });
 
-type ConfigurationMode = "simplified" | "advanced";
-type SettingsTab = "configuration" | "sha-database";
+type SettingsTab = "configuration" | "sha-database" | "integrations";
 
 // Animated Floating Icons
 function FloatingIcon({ delay = 0 }: { delay?: number }) {
@@ -59,9 +58,6 @@ function FloatingIcon({ delay = 0 }: { delay?: number }) {
 function SettingsPageContent() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<SettingsTab>("configuration");
-  const [configMode, setConfigMode] = useState<ConfigurationMode>("simplified");
-  const [advancedGroup, setAdvancedGroup] = useState<string | undefined>(undefined);
-  const [advancedSection, setAdvancedSection] = useState<string | undefined>(undefined);
   
   const { data: configData, error, isLoading, mutate } = useSWR("/api/configs", fetcher);
 
@@ -281,6 +277,27 @@ function SettingsPageContent() {
                   />
                 )}
               </motion.button>
+
+              <motion.button
+                onClick={() => setActiveTab("integrations")}
+                className={`flex-1 px-6 py-4 rounded-xl font-semibold transition-all duration-300 flex items-center justify-center gap-3 ${
+                  activeTab === "integrations"
+                    ? "bg-gradient-to-r from-indigo-500/40 to-purple-500/40 text-white border border-indigo-500/50 shadow-lg shadow-indigo-500/20"
+                    : "text-white/60 hover:text-white hover:bg-white/10"
+                }`}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <NetworkIcon className="w-6 h-6" />
+                <span>Integrations</span>
+                {activeTab === "integrations" && (
+                  <motion.div
+                    className="w-2 h-2 bg-green-400 rounded-full"
+                    animate={{ scale: [1, 1.5, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  />
+                )}
+              </motion.button>
             </div>
           </GlassCard>
         </motion.div>
@@ -296,6 +313,18 @@ function SettingsPageContent() {
               transition={{ duration: 0.3 }}
             >
               <SHADatabaseViewer />
+            </motion.div>
+          ) : activeTab === "integrations" ? (
+            <motion.div
+              key="integrations"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <GlassCard className="p-8" glow={true}>
+                <VirusTotalSettings />
+              </GlassCard>
             </motion.div>
           ) : (
             <motion.div
@@ -321,7 +350,7 @@ function SettingsPageContent() {
                       <div>
                         <h2 className="text-3xl font-bold text-white">Configuration Center</h2>
                         <p className="text-white/60 mt-1">
-                          Choose your configuration mode and manage detection settings
+                          Manage detection settings
                         </p>
                       </div>
                     </div>
@@ -340,38 +369,9 @@ function SettingsPageContent() {
                   </div>
                 </GlassCard>
 
-                {/* Mode Selector Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <motion.div
-                    whileHover={{ y: -5 }}
-                    onClick={() => setConfigMode("simplified")}
-                    className="cursor-pointer"
-                  >
-                    <FeatureCard
-                      icon={<NetworkIcon className="w-8 h-8 text-indigo-400" />}
-                      title="Simplified Configuration"
-                      description="Quick presets and easy-to-use controls for basic configuration"
-                      isActive={configMode === "simplified"}
-                    />
-                  </motion.div>
-                  
-                  <motion.div
-                    whileHover={{ y: -5 }}
-                    onClick={() => setConfigMode("advanced")}
-                    className="cursor-pointer"
-                  >
-                    <FeatureCard
-                      icon={<ConfigIcon className="w-8 h-8 text-purple-400" />}
-                      title="Advanced Configuration"
-                      description="Full control over all detection parameters and thresholds"
-                      isActive={configMode === "advanced"}
-                    />
-                  </motion.div>
-                </div>
-
                 {/* Configuration Content */}
                 <motion.div
-                  key={configMode}
+                  key="advanced"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3 }}
@@ -388,43 +388,21 @@ function SettingsPageContent() {
                       </div>
                     </GlassCard>
                   ) : configData ? (
-                    configMode === "simplified" ? (
-                      <GlassCard className="p-8">
-                        <SimplifiedConfigurationEditor
-                          programsRegistry={configData.programs_registry}
-                          programsConfig={configData.programs_config}
-                          networkConfig={configData.network_config}
-                          behaviourConfig={configData.behaviour_config}
-                          screenConfig={configData.screen_config}
-                          vmConfig={configData.vm_config}
-                          obfuscationConfig={configData.obfuscation_config}
-                          sharedConfig={configData.shared_config}
-                          onNavigateToAdvanced={(group, section) => {
-                            setConfigMode("advanced");
-                            setAdvancedGroup(group);
-                            setAdvancedSection(section);
-                          }}
-                          onSave={handleSaveConfig}
-                        />
-                      </GlassCard>
-                    ) : (
-                      <GlassCard className="p-8">
-                        <AdvancedSettingsEditor
-                          programsRegistry={configData.programs_registry}
-                          programsConfig={configData.programs_config}
-                          networkConfig={configData.network_config}
-                          behaviourConfig={configData.behaviour_config}
-                          screenConfig={configData.screen_config}
-                          vmConfig={configData.vm_config}
-                          obfuscationConfig={configData.obfuscation_config}
-                          sharedConfig={configData.shared_config}
-                          securityConfig={configData.security_config}
-                          initialGroup={advancedGroup}
-                          initialSection={advancedSection}
-                          onSave={handleSaveConfig}
-                        />
-                      </GlassCard>
-                    )
+                    <GlassCard className="p-8">
+                      <AdvancedSettingsEditor
+                        programsRegistry={configData.programs_registry}
+                        programsConfig={configData.programs_config}
+                        networkConfig={configData.network_config}
+                        behaviourConfig={configData.behaviour_config}
+                        screenConfig={configData.screen_config}
+                        vmConfig={configData.vm_config}
+                        autoConfig={configData.auto_config}
+                        obfuscationConfig={configData.obfuscation_config}
+                        sharedConfig={configData.shared_config}
+                        securityConfig={configData.security_config}
+                        onSave={handleSaveConfig}
+                      />
+                    </GlassCard>
                   ) : (
                     <GlassCard className="p-12">
                       <div className="text-center text-white/60">

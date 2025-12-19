@@ -17,10 +17,19 @@ export type DetectionSeverityBand = "CRITICAL" | "ALERT" | "WARN";
 export interface DeviceHashFields {
   device_id: string;
   device_name?: string;
+  device_hostname?: string;
   last_seen?: string;
   threat_level?: string;
   session_start?: string;
   ip_address?: string;
+  os_platform?: string;
+  os_release?: string;
+  os_version?: string;
+  os_arch?: string;
+  player_nickname?: string;
+  player_nickname_confidence?: string;
+  player_email?: string;
+  signal_count?: string;
 }
 
 export interface PlayerSummary {
@@ -52,6 +61,9 @@ export const redisKeys = {
   },
   deviceThreat(deviceId: string): string {
     return `device:${deviceId}:threat`;
+  },
+  deviceMaxThreat(deviceId: string): string {
+    return `device:${deviceId}:max_threat`;
   },
   batchRecord(deviceId: string, timestamp: number): string {
     return `batch:${deviceId}:${timestamp}`;
@@ -92,11 +104,49 @@ export const redisKeys = {
   globalUpdatesChannel(): string {
     return "updates:all";
   },
+
+  // -------------------------------------------------------------------
+  // Device command schema (dashboard -> scanner via Redis)
+  // -------------------------------------------------------------------
+  deviceCommandQueue(deviceId: string): string {
+    // ZSET: value=commandId score=timestamp_ms
+    return `device:${deviceId}:command_queue`;
+  },
+  deviceCommand(deviceId: string, commandId: string): string {
+    // String (JSON): command object
+    return `device:${deviceId}:commands:${commandId}`;
+  },
+  deviceCommandResult(deviceId: string, commandId: string): string {
+    // String (JSON): result object
+    return `device:${deviceId}:command_result:${commandId}`;
+  },
+
+  // -------------------------------------------------------------------
+  // VirusTotal integration (Redis cache + stats)
+  // -------------------------------------------------------------------
+  vtCache(hashLower: string): string {
+    return `vt:hash:${hashLower}`;
+  },
+  vtCachePattern(): string {
+    return "vt:hash:*";
+  },
+  vtRateLimitLastRequest(): string {
+    return "vt:rate_limit:last_request";
+  },
+  vtStats(): string {
+    return "vt:stats";
+  },
 };
 
 export const redisTtl = {
   batchSeconds(defaultSeconds = 604800): number {
     return Number(process.env.REDIS_TTL_SECONDS) || defaultSeconds;
+  },
+  commandSeconds(defaultSeconds = 300): number {
+    return Number(process.env.REDIS_COMMAND_TTL_SECONDS) || defaultSeconds;
+  },
+  commandResultSeconds(defaultSeconds = 3600): number {
+    return Number(process.env.REDIS_COMMAND_RESULT_TTL_SECONDS) || defaultSeconds;
   },
 };
 

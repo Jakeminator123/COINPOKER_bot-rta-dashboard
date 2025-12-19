@@ -15,11 +15,11 @@
  */
 
 import { getRedisClient } from '@/lib/redis/redis-client';
+import { redisKeys } from '@/lib/redis/schema';
 
-// Redis key prefix for VT cache
-const VT_CACHE_PREFIX = 'vt:hash:';
-const VT_RATE_LIMIT_KEY = 'vt:rate_limit:last_request';
-const VT_STATS_KEY = 'vt:stats';
+// Redis keys for VT cache/stats (centralized in lib/redis/schema.ts)
+const VT_RATE_LIMIT_KEY = redisKeys.vtRateLimitLastRequest();
+const VT_STATS_KEY = redisKeys.vtStats();
 
 // Cache TTL (24 hours in seconds)
 const CACHE_TTL_SECONDS = 24 * 60 * 60;
@@ -59,7 +59,7 @@ export interface VTResult {
 
 export interface VTStats {
   totalLookups: number;
-  cachHits: number;
+  cacheHits: number;
   apiCalls: number;
   malwareFound: number;
   suspiciousFound: number;
@@ -112,7 +112,7 @@ async function recordRequest(): Promise<void> {
 async function getCachedResult(hash: string): Promise<VTResult | null> {
   try {
     const redis = await getRedisClient();
-    const cached = await redis.get(`${VT_CACHE_PREFIX}${hash.toLowerCase()}`);
+    const cached = await redis.get(redisKeys.vtCache(hash.toLowerCase()));
     
     if (cached) {
       const result = JSON.parse(cached) as VTResult;
@@ -133,7 +133,7 @@ async function cacheResult(result: VTResult): Promise<void> {
   try {
     const redis = await getRedisClient();
     await redis.set(
-      `${VT_CACHE_PREFIX}${result.hash.toLowerCase()}`,
+      redisKeys.vtCache(result.hash.toLowerCase()),
       JSON.stringify(result),
       { EX: CACHE_TTL_SECONDS }
     );
@@ -192,7 +192,7 @@ export async function getVTStats(): Promise<VTStats> {
     
     return {
       totalLookups: parseInt(stats.totalLookups || '0', 10),
-      cachHits: parseInt(stats.cacheHits || '0', 10),
+      cacheHits: parseInt(stats.cacheHits || '0', 10),
       apiCalls: parseInt(stats.apiCalls || '0', 10),
       malwareFound: parseInt(stats.malwareFound || '0', 10),
       suspiciousFound: parseInt(stats.suspiciousFound || '0', 10),
@@ -204,7 +204,7 @@ export async function getVTStats(): Promise<VTStats> {
   } catch {
     return {
       totalLookups: 0,
-      cachHits: 0,
+      cacheHits: 0,
       apiCalls: 0,
       malwareFound: 0,
       suspiciousFound: 0,
@@ -495,7 +495,7 @@ export async function checkHashesBatch(
 export async function getAllCachedResults(): Promise<VTResult[]> {
   try {
     const redis = await getRedisClient();
-    const keys = await redis.keys(`${VT_CACHE_PREFIX}*`);
+    const keys = await redis.keys(redisKeys.vtCachePattern());
     
     if (keys.length === 0) {
       return [];
@@ -525,7 +525,7 @@ export async function getAllCachedResults(): Promise<VTResult[]> {
 export async function clearVTCache(): Promise<number> {
   try {
     const redis = await getRedisClient();
-    const keys = await redis.keys(`${VT_CACHE_PREFIX}*`);
+    const keys = await redis.keys(redisKeys.vtCachePattern());
     
     if (keys.length > 0) {
       await redis.del(keys);

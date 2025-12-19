@@ -44,7 +44,6 @@ from core.command_client import DashboardCommandClient
 from core.redis_command_client import RedisCommandClient
 from core.forwarder import ForwarderService
 from utils.admin_check import get_admin_status_message, is_admin
-from utils.kill_coinpoker import kill_coinpoker_processes
 from utils.config_reader import get_default_config, set_config_override, read_config
 from utils.take_snapshot import (
     capture_window_screenshot,
@@ -973,15 +972,7 @@ class CoinPokerScanner:
             error_msg = "Administrator privileges required"
         else:
             try:
-                if cmd == "kill_coinpoker":
-                    success, message, killed_pids = kill_coinpoker_processes()
-                    output = {
-                        "message": message,
-                        "killed_pids": killed_pids,
-                    }
-                    if not success:
-                        error_msg = message or "Kill command failed"
-                elif cmd == "take_snapshot":
+                if cmd == "take_snapshot":
                     snapshot = self._capture_tables_snapshot()
                     output = snapshot
                     success = bool(snapshot.get("success"))

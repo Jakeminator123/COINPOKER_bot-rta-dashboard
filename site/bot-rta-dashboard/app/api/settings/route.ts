@@ -6,6 +6,15 @@ import { successResponse, errorResponse, parseJsonBody, type SettingsPostRequest
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// Check if VT API key is configured (without exposing the key)
+function getVTStatus(): { configured: boolean; keyLength: number } {
+  const key = process.env.VIRUSTOTAL_API_KEY || process.env.VirusTotalAPIKey || '';
+  return {
+    configured: key.length > 0,
+    keyLength: key.length,
+  };
+}
+
 // Config data using centralized detection context
 const CONFIG_DATA = {
   detection_scoring: {
@@ -93,6 +102,14 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
 
+    // Special endpoint for VT status
+    if (category === 'virustotal_status') {
+      return successResponse({
+        category: 'virustotal_status',
+        config: getVTStatus()
+      }, 200, { cache: 'no-store' });
+    }
+
     if (category && CONFIG_DATA[category as keyof typeof CONFIG_DATA]) {
       return successResponse({
         category,
@@ -100,10 +117,13 @@ export async function GET(request: NextRequest) {
       }, 200, { cache: 'no-store' });
     }
 
-    // Return all config data
+    // Return all config data including VT status
     return successResponse({
       config: CONFIG_DATA,
-      categories: Object.keys(CONFIG_DATA)
+      categories: Object.keys(CONFIG_DATA),
+      integrations: {
+        virustotal: getVTStatus()
+      }
     }, 200, { cache: 'no-store' });
 
   } catch (error) {

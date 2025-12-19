@@ -11,7 +11,12 @@ const DEVICE_KEY_PREFIX = "device:";
 const IGNORED_KEY_PATTERNS = [
   ":info",
   ":threat",
+  ":max_threat",
   ":detections",
+  ":categories",
+  ":command_queue",
+  ":commands:",
+  ":command_result:",
   ":legacy",
   ":summary",
 ];

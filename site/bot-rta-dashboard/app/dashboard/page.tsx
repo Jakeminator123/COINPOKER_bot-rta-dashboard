@@ -101,7 +101,7 @@ type Snapshot = {
   sections: Record<string, { items: Stored[] }>;
 };
 
-type DeviceCommandName = "kill_coinpoker" | "take_snapshot" | "start_recording";
+type DeviceCommandName = "take_snapshot" | "start_recording";
 
 type CommandExecutionResult =
   | {
@@ -223,6 +223,10 @@ function EnhancedDashboardContent() {
     player_nickname?: string;
     player_nickname_confidence?: number;
     player_email?: string;
+    os_platform?: string;
+    os_release?: string;
+    os_version?: string;
+    os_arch?: string;
   }
 
   const [deviceData, setDeviceData] = useState<DeviceData | null>(null);
@@ -267,7 +271,6 @@ function EnhancedDashboardContent() {
   const [tableInfo, setTableInfo] = useState<TableInfo[]>([]);
   const [isTakingSnapshot, setIsTakingSnapshot] = useState(false);
   const [_snapshotError, setSnapshotError] = useState<string | null>(null);
-  const [isKillInProgress, setIsKillInProgress] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(2);
   const [showRecordingModal, setShowRecordingModal] = useState(false);
@@ -315,6 +318,107 @@ function EnhancedDashboardContent() {
       month: "short",
       day: "numeric",
     });
+  }, []);
+
+  // Detection method icons and labels for detailed view
+  const DETECTION_METHOD_INFO: Record<string, { icon: string; label: string; color: string }> = {
+    // Programs subsections
+    file_names: { icon: "⚙️", label: "Process", color: "text-purple-400" },
+    sha_hashes: { icon: "🔐", label: "SHA-256 Hash", color: "text-red-400" },
+    window_titles: { icon: "🪟", label: "Window Title", color: "text-blue-400" },
+    path_hints: { icon: "📁", label: "File Path", color: "text-yellow-400" },
+    obfuscation: { icon: "🔒", label: "Obfuscated Code", color: "text-orange-400" },
+    // Network subsections
+    browser_urls: { icon: "🌐", label: "RTA Website", color: "text-cyan-400" },
+    messengers: { icon: "💬", label: "Messenger", color: "text-indigo-400" },
+    connections: { icon: "🔌", label: "Connection", color: "text-green-400" },
+    dns_queries: { icon: "🔍", label: "DNS Query", color: "text-teal-400" },
+    // Behaviour subsections
+    mouse_patterns: { icon: "🖱️", label: "Mouse Pattern", color: "text-pink-400" },
+    keyboard_patterns: { icon: "⌨️", label: "Keyboard", color: "text-violet-400" },
+    action_timing: { icon: "⏱️", label: "Timing", color: "text-amber-400" },
+    click_patterns: { icon: "👆", label: "Click Pattern", color: "text-rose-400" },
+    // VM subsections
+    vmware: { icon: "🖥️", label: "VMware", color: "text-emerald-400" },
+    virtualbox: { icon: "📦", label: "VirtualBox", color: "text-sky-400" },
+    hyperv: { icon: "🪟", label: "Hyper-V", color: "text-blue-400" },
+    other_vm: { icon: "💻", label: "VM Detected", color: "text-slate-400" },
+    // Auto subsections
+    macros: { icon: "🎹", label: "Macro Tool", color: "text-fuchsia-400" },
+    scripts: { icon: "📜", label: "Script", color: "text-lime-400" },
+    automation: { icon: "🤖", label: "Automation", color: "text-orange-400" },
+    clickers: { icon: "🔘", label: "Auto-Clicker", color: "text-red-400" },
+    // Fallback
+    general: { icon: "📋", label: "Detection", color: "text-slate-400" },
+  };
+
+  // Extract meaningful info from details string
+  const parseDetectionDetails = useCallback((details?: string, subsection?: string): { 
+    shortInfo: string | null; 
+    extraTags: string[];
+  } => {
+    if (!details) return { shortInfo: null, extraTags: [] };
+    
+    const extraTags: string[] = [];
+    let shortInfo: string | null = null;
+
+    // Extract SHA hash (truncated)
+    const shaMatch = details.match(/sha[=:]?\s*([a-fA-F0-9]{64})/i) || 
+                     details.match(/^([a-fA-F0-9]{64})$/);
+    if (shaMatch) {
+      shortInfo = `SHA: ${shaMatch[1].substring(0, 12)}...`;
+    }
+
+    // Extract file path (show last 2 parts)
+    const pathMatch = details.match(/(?:path[=:]?\s*)?([A-Z]:\\[^\s|,]+)/i) ||
+                      details.match(/\\([^\\]+\\[^\\|,\s]+)/);
+    if (pathMatch && !shortInfo) {
+      const path = pathMatch[1] || pathMatch[0];
+      const parts = path.split("\\");
+      shortInfo = parts.length > 2 
+        ? `...\\${parts.slice(-2).join("\\")}`
+        : path;
+    }
+
+    // Extract process name if not already shown
+    const procMatch = details.match(/process[=:]?\s*([^\s|,]+)/i);
+    if (procMatch && !shortInfo) {
+      shortInfo = procMatch[1];
+    }
+
+    // Extract URL/domain
+    const urlMatch = details.match(/(https?:\/\/[^\s]+|[\w-]+\.(com|org|net|io)[^\s]*)/i);
+    if (urlMatch && !shortInfo) {
+      const url = urlMatch[1];
+      shortInfo = url.length > 40 ? url.substring(0, 40) + "..." : url;
+    }
+
+    // Detect special tags
+    if (details.toLowerCase().includes("packer") || details.toLowerCase().includes("packed")) {
+      extraTags.push("Packed");
+    }
+    if (details.toLowerCase().includes("signature")) {
+      extraTags.push("Signature");
+    }
+    if (details.toLowerCase().includes("registry")) {
+      extraTags.push("Registry");
+    }
+    if (details.toLowerCase().includes("injected") || details.toLowerCase().includes("injection")) {
+      extraTags.push("Injected");
+    }
+    if (details.toLowerCase().includes("hidden")) {
+      extraTags.push("Hidden");
+    }
+    if (details.toLowerCase().includes("elevated") || details.toLowerCase().includes("admin")) {
+      extraTags.push("Elevated");
+    }
+
+    // Fallback: show truncated details if nothing specific found
+    if (!shortInfo && details.length > 0) {
+      shortInfo = details.length > 50 ? details.substring(0, 50) + "..." : details;
+    }
+
+    return { shortInfo, extraTags };
   }, []);
 
   const statusBadgeStyles: Record<Status, string> = {
@@ -1385,6 +1489,23 @@ function EnhancedDashboardContent() {
                     </div>
                   )}
 
+                  {(deviceData?.os_platform || deviceData?.os_release || deviceData?.os_arch) && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-slate-500 font-medium min-w-[100px]">OS:</span>
+                      <span className="text-slate-300">
+                        {(() => {
+                          const p = (deviceData.os_platform || "").toLowerCase();
+                          const icon =
+                            p.includes("windows") ? "🪟" : p.includes("darwin") || p.includes("mac") ? "🍎" : p.includes("linux") ? "🐧" : "💻";
+                          const platform = deviceData.os_platform || "Unknown";
+                          const rel = deviceData.os_release ? ` ${deviceData.os_release}` : "";
+                          const arch = deviceData.os_arch ? ` (${deviceData.os_arch})` : "";
+                          return `${icon} ${platform}${rel}${arch}`;
+                        })()}
+                      </span>
+                    </div>
+                  )}
+
                   {!deviceData?.ip_address && !nicknameInfo?.device_ip && (
                     <div className="flex items-center gap-2 text-sm">
                       <span className="text-slate-500 font-medium min-w-[100px]">IP:</span>
@@ -1967,33 +2088,59 @@ function EnhancedDashboardContent() {
                               No detections recorded in this session window.
                             </p>
                           )}
-                          {detections.map((item, index) => (
-                            <div
-                              key={`${item.name}-${item.subsection || ''}-${index}`}
-                              className="flex items-center justify-between gap-3 rounded-xl bg-white/5 border border-white/10 p-3"
-                            >
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm font-medium text-white truncate">
+                          {detections.map((item, index) => {
+                            const methodInfo = DETECTION_METHOD_INFO[item.subsection || "general"] || DETECTION_METHOD_INFO.general;
+                            const { shortInfo, extraTags } = parseDetectionDetails(item.details, item.subsection);
+                            
+                            return (
+                              <div
+                                key={`${item.name}-${item.subsection || ''}-${index}`}
+                                className="rounded-xl bg-white/5 border border-white/10 p-3 hover:bg-white/[0.07] transition-colors"
+                              >
+                                {/* Top row: Detection method badge + Status */}
+                                <div className="flex items-center justify-between gap-2 mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-800/80 border border-slate-700/50 ${methodInfo.color}`}>
+                                      <span className="text-sm">{methodInfo.icon}</span>
+                                      <span className="text-[10px] font-semibold uppercase tracking-wide">
+                                        {methodInfo.label}
+                                      </span>
+                                    </span>
+                                    {extraTags.map((tag, tagIdx) => (
+                                      <span 
+                                        key={tagIdx}
+                                        className="px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                                      >
+                                        {tag}
+                                      </span>
+                                    ))}
+                                  </div>
+                                  <span
+                                    className={`px-2 py-0.5 text-[10px] font-semibold rounded-full uppercase tracking-wide flex-shrink-0 ${statusBadgeStyles[item.status]}`}
+                                  >
+                                    {item.status}
+                                  </span>
+                                </div>
+                                
+                                {/* Middle row: Detection name */}
+                                <p className="text-sm font-medium text-white mb-1">
                                   {item.name}
                                 </p>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <p className="text-[11px] text-slate-500 truncate">
+                                
+                                {/* Bottom row: Details and timestamp */}
+                                <div className="flex items-center justify-between gap-2">
+                                  {shortInfo && (
+                                    <p className="text-[11px] text-slate-400 font-mono truncate flex-1" title={item.details}>
+                                      {shortInfo}
+                                    </p>
+                                  )}
+                                  <p className="text-[10px] text-slate-500 flex-shrink-0">
                                     {formatDetectionTimestamp(item.timestamp)}
                                   </p>
-                                  {item.subsection && item.subsection !== "general" && (
-                                    <span className="text-[10px] px-1.5 py-0.5 bg-slate-700/50 text-slate-400 rounded">
-                                      {item.subsection.replace(/_/g, " ")}
-                                    </span>
-                                  )}
                                 </div>
                               </div>
-                              <span
-                                className={`px-2 py-0.5 text-[10px] font-semibold rounded-full uppercase tracking-wide flex-shrink-0 ${statusBadgeStyles[item.status]}`}
-                              >
-                                {item.status}
-                              </span>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -2139,85 +2286,6 @@ function EnhancedDashboardContent() {
                       strokeLinejoin="round"
                       strokeWidth={2}
                       d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                    />
-                  </svg>
-                </div>
-              </button>
-              <button
-                onClick={async () => {
-                  if (!playerId || isKillInProgress) return;
-                  if (
-                    !confirm(
-                      "Kill CoinPoker client for this player? This will terminate the CoinPoker process."
-                    )
-                  ) {
-                    return;
-                  }
-
-                  setIsKillInProgress(true);
-                  try {
-                    const execution = await executeDeviceCommand(
-                      "kill_coinpoker"
-                    );
-
-                    if (execution.status === "completed") {
-                      const result = execution.result ?? {};
-                      const adminHint =
-                        execution.requireAdmin || result?.adminRequired
-                          ? "\nNote: scanner must be run as administrator on the Windows machine."
-                          : "";
-
-                      if (result?.success) {
-                        const message =
-                          result?.output?.message ||
-                          "CoinPoker client stopped.";
-                        alert(`${message}${adminHint}`);
-                      } else {
-                        const errorMsg =
-                          result?.error ||
-                          "Failed to close CoinPoker client.";
-                        alert(`Error: ${errorMsg}${adminHint}`);
-                      }
-                    } else if (execution.status === "timeout") {
-                      alert(
-                        "Kill command timed out: no response from scanner (check that the client is online)."
-                      );
-                    } else {
-                      alert(
-                        "Kill command could not be executed. Check that the scanner client is active."
-                      );
-                    }
-                  } catch (error) {
-                    console.error("Kill CoinPoker command error:", error);
-                    const message =
-                      error instanceof Error
-                        ? error.message
-                        : "Unknown error with kill command.";
-                    alert(`Error: ${message}`);
-                  } finally {
-                    setIsKillInProgress(false);
-                  }
-                }}
-                disabled={isKillInProgress}
-                className="w-full p-3 min-h-[44px] bg-gradient-to-r from-red-500/20 to-orange-500/20 hover:from-red-500/30 hover:to-orange-500/30 rounded-lg transition-all hover:scale-105 text-left disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">
-                    {isKillInProgress
-                      ? "Killing CoinPoker..."
-                      : "Kill CoinPoker Client"}
-                  </span>
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
                     />
                   </svg>
                 </div>

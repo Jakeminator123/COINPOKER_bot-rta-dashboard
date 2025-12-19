@@ -1,7 +1,0 @@
-=======================
-📋 NYA TODO-LISTOR SKAPADE:
-- TODO-QUICK-WINS.md (1-2 timmar, börja här!)
-- TODO-PHASE-2.md (3-4 timmar, viktiga förbättringar)
-- TODO-NICE-TO-HAVE.md (lägre prioritet)
-- IMPLEMENTATION-GUIDE.md (exakt kod för quick wins)
-=======================

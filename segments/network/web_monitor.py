@@ -140,6 +140,11 @@ def _load_shared_config() -> dict[str, Any]:
 # Load config at module level
 CONFIG = _load_network_config()
 SHARED_CONFIG = _load_shared_config()
+IGNORED_WEBSITES = {
+    str(x).lower()
+    for x in (CONFIG.get("ignored_websites", []) or [])
+    if str(x).strip()
+}
 NETWORK_KEYWORDS = [str(k).lower() for k in (CONFIG["web_monitoring"].get("browser_keywords", []) or []) if str(k).strip()]
 # Build suspicious patterns from new structure (rta_websites, suspicious_domains, etc.)
 SUSPICIOUS_PATTERNS = _build_suspicious_patterns(CONFIG)
@@ -160,6 +165,7 @@ PATTERN_BLACKLIST = {
 # Normalize keys to lowercase and filter out blacklisted patterns from dashboard config
 SUSPICIOUS_PATTERNS = {str(k).lower(): v for k, v in SUSPICIOUS_PATTERNS.items()}
 SUSPICIOUS_PATTERNS = {k: v for k, v in SUSPICIOUS_PATTERNS.items() if k not in PATTERN_BLACKLIST}
+SUSPICIOUS_PATTERNS = {k: v for k, v in SUSPICIOUS_PATTERNS.items() if k not in IGNORED_WEBSITES}
 
 # =========================
 # Utility Functions
