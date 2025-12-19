@@ -199,7 +199,20 @@ export async function POST(req: NextRequest) {
           
           // Extract program name (first part after SHA)
           const parts = signal.details.split("|").map((p) => p.trim());
-          const programName = parts.length > 1 ? parts[1] : signal.name;
+          const rawName = parts.length > 1 ? parts[1] : signal.name;
+          const programName = rawName && rawName.length < 120 ? rawName : signal.name;
+
+          // Policy: only store hashes that are potentially useful for admins.
+          // INFO hashes can be extremely noisy; keep them opt-in.
+          const allowInfo = (process.env.SHA_DB_CAPTURE_INFO || "").toLowerCase() === "y";
+          const status = (signal.status || "").toUpperCase();
+          const shouldStore = allowInfo || status === "WARN" || status === "ALERT" || status === "CRITICAL";
+          if (!shouldStore) {
+            // Skip saving INFO/OK hashes by default
+            // (scanner can still send them, but they won't bloat the DB).
+            signals.push(signal);
+            continue;
+          }
 
           // Save to SHA database (fire and forget - don't block signal processing)
           fetch(`${req.nextUrl.origin}/api/sha-database`, {
@@ -211,6 +224,7 @@ export async function POST(req: NextRequest) {
             body: JSON.stringify({
               sha256: sha256,
               program_name: programName,
+              source: "signal",
             }),
           }).catch((err) => {
             // Silently fail - SHA database is optional

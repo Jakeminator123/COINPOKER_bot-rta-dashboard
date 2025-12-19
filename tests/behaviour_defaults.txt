@@ -1,0 +1,54 @@
+BehaviourDetector defaults (canonical)
+=====================================
+
+These are the recommended baseline defaults for BehaviourDetector.
+They are stored in the dashboard as both:
+- New schema: data_collection / bot_detection_thresholds / scoring_weights / reporting
+- Old schema mirror: polling / thresholds / scoring_weights_flat / reporting (old keys)
+
+This file is only a human-readable summary.
+
+Data collection
+- polling_frequency_hz: 239
+- analysis_window_seconds: 20
+- min_mouse_movement_px: 6
+- jitter_threshold_px: 1.5
+- jitter_window_seconds: 0.3
+
+Thresholds (bot_detection_thresholds)
+- keyboard_timing.cv_critical: 0.07
+- keyboard_timing.cv_suspicious: 0.10
+- click_timing.cv_critical: 0.07
+- click_timing.cv_suspicious: 0.10
+- mouse_movement.constant_velocity_critical: 0.75
+- mouse_movement.constant_velocity_suspicious: 0.50
+- mouse_movement.constant_velocity_tolerance: 0.10
+- mouse_movement.straight_line_critical: 0.045
+- mouse_movement.straight_line_suspicious: 0.09
+- reaction_time.min_reaction_ms: 140
+- click_position.pixel_radius_px: 2
+- click_position.repeat_threshold: 3
+- click_position.repeat_fraction: 0.30
+- jitter.rms_critical: 0.25
+
+Scoring weights (scoring_weights)
+- keyboard.very_consistent_timing: 12
+- keyboard.consistent_timing: 6
+- click.very_consistent_timing: 12
+- click.consistent_timing: 6
+- mouse.constant_velocity_high: 20
+- mouse.constant_velocity_medium: 10
+- mouse.very_straight_paths: 12
+- mouse.straight_paths: 6
+- mouse.repeated_pixels: 12
+- mouse.no_jitter: 0
+- reaction.superhuman_speed: 10
+
+Reporting
+- cooldown_seconds: 30
+- analysis_interval_seconds: 20
+- min_input_events: 20
+- keepalive_seconds: 45
+- keepalive_timeout: 90
+
+

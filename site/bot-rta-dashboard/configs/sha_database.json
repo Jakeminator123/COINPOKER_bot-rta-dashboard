@@ -1,9 +1,16 @@
 {
   "programs": {
-    "0315129933c1fa5e000000000000000000000000000000000000000000000000": "proc=telegram.exe pid=16120"
+    "0315129933c1fa5e000000000000000000000000000000000000000000000000": {
+      "program_name": "proc=telegram.exe pid=16120",
+      "points": 0,
+      "comment": "Auto-captured from scanner signals (unclassified)",
+      "first_seen": 1762557245907,
+      "last_seen": 1762557245907,
+      "source": "signal"
+    }
   },
   "_meta": {
-    "version": "1.0",
+    "version": "2.0",
     "last_updated": 1762557245907,
     "total_entries": 1
   }

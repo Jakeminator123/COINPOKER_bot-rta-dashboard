@@ -1,0 +1,33 @@
+Hash saving policy (dashboard SHA Database)
+=========================================
+
+Goal:
+- Keep a lightweight "seen hashes" store that admins can promote into a true "bad hash IOC" list
+  using points (0/5/10/15) + an optional comment.
+- Avoid noisy writes and avoid overwriting admin decisions.
+
+Where it happens:
+- Dashboard ingestion: site/bot-rta-dashboard/app/api/signal/route.ts
+- Storage + admin edit API: site/bot-rta-dashboard/app/api/sha-database/route.ts
+
+When a hash is saved:
+1) Only category="programs" signals are considered.
+2) details must contain: SHA:{64-hex}
+3) Default policy: only store if signal.status is one of:
+   - WARN
+   - ALERT
+   - CRITICAL
+   (INFO is skipped by default to avoid DB bloat.)
+4) Optional: set env SHA_DB_CAPTURE_INFO=Y to also store INFO hashes.
+
+How entries behave:
+- Scanner ingestion writes source="signal" and points default to 0 (unclassified).
+- Admin UI writes source="admin" and sets points/comment.
+- Once source becomes "admin", scanner updates will NOT downgrade it (admin wins).
+
+Write throttling:
+- For unclassified signal-only entries (points=0, source=signal), repeated updates are throttled.
+- Env SHA_DB_MIN_WRITE_MS controls min time between disk writes per hash.
+  Default: 600000 ms (10 minutes).
+
+

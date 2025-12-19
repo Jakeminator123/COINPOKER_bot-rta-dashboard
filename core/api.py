@@ -633,7 +633,7 @@ class ReportBatcher:
             return "AutomationDetector"
         elif "rename" in name_lower or "protected site" in name_lower or "coinpoker" in name_lower:
             return "ProcessScanner"
-        elif "overlay" in name_lower or "window" in name_lower and sig.category == "screen":
+        elif sig.category == "screen" and ("overlay" in name_lower or "window" in name_lower):
             return "ScreenDetector"
         elif "gto" in name_lower or "rta site" in name_lower or "dns" in name_lower:
             return "WebMonitor"
@@ -1383,7 +1383,9 @@ class BaseSegment:
         # Cache expired or not set - refresh from config
         # Only check enabled flag for segments that have config files with this flag
         # (network, screen, vm segments)
-        config_categories = {"network", "screen", "vm"}
+        # Categories that support runtime enable/disable via <category>_config "enabled" flag.
+        # Keep this list small to avoid extra config lookups in hot paths.
+        config_categories = {"network", "screen", "vm", "security"}
         if self.category not in config_categories:
             # For other segments (programs, auto, behaviour), always enabled
             self._enabled = True

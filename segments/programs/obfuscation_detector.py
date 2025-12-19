@@ -134,16 +134,22 @@ class ObfuscationDetector(BaseSegment):
                 indicators = []
 
                 # 1. Check for one-liner Python commands (common in obfuscated code)
-                for arg in cmdline:
-                    if arg.startswith("-c"):  # python -c "code"
+                for i, arg in enumerate(cmdline):
+                    if not isinstance(arg, str):
+                        continue
+                    if arg == "-c" or arg.startswith("-c"):  # python -c "code" (or -ccode)
                         # One-liner execution is suspicious
                         obfuscation_score += 30
                         indicators.append("One-liner execution")
 
                         # Check for obfuscation patterns in the command
-                        if any(
-                            pattern in arg for pattern in ["exec", "eval", "__import__", "chr("]
-                        ):
+                        code = ""
+                        if arg != "-c" and len(arg) > 2:
+                            code = arg[2:].strip()
+                        elif i + 1 < len(cmdline) and isinstance(cmdline[i + 1], str):
+                            code = cmdline[i + 1]
+
+                        if any(pattern in code for pattern in ["exec", "eval", "__import__", "chr("]):
                             obfuscation_score += 40
                             indicators.append("Dynamic execution")
 

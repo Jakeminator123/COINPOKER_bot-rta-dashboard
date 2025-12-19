@@ -113,7 +113,7 @@ echo ============================================================
 echo.
 
 :: Change to proxy folder and run
-cd /d "%~dp0..\test\proxygrejjer"
+cd /d "%~dp0harsh_tests\proxygrejjer"
 echo [*] Startar mitmdump med mitm_proxy.py addon...
 echo.
 mitmdump -s mitm_proxy.py --set ssl_insecure=true
@@ -163,7 +163,7 @@ if /i "%wantmitm%"=="y" (
     reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v ProxyEnable /t REG_DWORD /d 1 /f
     reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v ProxyServer /t REG_SZ /d "localhost:8080" /f
     echo [*] Startar mitmproxy - Tryck Ctrl+C for att avsluta
-    cd /d "%~dp0..\test\proxygrejjer"
+    cd /d "%~dp0harsh_tests\proxygrejjer"
     mitmdump -s mitm_proxy.py --set ssl_insecure=true
     reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v ProxyEnable /t REG_DWORD /d 0 /f
     echo [OK] Proxy stangd!

@@ -1,0 +1,20 @@
+
+CoinPoker Traffic Capture Summary
+==================================
+Session ended: 2025-11-21 05:25:03.418997
+
+Statistics:
+-----------
+Total Requests:  24
+Total Responses: 24
+JSON Objects:    4
+
+Files created:
+--------------
+Full Log:    traffic_logs\full_traffic_20251121_052351.log
+JSON Data:   traffic_logs\json_data_20251121_052351.json
+Summary:     traffic_logs\summary_20251121_052351.txt
+
+To analyze JSON data:
+---------------------
+python -m json.tool traffic_logs\json_data_20251121_052351.json

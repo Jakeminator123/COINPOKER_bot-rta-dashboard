@@ -60,8 +60,12 @@ class TelegramDetector(BaseSegment):
         self.tdlib_hints = tuple(self.config["telegram_detection"]["tdlib_hints"])
 
         # Known processes
-        self.browser_names = set(self.config["telegram_detection"]["browser_names"])
-        self.official_telegram = set(self.config["telegram_detection"]["official_telegram"])
+        self.browser_names = {
+            str(x).lower() for x in (self.config["telegram_detection"]["browser_names"] or []) if str(x).strip()
+        }
+        self.official_telegram = {
+            str(x).lower() for x in (self.config["telegram_detection"]["official_telegram"] or []) if str(x).strip()
+        }
 
         # Load poker sites from shared config
         poker_config = self.shared_config.get("poker_sites", {})
@@ -70,14 +74,16 @@ class TelegramDetector(BaseSegment):
         # PROTECTED poker client (the one we're securing)
         self.protected_poker = {
             "coinpoker": {
-                "process": protected.get("process", "game.exe"),
-                "path_hint": protected.get("path_hint", "coinpoker"),
+                "process": str(protected.get("process", "game.exe")).lower(),
+                "path_hint": str(protected.get("path_hint", "coinpoker")).lower(),
                 "class": protected.get("window_class", "Qt673QWindowIcon"),
             }
         }
 
         # OTHER poker sites (detected but not treated as threats)
-        self.other_poker_processes = poker_config.get("other", [])
+        self.other_poker_processes = [
+            str(x).lower() for x in (poker_config.get("other", []) or []) if str(x).strip()
+        ]
 
         # Tracking
         self._last_alerts: dict[str, float] = defaultdict(float)

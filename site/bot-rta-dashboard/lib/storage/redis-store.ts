@@ -12,6 +12,7 @@ import { scanPrimaryDeviceIds } from "@/lib/redis/redis-device-helpers";
 import { StorageAdapter } from "./storage-adapter";
 import { MemoryStore } from "./memory-store";
 import { DEVICE_TIMEOUT_MS, type DeviceSessionState } from "./device-session";
+import { debugLog, debugWarn, debugError, isDebugMode } from "@/lib/utils/logger";
 
 // Redis TTL (Time To Live) - how long data is kept in Redis before automatic cleanup
 // Configurable via REDIS_TTL_SECONDS env var (default: 604800 = 7 days)
@@ -220,10 +221,10 @@ export class RedisStore implements StorageAdapter {
             url: process.env.REDIS_URL?.replace(/:[^:@]+@/, ':****@') || 'not set',
             clientId: (this.client as any).id || 'unknown',
           };
-          console.log("[RedisStore] Using shared Redis client:", JSON.stringify(clientInfo, null, 2));
+          debugLog("[RedisStore] Using shared Redis client:", JSON.stringify(clientInfo, null, 2));
         }
       } catch (err) {
-        console.error("[RedisStore] Connection failed:", err);
+        debugError("[RedisStore] Connection failed:", err);
         this.connected = false;
         // Don't throw - allow fallback to MemoryStore
       } finally {
@@ -271,33 +272,13 @@ export class RedisStore implements StorageAdapter {
         const batch: BatchData = JSON.parse(sig.details);
         const timestamp = sig.timestamp || Math.floor(now / 1000);
         
-        // ========== COMPREHENSIVE IDENTIFIER LOGGING ==========
-        console.log("[RedisStore] ========== BATCH INCOMING - ALL IDENTIFIERS ==========");
-        console.log("[RedisStore] FROM SIGNAL:");
-        console.log("  - signal.device_id:", sig.device_id);
-        console.log("  - signal.device_name:", sig.device_name);
-        console.log("  - signal.device_ip:", sig.device_ip);
-        console.log("[RedisStore] FROM BATCH JSON:");
-        console.log("  - batch.nickname:", (batch as any).nickname);
-        console.log("  - batch.device:", (batch as any).device);
-        console.log("  - batch.system?.host:", (batch as any).system?.host);
-        console.log("  - batch.device?.hostname:", (batch as any).device?.hostname);
-        console.log("  - batch.meta?.hostname:", (batch as any).meta?.hostname);
-        console.log("[RedisStore] RESOLVED IDENTIFIERS:");
+        // Extract device name sources from batch
         const batchNickname = (batch as any).nickname;
         const batchDevice = (batch as any).device;
         const batchHost = (batch as any).system?.host;
         const batchDeviceHostname = (batch as any).device?.hostname;
         const batchMetaHostname = (batch as any).meta?.hostname;
         const signalDeviceName = sig.device_name;
-        console.log("  - Primary device_id:", device_id);
-        console.log("  - Available names:");
-        console.log("    * signal.device_name:", signalDeviceName || "(null/undefined)");
-        console.log("    * batch.nickname:", batchNickname || "(null/undefined)");
-        console.log("    * batch.device:", batchDevice || "(null/undefined)");
-        console.log("    * batch.system.host:", batchHost || "(null/undefined)");
-        console.log("    * batch.device.hostname:", batchDeviceHostname || "(null/undefined)");
-        console.log("    * batch.meta.hostname:", batchMetaHostname || "(null/undefined)");
         
         // Determine which name to use (priority order)
         // Try multiple sources to find a valid device name (see config/redis_identity.json)
@@ -310,9 +291,33 @@ export class RedisStore implements StorageAdapter {
           batchMetaHostname,
           signalDeviceName,
         });
-        console.log("  - SELECTED name for updateDevice():", deviceName);
-        console.log("  - Name selection config: config/redis_identity.json (overridable via REDIS_IDENTITY_PATH)");
-        console.log("[RedisStore] ============================================");
+        
+        // Debug logging only in development mode
+        if (isDebugMode()) {
+          debugLog("[RedisStore] ========== BATCH INCOMING - ALL IDENTIFIERS ==========");
+          debugLog("[RedisStore] FROM SIGNAL:");
+          debugLog("  - signal.device_id:", sig.device_id);
+          debugLog("  - signal.device_name:", sig.device_name);
+          debugLog("  - signal.device_ip:", sig.device_ip);
+          debugLog("[RedisStore] FROM BATCH JSON:");
+          debugLog("  - batch.nickname:", batchNickname);
+          debugLog("  - batch.device:", batchDevice);
+          debugLog("  - batch.system?.host:", batchHost);
+          debugLog("  - batch.device?.hostname:", batchDeviceHostname);
+          debugLog("  - batch.meta?.hostname:", batchMetaHostname);
+          debugLog("[RedisStore] RESOLVED IDENTIFIERS:");
+          debugLog("  - Primary device_id:", device_id);
+          debugLog("  - Available names:");
+          debugLog("    * signal.device_name:", signalDeviceName || "(null/undefined)");
+          debugLog("    * batch.nickname:", batchNickname || "(null/undefined)");
+          debugLog("    * batch.device:", batchDevice || "(null/undefined)");
+          debugLog("    * batch.system.host:", batchHost || "(null/undefined)");
+          debugLog("    * batch.device.hostname:", batchDeviceHostname || "(null/undefined)");
+          debugLog("    * batch.meta.hostname:", batchMetaHostname || "(null/undefined)");
+          debugLog("  - SELECTED name for updateDevice():", deviceName);
+          debugLog("  - Name selection config: config/redis_identity.json (overridable via REDIS_IDENTITY_PATH)");
+          debugLog("[RedisStore] ============================================");
+        }
         
         // CRITICAL: Always update device when batch comes in (they're online!)
         // First, store the batch report
@@ -321,13 +326,14 @@ export class RedisStore implements StorageAdapter {
         // Check for session events (login/logout)
         const sessionResult = await this.checkSessionEvents(device_id, signalDeviceName || device_id, timestamp, batch.bot_probability || 0, batch);
         
-        if (device_id === "462a6a3a5c173a1ea54e05b355ea1790") {
-          console.log("[RedisStore] sessionResult for device", device_id, ":", sessionResult);
+        // Debug logging for specific device (if needed)
+        if (isDebugMode() && device_id === "462a6a3a5c173a1ea54e05b355ea1790") {
+          debugLog("[RedisStore] sessionResult for device", device_id, ":", sessionResult);
         }
         
         // ALWAYS update device info when batch arrives (even if sessionResult is false)
         // The device is sending data, so it's online regardless of session state
-        console.log("[RedisStore] Updating device (batch arrived, device is online)");
+        debugLog("[RedisStore] Updating device (batch arrived, device is online)");
         
         // Extract IP address from signal or batch
         const deviceIp = sig.device_ip || (batch as any).device_ip || (batch as any).device?.ip || null;
@@ -338,7 +344,7 @@ export class RedisStore implements StorageAdapter {
         try {
           await this.updateDevice(device_id, deviceName, batch.bot_probability || 0, deviceIp);
         } catch (error) {
-          console.error("[RedisStore] CRITICAL: Failed to update device in Redis:", error);
+          debugError("[RedisStore] CRITICAL: Failed to update device in Redis:", error);
           // Don't throw - allow processing to continue, but log the error
         }
         
@@ -438,9 +444,9 @@ export class RedisStore implements StorageAdapter {
         // Notify listeners (SSE) that new data is available
         await this.publishUpdate(device_id);
         await this.publishUpdate();
-      } catch (err) {
-        console.error("[Redis] Error processing batch:", err);
-      }
+        } catch (err) {
+          debugError("[Redis] Error processing batch:", err);
+        }
     }
   }
 
@@ -563,12 +569,12 @@ export class RedisStore implements StorageAdapter {
   private async updateDevice(device_id: string, device_name: string, threat_level: number, device_ip?: string | null): Promise<void> {
     const isConnected = await this.ensureConnected();
     if (!isConnected || !this.client) {
-      console.error("[RedisStore] updateDevice() - NOT CONNECTED! Cannot write to Redis.");
+      debugError("[RedisStore] updateDevice() - NOT CONNECTED! Cannot write to Redis.");
       return;
     }
 
-    // Log client state for debugging
-    console.log("[RedisStore] updateDevice() - Client state:", {
+    // Log client state for debugging (development only)
+    debugLog("[RedisStore] updateDevice() - Client state:", {
       isOpen: this.client.isOpen,
       clientExists: !!this.client,
     });
@@ -577,25 +583,26 @@ export class RedisStore implements StorageAdapter {
     const nowSeconds = Math.floor(now / 1000);
     const deviceKey = redisKeys.deviceHash(device_id);
     
-    // ========== COMPREHENSIVE NAME HANDLING LOGGING ==========
-    console.log("[RedisStore] ========== UPDATE DEVICE - NAME HANDLING ==========");
-    console.log("[RedisStore] INPUT:");
-    console.log("  - device_id:", device_id);
-    console.log("  - device_name (received):", device_name);
-    console.log("  - threat_level:", threat_level);
-    console.log("  - timestamp:", nowSeconds);
-    
     // Get existing device data to preserve certain fields
     const existingData = await this.client.hGetAll(deviceKey);
     const existingSessionStart = existingData?.session_start;
     const existingDeviceName = existingData?.device_name;
     const existingLastSeen = existingData?.last_seen;
     
-    console.log("[RedisStore] EXISTING IN REDIS (device:" + deviceKey + "):");
-    console.log("  - device_name:", existingDeviceName || "(not set)");
-    console.log("  - last_seen:", existingLastSeen || "(not set)");
-    console.log("  - session_start:", existingSessionStart || "(not set)");
-    console.log("  - All fields:", Object.keys(existingData).length > 0 ? Object.keys(existingData).join(", ") : "(empty hash)");
+    // Debug logging only in development mode
+    if (isDebugMode()) {
+      debugLog("[RedisStore] ========== UPDATE DEVICE - NAME HANDLING ==========");
+      debugLog("[RedisStore] INPUT:");
+      debugLog("  - device_id:", device_id);
+      debugLog("  - device_name (received):", device_name);
+      debugLog("  - threat_level:", threat_level);
+      debugLog("  - timestamp:", nowSeconds);
+      debugLog("[RedisStore] EXISTING IN REDIS (device:" + deviceKey + "):");
+      debugLog("  - device_name:", existingDeviceName || "(not set)");
+      debugLog("  - last_seen:", existingLastSeen || "(not set)");
+      debugLog("  - session_start:", existingSessionStart || "(not set)");
+      debugLog("  - All fields:", Object.keys(existingData).length > 0 ? Object.keys(existingData).join(", ") : "(empty hash)");
+    }
     
     // ========== SESSION MANAGEMENT ==========
     // Check if this should be a new session based on:
@@ -612,12 +619,12 @@ export class RedisStore implements StorageAdapter {
     if (deviceState && deviceState.session_start) {
       // Use the session_start from deviceStates (managed by checkSessionEvents)
       sessionStart = deviceState.session_start.toString();
-      console.log("[RedisStore] Using session_start from deviceStates:", sessionStart);
+      debugLog("[RedisStore] Using session_start from deviceStates:", sessionStart);
     } else if (!existingSessionStart) {
       // First time seeing this device - new session
       sessionStart = nowSeconds.toString();
       isNewSession = true;
-      console.log("[RedisStore] First time device - new session:", sessionStart);
+      debugLog("[RedisStore] First time device - new session:", sessionStart);
     } else if (existingLastSeen) {
       // Check if device was offline for too long
       const lastSeenTs = parseInt(existingLastSeen, 10);
@@ -626,25 +633,27 @@ export class RedisStore implements StorageAdapter {
         // Device was offline for > threshold - start new session
         sessionStart = nowSeconds.toString();
         isNewSession = true;
-        console.log(`[RedisStore] Device was offline for ${timeSinceLastSeen}s - new session:`, sessionStart);
+        debugLog(`[RedisStore] Device was offline for ${timeSinceLastSeen}s - new session:`, sessionStart);
       }
     }
     
-    console.log("[RedisStore] SESSION DECISION:");
-    console.log("  - isNewSession:", isNewSession);
-    console.log("  - sessionStart:", sessionStart);
-    
-    console.log("[RedisStore] NAME SANITIZATION:");
-    console.log("  - Calling sanitizeDeviceName(", device_name, ",", device_id, ")");
     const sanitizedNewName = sanitizeDeviceName(device_name, device_id);
-    console.log("  - sanitizedNewName result:", sanitizedNewName || "(null - rejected)");
-    console.log("  - existingDeviceName:", existingDeviceName || "(null)");
     const finalDeviceName = sanitizedNewName || existingDeviceName;
-    console.log("  - finalDeviceName (sanitized || existing):", finalDeviceName || "(will not set device_name)");
     
-    if (!sanitizedNewName && device_name) {
-      console.log("  - WARNING: device_name was rejected by sanitizeDeviceName!");
-      console.log("    Reason: name equals device_id OR looks like device ID hash");
+    // Debug logging only in development mode
+    if (isDebugMode()) {
+      debugLog("[RedisStore] SESSION DECISION:");
+      debugLog("  - isNewSession:", isNewSession);
+      debugLog("  - sessionStart:", sessionStart);
+      debugLog("[RedisStore] NAME SANITIZATION:");
+      debugLog("  - Calling sanitizeDeviceName(", device_name, ",", device_id, ")");
+      debugLog("  - sanitizedNewName result:", sanitizedNewName || "(null - rejected)");
+      debugLog("  - existingDeviceName:", existingDeviceName || "(null)");
+      debugLog("  - finalDeviceName (sanitized || existing):", finalDeviceName || "(will not set device_name)");
+      if (!sanitizedNewName && device_name) {
+        debugWarn("  - WARNING: device_name was rejected by sanitizeDeviceName!");
+        debugWarn("    Reason: name equals device_id OR looks like device ID hash");
+      }
     }
     
     // IMPORTANT: When batch comes in, device is online, so always update last_seen to current time
@@ -676,63 +685,68 @@ export class RedisStore implements StorageAdapter {
       }
     }
     
-    console.log("[RedisStore] WRITING TO REDIS:");
-    console.log("  - Redis key:", deviceKey);
-    console.log("  - Fields to write:", JSON.stringify(fields, null, 2));
-    console.log("  - TTL:", TTL_SECONDS, "seconds");
+    // Debug logging only in development mode
+    if (isDebugMode()) {
+      debugLog("[RedisStore] WRITING TO REDIS:");
+      debugLog("  - Redis key:", deviceKey);
+      debugLog("  - Fields to write:", JSON.stringify(fields, null, 2));
+      debugLog("  - TTL:", TTL_SECONDS, "seconds");
+    }
     
     // CRITICAL: Write to Redis and verify immediately
     try {
       const writeResult = await this.client.hSet(deviceKey, fields);
-      console.log("[RedisStore] hSet() result:", writeResult, "(should be number of fields written)");
+      debugLog("[RedisStore] hSet() result:", writeResult, "(should be number of fields written)");
       
       const expireResult = await this.client.expire(deviceKey, TTL_SECONDS);
-      console.log("[RedisStore] expire() result:", expireResult, "(should be true if key exists)");
+      debugLog("[RedisStore] expire() result:", expireResult, "(should be true if key exists)");
       
       // CRITICAL: Wait a tiny bit to ensure Redis has processed the write
       // This is necessary because Redis operations are async and might not be immediately visible
       await new Promise(resolve => setTimeout(resolve, 10));
       
-      // Verify what was actually written (read back immediately)
-      const writtenData = await this.client.hGetAll(deviceKey);
-      console.log("[RedisStore] ========== VERIFICATION - READ BACK FROM REDIS ==========");
-      console.log("[RedisStore] Redis key:", deviceKey);
-      console.log("[RedisStore] Fields read back:");
-      console.log("  - device_name:", writtenData.device_name || "(not set)");
-      console.log("  - last_seen:", writtenData.last_seen || "(not set)");
-      console.log("  - threat_level:", writtenData.threat_level || "(not set)");
-      console.log("  - device_id:", writtenData.device_id || "(not set)");
-      console.log("  - session_start:", writtenData.session_start || "(not set)");
-      console.log("  - All fields:", Object.keys(writtenData).length > 0 ? Object.keys(writtenData).join(", ") : "(EMPTY HASH - PROBLEM!)");
-      console.log("  - Total fields:", Object.keys(writtenData).length);
-      
-      // CRITICAL CHECK: If hash is empty after write, something is wrong!
-      if (Object.keys(writtenData).length === 0) {
-        console.error("[RedisStore] ⚠️⚠️⚠️ CRITICAL ERROR: Hash is EMPTY after write!");
-        console.error("[RedisStore] This means Redis write failed or data was written to wrong key/database");
-        console.error("[RedisStore] Attempting to read key again...");
-        const retryData = await this.client.hGetAll(deviceKey);
-        console.error("[RedisStore] Retry read result:", Object.keys(retryData).length > 0 ? "SUCCESS" : "STILL EMPTY");
-      } else {
-        console.log("[RedisStore] ✅ Hash write verified successfully");
+      // Verify what was actually written (read back immediately) - only in debug mode
+      if (isDebugMode()) {
+        const writtenData = await this.client.hGetAll(deviceKey);
+        debugLog("[RedisStore] ========== VERIFICATION - READ BACK FROM REDIS ==========");
+        debugLog("[RedisStore] Redis key:", deviceKey);
+        debugLog("[RedisStore] Fields read back:");
+        debugLog("  - device_name:", writtenData.device_name || "(not set)");
+        debugLog("  - last_seen:", writtenData.last_seen || "(not set)");
+        debugLog("  - threat_level:", writtenData.threat_level || "(not set)");
+        debugLog("  - device_id:", writtenData.device_id || "(not set)");
+        debugLog("  - session_start:", writtenData.session_start || "(not set)");
+        debugLog("  - All fields:", Object.keys(writtenData).length > 0 ? Object.keys(writtenData).join(", ") : "(EMPTY HASH - PROBLEM!)");
+        debugLog("  - Total fields:", Object.keys(writtenData).length);
+        
+        // CRITICAL CHECK: If hash is empty after write, something is wrong!
+        if (Object.keys(writtenData).length === 0) {
+          debugError("[RedisStore] ⚠️⚠️⚠️ CRITICAL ERROR: Hash is EMPTY after write!");
+          debugError("[RedisStore] This means Redis write failed or data was written to wrong key/database");
+          debugError("[RedisStore] Attempting to read key again...");
+          const retryData = await this.client.hGetAll(deviceKey);
+          debugError("[RedisStore] Retry read result:", Object.keys(retryData).length > 0 ? "SUCCESS" : "STILL EMPTY");
+        } else {
+          debugLog("[RedisStore] ✅ Hash write verified successfully");
+        }
+        debugLog("[RedisStore] ============================================");
       }
-      console.log("[RedisStore] ============================================");
     } catch (error) {
-      console.error("[RedisStore] ❌ ERROR during Redis write/verification:", error);
+      debugError("[RedisStore] ❌ ERROR during Redis write/verification:", error);
       throw error;
     }
     
     // Also update dedicated threat key (used by getDevices for accurate threat_level)
     const threatKey = redisKeys.deviceThreat(device_id);
     await this.client.set(threatKey, threat_level.toString(), { EX: TTL_SECONDS });
-    console.log("[RedisStore] Updated threat key:", threatKey, "=", threat_level);
+    debugLog("[RedisStore] Updated threat key:", threatKey, "=", threat_level);
     
     // Add to device index (use last_seen timestamp for accurate sorting)
     await this.client.zAdd("devices", {
       score: nowSeconds * 1000, // Use seconds * 1000 for consistency with last_seen
       value: device_id,
     });
-    console.log("[RedisStore] Added to devices sorted set with score:", nowSeconds * 1000);
+    debugLog("[RedisStore] Added to devices sorted set with score:", nowSeconds * 1000);
     
     // IMPORTANT: Also update top_players immediately to ensure player shows up in dashboard
     // Note: Players remain in top_players even when offline - isOnline is calculated dynamically
@@ -741,14 +755,16 @@ export class RedisStore implements StorageAdapter {
       value: device_id,
     });
     
-    // Verify the player was added
-    const playerRank = await this.client.zRank(TOP_PLAYERS_ZSET, device_id);
-    const playerScore = await this.client.zScore(TOP_PLAYERS_ZSET, device_id);
-    console.log("[RedisStore] Added to top_players sorted set:");
-    console.log("  - score (threat_level):", threat_level);
-    console.log("  - rank:", playerRank);
-    console.log("  - verified score:", playerScore);
-    console.log("[RedisStore] ============================================");
+    // Verify the player was added (debug only)
+    if (isDebugMode()) {
+      const playerRank = await this.client.zRank(TOP_PLAYERS_ZSET, device_id);
+      const playerScore = await this.client.zScore(TOP_PLAYERS_ZSET, device_id);
+      debugLog("[RedisStore] Added to top_players sorted set:");
+      debugLog("  - score (threat_level):", threat_level);
+      debugLog("  - rank:", playerRank);
+      debugLog("  - verified score:", playerScore);
+      debugLog("[RedisStore] ============================================");
+    }
   }
 
   private async updatePlayerSummary(device_id: string, current_bot_probability: number, timestamp: number): Promise<void> {
@@ -823,19 +839,23 @@ export class RedisStore implements StorageAdapter {
     // Get device name from device hash (most up-to-date source)
     const deviceKey = redisKeys.deviceHash(device_id);
     const deviceInfo = await this.client.hGetAll(deviceKey);
-    console.log("[RedisStore] updatePlayerSummary - Reading device name from Redis:");
-    console.log("  - deviceKey:", deviceKey);
-    console.log("  - deviceInfo.device_name:", deviceInfo.device_name || "(not set)");
-    console.log("  - deviceInfo.last_seen:", deviceInfo.last_seen || "(not set)");
-    console.log("  - device_id:", device_id);
     
     // Priority: device hash > device_id fallback
     const device_name = deviceInfo.device_name || device_id.split('_')[0] || 'Unknown';
-    console.log("  - Selected device_name:", device_name, "(deviceInfo.device_name || device_id.split('_')[0] || 'Unknown')");
+    
+    // Debug logging only in development mode
+    if (isDebugMode()) {
+      debugLog("[RedisStore] updatePlayerSummary - Reading device name from Redis:");
+      debugLog("  - deviceKey:", deviceKey);
+      debugLog("  - deviceInfo.device_name:", deviceInfo.device_name || "(not set)");
+      debugLog("  - deviceInfo.last_seen:", deviceInfo.last_seen || "(not set)");
+      debugLog("  - device_id:", device_id);
+      debugLog("  - Selected device_name:", device_name, "(deviceInfo.device_name || device_id.split('_')[0] || 'Unknown')");
+    }
     
     // If device hash has no name but we have one from elsewhere, update the hash
     if (!deviceInfo.device_name && device_name !== device_id && device_name !== 'Unknown') {
-      console.log("[RedisStore] updatePlayerSummary - Updating device hash with name:", device_name);
+      debugLog("[RedisStore] updatePlayerSummary - Updating device hash with name:", device_name);
       await this.client.hSet(deviceKey, { device_name });
       await this.client.expire(deviceKey, TTL_SECONDS);
     }
@@ -860,9 +880,13 @@ export class RedisStore implements StorageAdapter {
 
     // Update player_summary
     const summaryKey = redisKeys.playerSummary(device_id);
-    console.log("[RedisStore] updatePlayerSummary - Writing summary to Redis:");
-    console.log("  - summaryKey:", summaryKey);
-    console.log("  - device_name (stored in summary):", device_name);
+    
+    // Debug logging only in development mode
+    if (isDebugMode()) {
+      debugLog("[RedisStore] updatePlayerSummary - Writing summary to Redis:");
+      debugLog("  - summaryKey:", summaryKey);
+      debugLog("  - device_name (stored in summary):", device_name);
+    }
     
     const summary = {
       device_id,
@@ -885,22 +909,23 @@ export class RedisStore implements StorageAdapter {
 
     await this.client.set(summaryKey, JSON.stringify(summary), { EX: TTL_SECONDS });
     
-    // Verify summary was written correctly
-    const writtenSummary = await this.client.get(summaryKey);
-    if (writtenSummary) {
-      try {
-        const parsed = JSON.parse(writtenSummary);
-        console.log("[RedisStore] updatePlayerSummary - Verified summary written:");
-        console.log("  - device_name in summary:", parsed.device_name || "(not set)");
-        console.log("  - avg_bot_probability:", parsed.avg_bot_probability ?? "(not set)");
-      } catch (e) {
-        console.error("[RedisStore] updatePlayerSummary - Failed to parse written summary:", e);
+    // Verify summary was written correctly (debug only)
+    if (isDebugMode()) {
+      const writtenSummary = await this.client.get(summaryKey);
+      if (writtenSummary) {
+        try {
+          const parsed = JSON.parse(writtenSummary);
+          debugLog("[RedisStore] updatePlayerSummary - Verified summary written:");
+          debugLog("  - device_name in summary:", parsed.device_name || "(not set)");
+          debugLog("  - avg_bot_probability:", parsed.avg_bot_probability ?? "(not set)");
+        } catch (e) {
+          debugError("[RedisStore] updatePlayerSummary - Failed to parse written summary:", e);
+        }
+      } else {
+        debugError("[RedisStore] updatePlayerSummary - ⚠️ WARNING: Summary was NOT written to Redis!");
       }
-    } else {
-      console.error("[RedisStore] updatePlayerSummary - ⚠️ WARNING: Summary was NOT written to Redis!");
+      debugLog("[RedisStore] updatePlayerSummary - Summary written with TTL:", TTL_SECONDS, "seconds");
     }
-    
-    console.log("[RedisStore] updatePlayerSummary - Summary written with TTL:", TTL_SECONDS, "seconds");
 
     try {
       await this.client.zAdd(TOP_PLAYERS_ZSET, [
@@ -918,7 +943,7 @@ export class RedisStore implements StorageAdapter {
         );
       }
     } catch (err) {
-      console.error("[Redis] Failed to update top players set:", err);
+      debugError("[Redis] Failed to update top players set:", err);
     }
   }
 
@@ -953,7 +978,7 @@ export class RedisStore implements StorageAdapter {
       const timeSinceLastSeenRedis = timestamp - lastSeenTs;
       wasOfflineInRedis = timeSinceLastSeenRedis > Math.floor(DEVICE_TIMEOUT_MS / 1000);
       if (wasOfflineInRedis) {
-        console.log(`[RedisStore] Device ${device_id.slice(0, 8)} was offline in Redis for ${timeSinceLastSeenRedis}s`);
+        debugLog(`[RedisStore] Device ${device_id.slice(0, 8)} was offline in Redis for ${timeSinceLastSeenRedis}s`);
       }
     }
     
@@ -972,15 +997,15 @@ export class RedisStore implements StorageAdapter {
         // Only save login event if this is actually a new session
         if (shouldStartNewSession) {
           await this.saveSessionEvent(device_id, device_name, "login", timestamp, timestamp);
-          console.log(`[RedisStore] New session started for device ${device_id.slice(0, 8)}`);
+          debugLog(`[RedisStore] New session started for device ${device_id.slice(0, 8)}`);
         }
-        if (isDebugDevice) {
-          console.log("[RedisStore] checkSessionEvents: new session started, allowing updateDevice");
+        if (isDebugMode() && isDebugDevice) {
+          debugLog("[RedisStore] checkSessionEvents: new session started, allowing updateDevice");
         }
         return true; // Allow updateDevice to proceed
       }
-      if (isDebugDevice) {
-        console.log("[RedisStore] checkSessionEvents: explicit logout on first signal, blocking updateDevice");
+      if (isDebugMode() && isDebugDevice) {
+        debugLog("[RedisStore] checkSessionEvents: explicit logout on first signal, blocking updateDevice");
       }
       return false; // Explicit logout on first signal - don't update device
     } else {
@@ -1015,9 +1040,9 @@ export class RedisStore implements StorageAdapter {
           last_seen: (Math.floor((nowMs - DEVICE_TIMEOUT_MS - 1000) / 1000)).toString(),
         });
         
-        console.log(`[RedisStore] Device ${device_id.slice(0, 8)} explicitly logged out`);
-        if (isDebugDevice) {
-          console.log("[RedisStore] checkSessionEvents: explicit logout detected, blocking updateDevice");
+        debugLog(`[RedisStore] Device ${device_id.slice(0, 8)} explicitly logged out`);
+        if (isDebugMode() && isDebugDevice) {
+          debugLog("[RedisStore] checkSessionEvents: explicit logout detected, blocking updateDevice");
         }
         // Return false to prevent updateDevice from overwriting logout status
         return false;
@@ -1046,13 +1071,13 @@ export class RedisStore implements StorageAdapter {
         
         // Save new session start
         await this.saveSessionEvent(device_id, device_name, "login", timestamp, timestamp);
-        console.log(`[RedisStore] Device ${device_id.slice(0, 8)} started new session after being offline`);
+        debugLog(`[RedisStore] Device ${device_id.slice(0, 8)} started new session after being offline`);
       } else {
         // Continue existing session
         state.last_seen = nowMs;
         state.is_online = true;
-        if (isDebugDevice) {
-          console.log("[RedisStore] checkSessionEvents: continuing session, allowing updateDevice");
+        if (isDebugMode() && isDebugDevice) {
+          debugLog("[RedisStore] checkSessionEvents: continuing session, allowing updateDevice");
         }
       }
     }
@@ -1115,7 +1140,7 @@ export class RedisStore implements StorageAdapter {
       }
       await this.client.publish(redisKeys.globalUpdatesChannel(), payload);
     } catch (error) {
-      console.error("[Redis] Failed to publish update:", error);
+      debugError("[Redis] Failed to publish update:", error);
     }
   }
 
@@ -1147,43 +1172,56 @@ export class RedisStore implements StorageAdapter {
   }
 
   private async updateDeviceNickname(device_id: string, nickname?: string | null): Promise<void> {
-    console.log("[RedisStore] ========== UPDATE DEVICE NICKNAME ==========");
-    console.log("[RedisStore] INPUT:");
-    console.log("  - device_id:", device_id);
-    console.log("  - nickname (received):", nickname || "(null/undefined)");
-    
     const sanitized = sanitizeDeviceName(nickname, device_id);
-    console.log("[RedisStore] SANITIZATION:");
-    console.log("  - sanitized result:", sanitized || "(null - rejected)");
+    
+    // Debug logging only in development mode
+    if (isDebugMode()) {
+      debugLog("[RedisStore] ========== UPDATE DEVICE NICKNAME ==========");
+      debugLog("[RedisStore] INPUT:");
+      debugLog("  - device_id:", device_id);
+      debugLog("  - nickname (received):", nickname || "(null/undefined)");
+      debugLog("[RedisStore] SANITIZATION:");
+      debugLog("  - sanitized result:", sanitized || "(null - rejected)");
+    }
     
     if (!sanitized) {
-      console.log("[RedisStore] Nickname rejected - not updating Redis");
-      console.log("[RedisStore] ============================================");
+      debugLog("[RedisStore] Nickname rejected - not updating Redis");
+      if (isDebugMode()) {
+        debugLog("[RedisStore] ============================================");
+      }
       return;
     }
 
     const isConnected = await this.ensureConnected();
     if (!isConnected || !this.client) {
-      console.log("[RedisStore] Redis not connected - aborting");
-      console.log("[RedisStore] ============================================");
+      debugWarn("[RedisStore] Redis not connected - aborting");
+      if (isDebugMode()) {
+        debugLog("[RedisStore] ============================================");
+      }
       return;
     }
 
     const deviceKey = redisKeys.deviceHash(device_id);
-    console.log("[RedisStore] WRITING TO REDIS:");
-    console.log("  - Redis key:", deviceKey);
-    console.log("  - Field: player_nickname =", sanitized);
-    console.log("  - TTL:", TTL_SECONDS, "seconds");
+    
+    // Debug logging only in development mode
+    if (isDebugMode()) {
+      debugLog("[RedisStore] WRITING TO REDIS:");
+      debugLog("  - Redis key:", deviceKey);
+      debugLog("  - Field: player_nickname =", sanitized);
+      debugLog("  - TTL:", TTL_SECONDS, "seconds");
+    }
     
     // Store nickname in player_nickname field (not device_name) to match Python implementation
     await this.client.hSet(deviceKey, { player_nickname: sanitized });
     await this.client.expire(deviceKey, TTL_SECONDS);
     
-    // Verify what was written
-    const writtenData = await this.client.hGetAll(deviceKey);
-    console.log("[RedisStore] VERIFICATION:");
-    console.log("  - player_nickname in Redis:", writtenData.player_nickname || "(not set)");
-    console.log("[RedisStore] ============================================");
+    // Verify what was written (debug only)
+    if (isDebugMode()) {
+      const writtenData = await this.client.hGetAll(deviceKey);
+      debugLog("[RedisStore] VERIFICATION:");
+      debugLog("  - player_nickname in Redis:", writtenData.player_nickname || "(not set)");
+      debugLog("[RedisStore] ============================================");
+    }
   }
 
   async getSnapshot(device_id?: string): Promise<{
@@ -1242,9 +1280,7 @@ export class RedisStore implements StorageAdapter {
     
     // If devices sorted set is empty, scan for historical device keys
     if (deviceIds.length === 0) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log("[Redis] devices sorted set is empty, scanning for historical device keys...");
-      }
+      debugLog("[Redis] devices sorted set is empty, scanning for historical device keys...");
       const historicalIds = await scanPrimaryDeviceIds(this.client);
 
       for (const deviceId of historicalIds) {
@@ -1266,9 +1302,7 @@ export class RedisStore implements StorageAdapter {
       }
 
       deviceIds = await this.client.zRange(redisKeys.deviceIndex(), 0, -1, { REV: true });
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`[Redis] Rebuilt devices sorted set with ${deviceIds.length} devices from historical data`);
-      }
+      debugLog(`[Redis] Rebuilt devices sorted set with ${deviceIds.length} devices from historical data`);
     }
     
     const devices = [];
@@ -1926,7 +1960,7 @@ export class RedisStore implements StorageAdapter {
           added = true;
         }
       } catch (error) {
-        console.error(
+        debugError(
           "[RedisStore] Failed to parse batch while building snapshot:",
           error,
         );

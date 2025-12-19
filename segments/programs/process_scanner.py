@@ -105,8 +105,8 @@ class ProcessScanner(BaseSegment):
 
         # Protected poker app
         protected = scanner_config.get("protected_poker", {})
-        self.PROTECTED_EXE = protected.get("exe", "game.exe")
-        self.PROTECTED_PATH_KEY = protected.get("path_key", "coinpoker")
+        self.PROTECTED_EXE = str(protected.get("exe", "game.exe")).lower()
+        self.PROTECTED_PATH_KEY = str(protected.get("path_key", "coinpoker")).lower()
 
         # Quick macro header scan (convert from strings to bytes)
         self._macro_headers: list[bytes] = [
@@ -115,7 +115,9 @@ class ProcessScanner(BaseSegment):
         ]
 
         # Windows system processes to skip
-        self._windows_system = scanner_config.get("windows_system_processes", [])
+        self._windows_system = [
+            str(x).lower() for x in (scanner_config.get("windows_system_processes", []) or []) if str(x).strip()
+        ]
 
         # Expected locations for binaries
         self._expected_locations = scanner_config.get("expected_locations", {})

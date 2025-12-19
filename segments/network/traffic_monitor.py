@@ -87,8 +87,10 @@ class TrafficMonitor(BaseSegment):
         # Load poker sites from shared config
         poker_config = self.shared_config.get("poker_sites", {})
         protected = poker_config.get("protected", {})
-        self.protected_poker_process = protected.get("process", "game.exe")
-        self.other_poker_processes = poker_config.get("other", [])
+        self.protected_poker_process = str(protected.get("process", "game.exe")).lower()
+        self.other_poker_processes = [
+            str(x).lower() for x in (poker_config.get("other", []) or []) if str(x).strip()
+        ]
 
         keepalive_seconds = float(
             self.config["traffic_monitoring"].get("keepalive_seconds", 45.0)

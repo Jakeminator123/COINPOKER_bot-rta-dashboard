@@ -17,6 +17,9 @@ const fetcher = (url: string) =>
 interface SHAEntry {
   sha256: string;
   program_name: string;
+  points: 0 | 5 | 10 | 15;
+  comment?: string;
+  source?: "signal" | "admin";
 }
 
 interface SHADatabaseData {
@@ -32,6 +35,7 @@ interface SHADatabaseData {
 export default function SHADatabaseViewer() {
   const [searchTerm, setSearchTerm] = useState("");
   const [similarityThreshold, setSimilarityThreshold] = useState(0.9); // 90% default
+  const [onlyBad, setOnlyBad] = useState(false);
 
   // Build API URL with search and similarity parameters
   const apiUrl = searchTerm
@@ -68,6 +72,32 @@ export default function SHADatabaseViewer() {
   };
 
   const filteredEntries = data?.entries || [];
+  const visibleEntries = onlyBad
+    ? filteredEntries.filter((e) => (e.points || 0) > 0)
+    : filteredEntries;
+
+  const saveClassification = async (entry: SHAEntry, updates: Partial<SHAEntry>) => {
+    try {
+      const response = await fetch(`/api/sha-database`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sha256: entry.sha256,
+          program_name: updates.program_name ?? entry.program_name,
+          points: updates.points ?? entry.points ?? 0,
+          comment: updates.comment ?? entry.comment ?? "",
+          source: "admin",
+        }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to save SHA classification");
+      }
+      await mutate();
+    } catch (err) {
+      console.error("Save failed:", err);
+      alert("Failed to save entry");
+    }
+  };
 
   if (isLoading) {
     return (
@@ -152,11 +182,22 @@ export default function SHADatabaseViewer() {
             Fuzzy matching works best for finding similar program names or partial hash matches.
           </div>
         )}
+
+        <div className="flex items-center gap-3 text-sm">
+          <label className="text-slate-400 flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={onlyBad}
+              onChange={(e) => setOnlyBad(e.target.checked)}
+            />
+            Show only flagged (points &gt; 0)
+          </label>
+        </div>
       </div>
 
       {/* Entries List */}
       <div className="glass-card p-6">
-        {filteredEntries.length === 0 ? (
+        {visibleEntries.length === 0 ? (
           <div className="text-center text-slate-400 py-12">
             {data?.entries?.length === 0
               ? "No SHA entries found. Entries will appear here when scanners detect programs with SHA256 hashes."
@@ -164,7 +205,7 @@ export default function SHADatabaseViewer() {
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredEntries.map((entry) => (
+            {visibleEntries.map((entry) => (
               <motion.div
                 key={entry.sha256}
                 initial={{ opacity: 0, y: 10 }}
@@ -174,6 +215,41 @@ export default function SHADatabaseViewer() {
                 <div className="flex-1 min-w-0">
                   <div className="text-lg font-semibold text-white mb-1">
                     {entry.program_name}
+                  </div>
+                  <div className="flex items-center gap-2 mb-2 text-xs">
+                    <span className="text-slate-400">points:</span>
+                    <select
+                      value={entry.points ?? 0}
+                      onChange={(e) =>
+                        saveClassification(entry, { points: parseInt(e.target.value, 10) as any })
+                      }
+                      className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200"
+                      title="0=INFO (unclassified), 5=WARN, 10=ALERT, 15=CRITICAL"
+                    >
+                      <option value={0}>0 (unclassified)</option>
+                      <option value={5}>5 (WARN)</option>
+                      <option value={10}>10 (ALERT)</option>
+                      <option value={15}>15 (CRITICAL)</option>
+                    </select>
+                    <span className="text-slate-500">source: {entry.source || "signal"}</span>
+                  </div>
+                  <div className="mb-2">
+                    <input
+                      type="text"
+                      defaultValue={entry.comment || ""}
+                      placeholder="Admin comment (optional)"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          const value = (e.target as HTMLInputElement).value;
+                          saveClassification(entry, { comment: value });
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 text-sm"
+                      title="Press Enter to save comment"
+                    />
+                    <div className="text-xs text-slate-500 mt-1">
+                      Press Enter to save comment
+                    </div>
                   </div>
                   <div className="text-sm text-slate-300 font-mono break-all">
                     {entry.sha256}

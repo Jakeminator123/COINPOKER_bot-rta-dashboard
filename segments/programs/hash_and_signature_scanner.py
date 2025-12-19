@@ -1,8 +1,8 @@
 # segments/programs/hash_and_signature_scanner.py
 """
-Consolidated hash scanner combining signature definitions, IOC database lookups,
-and VirusTotal API integration for comprehensive executable analysis.
-Consolidates hash_scanner.py, signatures.py, and virustotal_checker.py.
+Consolidated hash scanner combining signature definitions and IOC database lookups.
+VirusTotal online lookups are disabled on the scanner side (handled by backend).
+Consolidates hash_scanner.py and signatures.py.
 """
 
 from __future__ import annotations
@@ -17,76 +17,38 @@ from typing import Any
 import psutil  # type: ignore
 
 from core.api import BaseSegment, post_signal
+from utils.config_reader import read_config
 from utils.config_loader import get_config
 from utils.detection_keepalive import DetectionKeepalive
 from utils.runtime_flags import apply_cooldown
 
-# Try to import requests (optional)
-try:
-    import requests
-except ImportError:
-    requests = None
 
-# Try to import VT Redis cache
-try:
-    from utils.virustotal_cache import get_vt_cache
-    VT_CACHE_AVAILABLE = True
-except ImportError:
-    VT_CACHE_AVAILABLE = False
-    get_vt_cache = None
+def _truthy(value: object) -> bool:
+    return str(value).strip().lower() in {"1", "true", "y", "yes", "on"}
 
 
-# Read settings from config.txt
-def _load_config_txt_settings():
-    """Load settings from config.txt"""
+def _load_config_txt_settings() -> dict[str, str]:
+    """
+    Load a few lightweight settings from config.txt via the shared reader.
+    Note: VirusTotal online lookups are disabled on the scanner side; API key is ignored.
+    """
     settings = {"api_key": "", "input_debug": "0", "max_cpu_percent": "25"}
-
     try:
-        config_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config.txt"
-        )
-        if os.path.exists(config_path):
-            with open(config_path, encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line or line.startswith("#") or "=" not in line:
-                        continue
-
-                    key, value = line.split("=", 1)
-                    key = key.strip().upper()
-                    value = value.strip()
-
-                    # Remove inline comments
-                    if "#" in value:
-                        value = value.split("#")[0].strip()
-
-                    if key == "VIRUSTOTALAPIKEY":
-                        settings["api_key"] = value
-                    elif key == "INPUT_DEBUG":
-                        settings["input_debug"] = value
-                    elif key == "MAXCPUPERCENT":
-                        settings["max_cpu_percent"] = value
+        cfg = read_config()
+        settings["input_debug"] = os.getenv("INPUT_DEBUG") or str(cfg.get("INPUT_DEBUG", "0"))
+        settings["max_cpu_percent"] = os.getenv("MAXCPUPERCENT") or str(cfg.get("MAXCPUPERCENT", "25"))
     except Exception as e:
-        print(f"[HashAndSignatureScanner] WARNING: Failed to read config.txt: {e}")
-
-    # Allow environment variables to override
-    settings["api_key"] = os.getenv("VirusTotalAPIKey") or settings["api_key"]
-    settings["input_debug"] = os.getenv("INPUT_DEBUG") or settings["input_debug"]
-    settings["max_cpu_percent"] = os.getenv("MAXCPUPERCENT") or settings["max_cpu_percent"]
-
+        print(f"[HashAndSignatureScanner] WARNING: Failed to read config via config_reader: {e}")
     return settings
 
 
 _settings = _load_config_txt_settings()
-api_key = _settings["api_key"].strip()
+api_key = ""  # VirusTotal online lookups are disabled on the scanner side
 input_debug = _settings["input_debug"].strip()
 max_cpu_percent = _settings["max_cpu_percent"].strip()
 
 print(f"[HashAndSignatureScanner] INPUT_DEBUG={input_debug} | MAXCPUPERCENT={max_cpu_percent}")
-if api_key:
-    print("[HashAndSignatureScanner] VirusTotal API key found -> VT lookups ENABLED")
-else:
-    print("[HashAndSignatureScanner] VirusTotal API key missing -> VT lookups DISABLED")
+print("[HashAndSignatureScanner] VirusTotal online lookups are DISABLED (handled by backend)")
 
 
 def _load_programs_config():
@@ -219,51 +181,19 @@ class HashAndSignatureScanner(BaseSegment):
         self._min_repeat = apply_cooldown(3600.0)  # Scaled hash lookup cooldown
         self._process_cooldown = apply_cooldown(15.0)  # Scaled process spam guard
 
-        # VirusTotal integration with improved rate limiting
-        # Load VT settings from programs_config.json
-        vt_config = _config.get("virustotal", {})
-        self._vt_enabled = vt_config.get("enabled", True)
-        self._vt_checked_hashes: dict[str, float] = {}  # hash -> last_check_time
-        
-        # Cache duration from config (default 24 hours)
-        cache_hours = vt_config.get("cache", {}).get("duration_hours", 24)
-        self._vt_cache_duration = apply_cooldown(cache_hours * 3600.0)
-        
+        # VirusTotal online lookups are disabled on scanner side (handled by backend)
+        self._vt_enabled = False
+        self._vt_checked_hashes: dict[str, float] = {}
+        self._vt_cache_duration = 0.0
         self._last_vt_request = 0.0
-        
-        # Rate limiting from config (default 20 seconds for free tier)
-        rate_config = vt_config.get("rate_limiting", {})
-        min_interval = rate_config.get("min_interval_seconds", 20)
-        self._min_vt_interval = apply_cooldown(
-            float(min_interval), minimum=15.0, allow_zero=False
-        )  # Guard for VT rate limiting - minimum 15s to be safe
-        
-        # Detection thresholds from config
-        threshold_config = vt_config.get("detection_thresholds", {})
-        self._vt_malware_threshold = threshold_config.get("malware_critical", 5)
-        self._vt_suspicious_threshold = threshold_config.get("suspicious_warn", 2)
-        
-        # Poker keywords from config
-        poker_kw_config = vt_config.get("poker_keywords", {})
-        self._vt_poker_keywords = poker_kw_config.get("terms", [
-            "poker", "bot", "rta", "solver", "gto", "holdem", "cardbot", "pokerbot"
-        ])
-        
-        self._vt_priority_queue = []  # Queue for high-priority processes (bots/RTAs)
-
-        # Redis cache for sharing VT results with dashboard
+        self._min_vt_interval = 0.0
+        self._vt_malware_threshold = 0
+        self._vt_suspicious_threshold = 0
+        self._vt_poker_keywords = []
+        self._vt_priority_queue = []
         self._vt_redis_cache = None
-        if VT_CACHE_AVAILABLE:
-            try:
-                self._vt_redis_cache = get_vt_cache()
-                if self._vt_redis_cache and self._vt_redis_cache.enabled:
-                    print("[HashAndSignatureScanner] Redis VT cache enabled - sharing results with dashboard")
-            except Exception as e:
-                print(f"[HashAndSignatureScanner] Redis VT cache unavailable: {e}")
-
-        # Online reputation cache
         self._online_cache: dict[str, tuple[float, dict]] = {}
-        self._online_cache_ttl = apply_cooldown(3600.0)  # Scaled online lookup cache
+        self._online_cache_ttl = 0.0
 
         hash_config = _config.get("hash_scanner", {})
         keepalive_seconds = float(hash_config.get("keepalive_seconds", 45.0))
@@ -277,75 +207,39 @@ class HashAndSignatureScanner(BaseSegment):
             active_timeout=active_timeout,
         )
 
-        # Load VirusTotal cache if exists
-        self._vt_cache_file = "virustotal_cache.json"
-        self._load_vt_cache()
-
-        # Configuration
+        # Configuration (VT online lookups forced OFF on scanner side)
         self._load_config()
-
-        # Simplified rate limiting - only for VirusTotal (20s minimum)
-        # Removed other APIs to focus on VT control
 
         print(
             f"[HashAndSignatureScanner] Initialized with {len(self._ioc)} bad hashes from config, {len(self._allowlist)} allowlisted"
         )
-        if self._vt_api_key and self._vt_enabled:
-            print(
-                f"[HashAndSignatureScanner] VirusTotal API ENABLED - {self._min_vt_interval}s rate limit, "
-                f"cache {self._vt_cache_duration/3600:.0f}h, malware threshold: {self._vt_malware_threshold}+ detections"
-            )
-        elif not self._vt_enabled:
-            print("[HashAndSignatureScanner] VirusTotal API disabled in config")
-        else:
-            print("[HashAndSignatureScanner] VirusTotal API disabled (no key in config.txt)")
 
     def _load_config(self):
-        """Load configuration from config.txt"""
+        """
+        Load config via shared config reader.
+
+        IMPORTANT:
+        - ENABLEONLINELOOKUPS is ignored (online lookups disabled on scanner side).
+        - ENABLEHASHLOOKUP is for local hash database lookups (IOC) only.
+        """
         self._enable_online_lookups = False
         self._vt_api_key = ""
         self._check_signatures = True
 
         try:
-            config_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                "config.txt",
-            )
-            if os.path.exists(config_path):
-                with open(config_path) as f:
-                    for line in f:
-                        line = line.strip()
-                        if "=" in line:
-                            key, value = line.split("=", 1)
-                            key = key.strip().upper()
-                            value = value.strip()
-
-                            if key == "ENABLEHASHLOOKUP" and value.lower() in (
-                                "true",
-                                "yes",
-                                "1",
-                            ):
-                                self._enable_online_lookups = True
-                            elif key == "VIRUSTOTALAPIKEY":
-                                self._vt_api_key = value
-                            elif key == "CHECKSIGNATURES" and value.lower() in (
-                                "false",
-                                "no",
-                                "0",
-                            ):
-                                self._check_signatures = False
+            cfg = read_config()
         except Exception:
-            pass
+            cfg = {}
 
-        # Allow override from environment and .env
-        env_key = os.environ.get("VirusTotalAPIKey", "")
-        if env_key:
-            self._vt_api_key = env_key
+        # Online lookups (VirusTotal) are disabled on scanner side (handled by backend)
+        self._enable_online_lookups = False
 
-        # Use API key loaded from .env if available
-        if api_key and not self._vt_api_key:
-            self._vt_api_key = api_key
-            print("[HashAndSignatureScanner] Using VirusTotal API key from .env")
+        # Signature checks
+        raw_sig = cfg.get("CHECKSIGNATURES", os.environ.get("CHECKSIGNATURES", "true"))
+        self._check_signatures = not str(raw_sig).strip().lower() in {"0", "false", "no", "off"}
+
+        # VirusTotal API key is ignored (online lookups disabled)
+        self._vt_api_key = ""
 
     def tick(self):
         """Main scanning loop - combines signature detection and hash analysis"""
@@ -384,31 +278,28 @@ class HashAndSignatureScanner(BaseSegment):
             else:
                 all_processes.append((p, exe, proc_name))
 
-        # 2. SECOND: Hash analysis (slower) - ONE process per tick to avoid VT spam
+        # 2. SECOND: Hash analysis (slower) - ONE process per tick to limit overhead
         # Priority: Known bots/RTAs first, then suspicious processes during poker
-        vt_candidates = []
+        candidates = []
 
-        # Add known bots/RTAs to VT queue (highest priority)
         for p, exe, proc_name in priority_processes:
             if proc_name in PROCESS_NAMES:
                 meta = PROCESS_NAMES[proc_name]
                 points = meta.get("points", 0)
                 if points >= 10:  # Only check high-risk processes (ALERT/CRITICAL)
-                    vt_candidates.append((p, exe, proc_name, 3))  # Priority 3 = highest
+                    candidates.append((p, exe, proc_name, 3))  # Priority 3 = highest
 
-        # Add suspicious processes during poker (medium priority - prioritize during CoinPoker)
         if coinpoker_active or other_poker_active:
             for p, exe, proc_name in all_processes[:3]:
                 if any(
                     susp in proc_name for susp in ["python", "autohotkey", "autoit", "powershell"]
                 ):
                     priority = 3 if coinpoker_active else 2  # Higher priority for CoinPoker
-                    vt_candidates.append((p, exe, proc_name, priority))
+                    candidates.append((p, exe, proc_name, priority))
 
-        # Sort by priority and take only ONE for this tick
-        if vt_candidates:
-            vt_candidates.sort(key=lambda x: x[3], reverse=True)  # Sort by priority
-            p, exe, proc_name, _ = vt_candidates[0]  # Take highest priority
+        if candidates:
+            candidates.sort(key=lambda x: x[3], reverse=True)
+            p, exe, proc_name, _ = candidates[0]
             sha = self._handle_hash_analysis(p, exe, proc_name, coinpoker_active, other_poker_active)
             if sha:
                 seen_aliases.add(sha)
@@ -503,7 +394,7 @@ class HashAndSignatureScanner(BaseSegment):
         coinpoker_active: bool,
         other_poker_active: bool,
     ):
-        """Handle hash-based analysis (IOC + VirusTotal)"""
+        """Handle hash-based analysis (IOC + signature checks; VirusTotal disabled)"""
         # Get file stats
         try:
             st = os.stat(exe_path)
@@ -544,51 +435,6 @@ class HashAndSignatureScanner(BaseSegment):
             comment = hit.get("comment") or ""
             self._emit_detection(process, exe_path, sha, label, points, comment, "IOC Database")
             return sha
-
-        # Check VirusTotal if enabled - ONLY for high-risk processes with strict rate limiting
-        if self._enable_online_lookups and self._vt_api_key and requests:
-            # Only check known bot/RTA processes or highly suspicious processes
-            should_check_vt = False
-
-            # Known bots/RTAs always get checked
-            if proc_name in PROCESS_NAMES:
-                meta2 = PROCESS_NAMES[proc_name]
-                p2 = meta2.get("points")
-                r2 = meta2.get("risk", 0)
-                try:
-                    p2i = int(p2) if p2 is not None else None
-                except Exception:
-                    p2i = None
-                r2i = (
-                    r2
-                    if isinstance(r2, int)
-                    else int(r2)
-                    if isinstance(r2, str) and r2.isdigit()
-                    else 0
-                )
-                if (p2i is not None and p2i >= 10) or (
-                    p2i is None and r2i >= 2
-                ):  # Only medium/high
-                    should_check_vt = True
-
-            # Suspicious automation during poker (prioritize CoinPoker)
-            elif (coinpoker_active or other_poker_active) and any(
-                susp in proc_name for susp in ["python", "autohotkey", "autoit"]
-            ):
-                should_check_vt = True
-
-            if should_check_vt:
-                vt_result = self._check_virustotal_hash(sha, proc_name)
-                if vt_result:
-                    self._emit_detection(
-                        process,
-                        exe_path,
-                        sha,
-                        vt_result["label"],
-                        vt_result["points"],
-                        vt_result["reason"],
-                        "VirusTotal",
-                    )
 
         # Check digital signature if enabled (prioritize during CoinPoker)
         if self._check_signatures and (coinpoker_active or other_poker_active):
@@ -817,7 +663,7 @@ class HashAndSignatureScanner(BaseSegment):
 
                 # Determine threat level using configurable thresholds
                 if malicious >= self._vt_malware_threshold:
-                    print(f"[VT] 🚨 MALWARE DETECTED: {process_name} ({malicious}/{total} AV engines)")
+                    print(f"[VT] MALWARE DETECTED: {process_name} ({malicious}/{total} AV engines)")
                     result.update({
                         "status": "malicious",
                         "severity": "CRITICAL",
@@ -826,7 +672,7 @@ class HashAndSignatureScanner(BaseSegment):
                         "reason": f"VT: {malicious}/{total} AV engines detect as malware",
                     })
                 elif malicious >= self._vt_suspicious_threshold or suspicious >= 3:
-                    print(f"[VT] ⚠️ Suspicious: {process_name} ({malicious}+{suspicious}/{total} detections)")
+                    print(f"[VT] Suspicious: {process_name} ({malicious}+{suspicious}/{total} detections)")
                     result.update({
                         "status": "suspicious",
                         "severity": "ALERT",
@@ -853,7 +699,7 @@ class HashAndSignatureScanner(BaseSegment):
                         "reason": f"VT tags: {', '.join(tags[:3])}",
                     })
                 else:
-                    print(f"[VT] ✅ {process_name} CLEAN ({total} AV engines, 0 detections)")
+                    print(f"[VT] {process_name} CLEAN ({total} AV engines, 0 detections)")
                     result.update({
                         "status": "clean",
                         "severity": "INFO",

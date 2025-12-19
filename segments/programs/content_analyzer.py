@@ -58,6 +58,9 @@ for category in [
 ]:
     PATH_HINTS.extend(_config.get("path_hints", {}).get(category, []))
 
+# Normalize for case-insensitive matching (Windows)
+PATH_HINTS = [str(h).lower() for h in PATH_HINTS if str(h).strip()]
+
 # Packer signatures (convert string keys to bytes)
 PACKER_SIGNATURES = {k.encode(): v for k, v in _config.get("packer_signatures", {}).items()}
 
@@ -136,12 +139,12 @@ class ContentAnalyzer(BaseSegment):
             # Load from programs_config.json IOC section
             ioc_config = _config.get("ioc", {})
             safe_processes = ioc_config.get("safe_processes", {})
-            safe_procs = set(safe_processes.keys())
+            safe_procs = {str(k).lower() for k in safe_processes.keys() if str(k).strip()}
 
             # Also add from legacy whitelist section if present
             whitelist = _config.get("whitelist", {})
             if "safe_processes" in whitelist:
-                safe_procs.update(whitelist["safe_processes"])
+                safe_procs.update({str(x).lower() for x in (whitelist["safe_processes"] or []) if str(x).strip()})
 
             print(f"[ContentAnalyzer] Loaded {len(safe_procs)} safe processes from config")
         except Exception as e:

@@ -25,7 +25,7 @@ INPUT_DEBUG=1                        # Debug logging (0=off, 1=on)
 # --- Batch System ---
 BATCH_INTERVAL_HEAVY=92              # Batch-rapporter skickas var 92:e sekund
 NEW_BATCHES_LOG=n                     # Spara batch-loggar lokalt (debugging)
-BATCH_LOG_DIR=jay                    # Mapp där batch-loggar sparas (default: batch_logs)
+BATCH_LOG_DIR=batch_logs             # Directory for batch logs (default: batch_logs)
 
 # --- Forwarder-läge (väljer hur batchar skickas) ---
 # OPTION 1 – Direkt till Redis (snabbast, bypass HTTP)
@@ -50,7 +50,7 @@ DASHBOARD_URL=https://bot-rta-dashboard-2.onrender.com/api
 # Web forwarder settings (endast om WEB=y)
 #WEB_URL_DEV=http://localhost:3001/api/signal
 WEB_URL_PROD=https://bot-rta-dashboard-2.onrender.com/api/signal
-SIGNAL_TOKEN=detector-secret-token-2024
+SIGNAL_TOKEN=detector-secret-token-2025
 WEB_FORWARDER_TIMEOUT=10             # Timeout för HTTP requests när batchar skickas
 
 # --- Direkt Redis (Option 1) ---
@@ -60,10 +60,10 @@ REDIS_TTL_SECONDS=604800                      # TTL för Redis-keys (default: 7 
 FORWARDER_MODE=redis                  # web=HTTP, redis=Redis, auto=försök Redis → HTTP fallback
 
 # --- Detection Features ---
-ENABLEHASHLOOKUP=true                # Hash database lookups
-ENABLEONLINELOOKUPS=true             # Online API calls (VirusTotal)
+ENABLEHASHLOOKUP=true                # Hash database lookups (local)
+ENABLEONLINELOOKUPS=false            # Online API calls (VirusTotal) - disabled, handled by backend
 CHECKSIGNATURES=true                 # Digital signature verification
-VirusTotalAPIKey=22da334f9a3582bf6a93dc6fdedf2fe45fb86a0a91fd7d81803c13c4c5c4cbc7
+VirusTotalAPIKey=                    # Blank on scanner side; backend handles VT
 
 # --- Runtime Tweaks ---
 # IMPORTANT (English):
@@ -71,8 +71,8 @@ VirusTotalAPIKey=22da334f9a3582bf6a93dc6fdedf2fe45fb86a0a91fd7d81803c13c4c5c4cbc
 # COOLDOWN_MULTIPLIER scales EVERY per-segment cooldown/cache globally: 1.0 = default behaviour,
 # values <1 speed up detections (e.g. 0 = no throttling, warnings fire immediately),
 # values >1 slow things down (useful if signals are too noisy). Change once here instead of per file.
-SYNC_SEGMENTS=Y                      # Sprid ut segment-start över första 92s perioden
-COOLDOWN_MULTIPLIER=0                # Standard cooldowns (0=av, 1=normal, 2=dubbel)
+SYNC_SEGMENTS=Y                      # Synchronize segment ticks (no staggering across the batch window)
+COOLDOWN_MULTIPLIER=1                # Global cooldown scaling (0=off, 1=normal, 2=double)
 
 # --- Detection Segments (intervall i sekunder för varje segment) ---
 PROGRAMS=92                          # ProcessScanner - intervall mellan skanningar

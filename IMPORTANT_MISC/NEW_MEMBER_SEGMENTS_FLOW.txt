@@ -1,0 +1,311 @@
+Segments flow guide (for new repo members)
+=========================================
+
+Purpose
+-------
+This repo implements a modular "segment" architecture.
+Each segment is a small detector that runs on an interval and posts signals.
+Signals are merged into persistent threats and forwarded to a remote collector/dashboard API in unified batches.
+
+Project overview (what this repo is)
+-----------------------------------
+This project is a Windows-first anti-bot / anti-RTA detector for CoinPoker usage.
+
+At a high level it does:
+- Detect when CoinPoker is running (multi-factor heuristics in scanner.py)
+- Run a suite of independent detectors (segments/*)
+- Emit detections as Signals (INFO/WARN/ALERT/CRITICAL)
+- Merge detections into persistent Threats (dedup + escalation)
+- Send unified batch reports to a remote collector (HTTP or direct Redis)
+
+This document is ONLY about this subrepo (the scanner runtime):
+- scanner.py + core/* + segments/* + utils/*
+
+If you are new:
+- Start by reading scanner.py and core/forwarder.py
+- Then read core/segment_loader.py and core/api.py (post_signal, ThreatManager, ReportBatcher)
+- Then read segments/ (each segment is mostly independent)
+
+Required files and directories (scanner subrepo only)
+----------------------------------------------------
+Runtime (script mode):
+- scanner.py
+- core/              (required)
+- utils/             (required)
+- segments/          (required)
+- config.txt         (optional but recommended; overrides embedded defaults)
+
+Runtime (packaged .exe mode):
+- CoinPokerScanner.exe (the distributed artifact)
+- config.txt is OPTIONAL:
+  - If config.txt exists next to the .exe, it overrides embedded defaults.
+  - If config.txt is missing, the .exe can still run using embedded defaults
+    (RAM-only mode for configs is auto-enabled when config.txt is absent).
+- config_cache/ may be created next to the .exe at runtime:
+  - used for cached configs and encrypted cache files (depending on RAM_CONFIG)
+- batch_logs/ is only used if NEW_BATCHES_LOG=Y (debug-only)
+
+Build-time only (not needed at runtime):
+- CoinPokerScanner.spec
+- build_exe.ps1
+- tools/embed_runtime_config.py
+- CoinPoker_cropped.ico (optional icon; build uses it if present)
+
+Not required for scanner runtime:
+- tests/ (manual tools / experiments)
+- site/  (belongs to a different repo-level doc; not covered here)
+
+
+Directory layout
+----------------
+segments/
+  programs/     Process + file + hash + signature detectors (EXE/process oriented)
+  network/      DNS + window-title + connection pattern detectors
+  behaviour/    Mouse/keyboard behaviour heuristics (polling)
+  vm/           Virtual machine / sandbox heuristics
+  auto/         Automation tools (AHK/Python/AutoIt patterns, etc.)
+  screen/       Overlay/window hierarchy/screen related heuristics
+  security/     Security posture (MITM/proxy CA, etc.)
+
+NOTE: These 7 categories are currently hardcoded in core/segment_loader.py.
+
+Repo entrypoints (what to run)
+------------------------------
+scanner.py
+  - Main entrypoint for running locally as a Python script OR packaged as an .exe.
+  - Responsible for CoinPoker detection + starting ForwarderService.
+
+run_scanner_admin.bat
+  - Convenience wrapper to launch scanner.py with Administrator privileges.
+
+build_exe.ps1
+  - Builds a standalone .exe (PyInstaller) and embeds config.txt snapshot.
+
+CoinPokerScanner.spec
+  - PyInstaller build recipe (build-time only, not runtime).
+
+
+High-level runtime flow (ASCII)
+-------------------------------
+
+  (A) Runtime settings (config.txt)          (B) Detection configs (remote)
+      utils/config_reader.py                    utils/config_loader.py
+                |                                       |
+                v                                       v
+  +---------------------------+           +---------------------------+
+  | scanner.py                |           | ConfigLoader              |
+  | - CoinPoker detection     |---------->| - fetch -> cache -> fb    |
+  | - starts ForwarderService |           +---------------------------+
+  +-------------+-------------+
+                |
+                v
+  +---------------------------+
+  | ForwarderService          |  core/forwarder.py
+  | - init forwarder          |
+  | - init ReportBatcher      |
+  | - start SegmentLoader     |
+  | - subscribe EventBus      |
+  +-------------+-------------+
+                |
+                v
+  +---------------------------+
+  | SegmentLoader             |  core/segment_loader.py
+  | - discover/import         |  segments/<category>/*.py
+  | - start BaseSegments      |
+  +-------------+-------------+
+                |
+                v
+  +---------------------------+        +---------------------------+
+  | BaseSegment thread loop   |        | ReportBatcher thread loop |
+  | core/api.py               |        | core/forwarder.py         |
+  | while running:            |        | every N seconds:          |
+  |  - (optional) enabled     |        |  - build unified batch    |
+  |  - tick()                 |        |  - include heartbeat      |
+  |  - sleep interval         |        |  - send via forwarder     |
+  +-------------+-------------+        +-------------+-------------+
+                |
+                v
+       +--------------------+
+       | post_signal(...)   |  core/api.py
+       | - create Signal    |
+       | - ThreatManager    |
+       | - EventBus.emit    |
+       +---------+----------+
+                 |
+                 v
+       +--------------------+
+       | ForwarderService   |
+       | _on_detection      |
+       | -> batcher.add()   |
+       +--------------------+
+                 |
+                 v
+       +-------------------------------+
+       | Output transport (one active) |
+       | - HTTP: core/web_forwarder.py |
+       | - Redis: core/redis_forwarder |
+       +-------------------------------+
+
+Key modules (quick map)
+-----------------------
+Core (core/):
+- api.py            EventBus + post_signal + ThreatManager + ReportBatcher + BaseSegment
+- forwarder.py      ForwarderService: starts segments, batches, forwards
+- segment_loader.py Dynamic discovery/import of segments
+- web_forwarder.py  HTTP batch transport
+- redis_forwarder.py + redis_schema.py  Redis batch transport
+- command_client.py + redis_command_client.py  optional command channel
+
+Utils (utils/):
+- config_reader.py  reads config.txt + embedded snapshot
+- config_loader.py  fetches detection configs (remote -> cache -> fallback)
+- runtime_flags.py  COOLDOWN_MULTIPLIER, SYNC_SEGMENTS
+- detection_keepalive.py  keep detections alive between heavy scans
+
+Note on "unused-looking" files:
+- In .exe mode, dynamic imports + optional features mean modules can appear unused.
+- CoinPokerScanner.spec uses hiddenimports to force-include modules for the packaged build.
+
+
+What a "Signal" is
+------------------
+A signal is a single detection event created by post_signal():
+- category: one of the segment categories (programs/network/behaviour/vm/auto/screen/security)
+- name: human readable detection name (e.g. "RTA Site", "Compiled macro/script")
+- status: "INFO" | "WARN" | "ALERT" | "CRITICAL"
+- details: short detail string (keep it compact; it is shown on dashboard and stored)
+
+IMPORTANT:
+- INFO has 0 points and is filtered out from unified batch scoring display.
+- WARN/ALERT/CRITICAL contribute to bot_probability and dashboard scoring.
+
+Threat model (how signals become "threats")
+------------------------------------------
+ThreatManager groups signals into "threat_id" primarily by process identity.
+This means detections from different segments can merge into one aggregated threat.
+
+Key properties:
+- Deduplication: repeated signals for same process merge instead of spamming UI
+- Escalation: severity can increase if later signals are more severe
+- Confidence: increases as more unique detection sources hit the same threat
+
+Unified batch reports:
+- ReportBatcher sends a unified batch every BATCH_INTERVAL_HEAVY seconds (default 92s)
+- It always sends, even if empty (heartbeat)
+- It filters out INFO (0 points) from the scoring display
+
+
+Enable/disable model
+-------------------
+BaseSegment has a runtime enable/disable check with caching:
+- For categories: network, screen, vm, security
+  it reads get_config("<category>_config") and checks "enabled" (default True).
+- For categories: programs, auto, behaviour
+  it is currently always enabled (no config toggle in BaseSegment).
+
+If you want a new category to support enabled toggling:
+- add it to BaseSegment._is_enabled() config_categories set
+- ensure a <category>_config exists in dashboard configs
+
+
+Intervals and staggering
+------------------------
+Each segment runs its own loop:
+- BaseSegment.interval_s defaults to 5.0, but is typically overridden to 92.0
+- BaseSegment._load_performance_config() can override per-category interval from config.txt:
+  PROGRAMS/AUTO/NETWORK/BEHAVIOUR/VM/SCREEN
+
+SegmentLoader can stagger start times to spread CPU load across the unified batch window:
+- SYNC_SEGMENTS=Y => no staggering (all segments tick at the same time)
+- otherwise SegmentLoader distributes start offsets across the batch interval
+
+Configuration model (where settings come from)
+----------------------------------------------
+There are TWO distinct configuration layers:
+
+1) Runtime settings (local) - config.txt
+   - Controls: forwarder mode, tokens, intervals, debug flags, RAM_CONFIG, etc.
+   - Read by utils/config_reader.py
+   - For .exe builds, a snapshot is embedded in core/runtime_config_embedded.py
+
+2) Detection configs (remote) - fetched JSON configs
+   - Controls per-segment detection rules and thresholds
+   - Loaded by utils/config_loader.get_config("<name>")
+   - Example config names used by segments:
+     programs_config, programs_registry, network_config, behaviour_config,
+     vm_config, screen_config, security_config, obfuscation_config
+
+Remote vs local:
+- If the remote config service is reachable, it is the source of truth for detection configs.
+- A cache exists for resilience:
+  - RAM_CONFIG=y disables disk cache and forces embedded fallback only (tamper resistance)
+  - RAM_CONFIG=n allows encrypted disk cache in config_cache/
+
+
+How to add a new segment (checklist)
+-----------------------------------
+1) Create a new file:
+   segments/<category>/<your_segment>.py
+
+2) Implement a BaseSegment subclass:
+   - set class attributes:
+       name = "YourSegmentName"
+       category = "<category>"     (must match folder name)
+       interval_s = 92.0           (typical default)
+   - implement tick(self): and call post_signal(...) when needed
+   - optionally implement cleanup(self) to stop threads/free resources
+
+3) Use shared helpers:
+   - utils.config_loader.get_config("<something>_config") for dashboard-driven config
+   - utils.runtime_flags.apply_cooldown(...) for throttles/TTLs
+   - utils.detection_keepalive.DetectionKeepalive to keep detections "alive" between heavy scans
+
+4) Packaging (PyInstaller):
+   Because segments are imported dynamically (importlib.import_module),
+   PyInstaller may not include new modules automatically.
+   Update these when you add a new segment module:
+   - CoinPokerScanner.spec: add "segments.<category>.<your_segment>" to hiddenimports
+   - build_exe.ps1: update hidden-import list in the fallback command (if used)
+
+5) Loader category list:
+   If you add a NEW CATEGORY (not just a file in an existing category),
+   you must update:
+   - core/segment_loader.py category list
+   - core/api.py BaseSegment._load_performance_config() category_key map
+   - core/api.py BaseSegment._is_enabled() if you want enable toggles
+
+
+Where to look when debugging a segment
+--------------------------------------
+- Segment doesn't run:
+  - check core/segment_loader.py loaded modules count
+  - check BaseSegment._is_enabled() for the category
+  - check config.txt intervals (PROGRAMS/NETWORK/etc.)
+
+- Segment runs but no detections show:
+  - ensure it calls post_signal(...)
+  - remember: INFO signals do not contribute to batch scoring display
+  - check ThreatManager dedup: a higher-severity active threat may suppress lower duplicates
+
+- Works as script but not as .exe:
+  - missing hiddenimports in spec => module not bundled
+  - filesystem paths: in .exe mode, code may run from sys._MEIPASS
+
+
+Packaging and release notes (Windows .exe)
+-----------------------------------------
+PyInstaller "onefile" notes:
+- The distributed output is a single CoinPokerScanner.exe
+- Internally, PyInstaller extracts to a temp folder at runtime (sys._MEIPASS)
+  This is normal. Do not rely on relative paths without handling frozen mode.
+
+When adding/changing files for .exe:
+- Update CoinPokerScanner.spec hiddenimports for any new dynamically loaded modules
+- Ensure data directories required at runtime are included (segments/, core/, utils/, configs/)
+
+Admin privileges:
+- Some features require admin (e.g. certain window/process access).
+- Use run_scanner_admin.bat when troubleshooting on Windows.
+
+
+

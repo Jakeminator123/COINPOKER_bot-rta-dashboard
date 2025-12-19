@@ -38,7 +38,8 @@ OUTPUT_DIR = Path(__file__).parent / "recon_output"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 # MITM proxy path (from proxygrejjer)
-MITM_SCRIPT = Path(__file__).parent.parent / "test" / "proxygrejjer" / "mitm_proxy.py"
+# Note: repo uses "tests/", not "test/"
+MITM_SCRIPT = Path(__file__).parent / "harsh_tests" / "proxygrejjer" / "mitm_proxy.py"
 
 try:
     import psutil

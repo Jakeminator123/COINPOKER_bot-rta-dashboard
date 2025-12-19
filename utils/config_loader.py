@@ -533,11 +533,12 @@ class ConfigLoader:
             }
         }
 
-        # Try multiple possible locations for config files
+        # Prefer deterministic, absolute paths over cwd-relative paths to avoid "it works on my machine"
+        # issues when running from different working directories (or when frozen).
+        project_root = Path(__file__).parent.parent
         possible_base_paths = [
-            Path("."),  # Project root
-            Path("site/bot-rta-dashboard/configs"),  # Dashboard configs folder
-            Path("../site/bot-rta-dashboard/configs"),  # Relative from segments
+            project_root / "site" / "bot-rta-dashboard" / "configs",  # Dashboard configs folder (primary)
+            Path("."),  # Fallback: current working directory
         ]
 
         # Map of config names to file names (without path)
@@ -573,33 +574,6 @@ class ConfigLoader:
                             loaded_count += 1
                             print(f"[ConfigLoader] Loaded {name} from {file_path}")
                             break  # Found it, skip other paths
-                    except Exception as e:
-                        print(
-                            f"[ConfigLoader] WARNING: Failed to load {name} from {file_path}: {e}"
-                        )
-
-        # Also try old segment-based paths for backward compatibility
-        # NOTE: automation_programs.json removed - all programs now in programs_registry.json
-        old_paths = {
-            "programs_config": "segments/programs/programs_config.json",
-            "network_config": "segments/network/network_config.json",
-            "screen_config": "segments/screen/screen_config.json",
-            "behaviour_config": "segments/behaviour/behaviour_config.json",
-            "vm_config": "segments/vm/vm_config.json",
-            "obfuscation_config": "segments/programs/obfuscation_config.json",
-            "shared_config": "segments/shared_config.json",
-        }
-
-        for name, path in old_paths.items():
-            # Only load if not already loaded from new locations
-            if name not in configs:
-                file_path = Path(path)
-                if file_path.exists():
-                    try:
-                        with open(file_path, encoding="utf-8") as f:
-                            configs[name] = json.load(f)
-                            loaded_count += 1
-                            print(f"[ConfigLoader] Loaded {name} from legacy path: {file_path}")
                     except Exception as e:
                         print(
                             f"[ConfigLoader] WARNING: Failed to load {name} from {file_path}: {e}"

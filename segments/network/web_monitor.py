@@ -140,7 +140,7 @@ def _load_shared_config() -> dict[str, Any]:
 # Load config at module level
 CONFIG = _load_network_config()
 SHARED_CONFIG = _load_shared_config()
-NETWORK_KEYWORDS = CONFIG["web_monitoring"].get("browser_keywords", [])
+NETWORK_KEYWORDS = [str(k).lower() for k in (CONFIG["web_monitoring"].get("browser_keywords", []) or []) if str(k).strip()]
 # Build suspicious patterns from new structure (rta_websites, suspicious_domains, etc.)
 SUSPICIOUS_PATTERNS = _build_suspicious_patterns(CONFIG)
 
@@ -157,7 +157,8 @@ PATTERN_BLACKLIST = {
     "discordapp",  # Too common
 }
 
-# Filter out blacklisted patterns from dashboard config
+# Normalize keys to lowercase and filter out blacklisted patterns from dashboard config
+SUSPICIOUS_PATTERNS = {str(k).lower(): v for k, v in SUSPICIOUS_PATTERNS.items()}
 SUSPICIOUS_PATTERNS = {k: v for k, v in SUSPICIOUS_PATTERNS.items() if k not in PATTERN_BLACKLIST}
 
 # =========================
@@ -212,8 +213,10 @@ class WebMonitor(BaseSegment):
         # Load poker sites from shared config
         poker_config = SHARED_CONFIG.get("poker_sites", {})
         protected = poker_config.get("protected", {})
-        self.protected_poker_process = protected.get("process", "game.exe")
-        self.other_poker_processes = poker_config.get("other", [])
+        self.protected_poker_process = str(protected.get("process", "game.exe")).lower()
+        self.other_poker_processes = [
+            str(x).lower() for x in (poker_config.get("other", []) or []) if str(x).strip()
+        ]
 
         # Allowlist for common legitimate domains (to reduce false positives)
         self.allowed_domains = {
@@ -336,9 +339,7 @@ class WebMonitor(BaseSegment):
 
         # Check pywin32 availability
         if not win32gui or not win32process:
-            print(
-                "[WebMonitor] ⚠️  WARNING: pywin32 not available - browser title monitoring disabled!"
-            )
+            print("[WebMonitor] WARNING: pywin32 not available - browser title monitoring disabled!")
             print("[WebMonitor] Install with: pip install pywin32")
         else:
             print("[WebMonitor] ✓ pywin32 available - browser title monitoring enabled")
@@ -471,7 +472,7 @@ class WebMonitor(BaseSegment):
         vias = list(self._rta_sites[service]["via"])
         details = f"via={','.join(vias)} context={context}"
 
-        print(f"[WebMonitor] 🚨 Posting signal: [{status}] RTA Site: {service} | {details}")
+        print(f"[WebMonitor] Posting signal: [{status}] RTA Site: {service} | {details}")
         post_signal("network", f"RTA Site: {service}", status, details)
 
         # Update emission tracking
@@ -495,7 +496,7 @@ class WebMonitor(BaseSegment):
         if self._tick_count % self._debug_every_n_ticks == 0:
             print(f"[WebMonitor] Found {len(titles)} window titles to scan")
             if len(titles) == 0 and (win32gui is None or win32process is None):
-                print("[WebMonitor] ⚠️  No windows found - pywin32 may not be working!")
+                print("[WebMonitor] No windows found - pywin32 may not be working!")
             # DEBUG: Show first 5 titles to see what we're scanning
             if len(titles) > 0:
                 print("[WebMonitor] Sample titles being scanned:")
@@ -522,21 +523,21 @@ class WebMonitor(BaseSegment):
             for pattern in gto_patterns:
                 if pattern in title_lower:
                     detected_sites.add("GTOWizard")
-                    print(f"[WebMonitor] 🎯 GTOWIZARD DETECTED: '{pattern}' in '{title}'")
+                    print(f"[WebMonitor] GTOWIZARD DETECTED: '{pattern}' in '{title}'")
                     break
 
             # Check for other RTA/solver sites
             for keyword in NETWORK_KEYWORDS:
                 if keyword in title_lower and keyword not in gto_patterns:
                     detected_sites.add(keyword.title().replace(".", " ").strip())
-                    print(f"[WebMonitor] 🎯 KEYWORD MATCH: '{keyword}' in '{title}'")
+                    print(f"[WebMonitor] KEYWORD MATCH: '{keyword}' in '{title}'")
 
         # Emit signals for detected sites (minimal throttling to prevent spam)
         for site in detected_sites:
             time_since_last = now - self._last_browser_emit.get(site.lower(), 0.0)
             if time_since_last >= self._browser_min_repeat:
                 self._last_browser_emit[site.lower()] = now
-                print(f"[WebMonitor] 📤 Emitting signal for: {site}")
+                print(f"[WebMonitor] Emitting signal for: {site}")
                 self._emit_rta_site(site, "title", coinpoker_active, other_poker_active)
             # No throttling message - 5s cooldown is too short to spam
 
@@ -612,7 +613,7 @@ class WebMonitor(BaseSegment):
 
         for pattern in gto_dns_patterns:
             if pattern in domain_lower:
-                print(f"[WebMonitor] 🎯 GTOWIZARD DNS DETECTED: '{pattern}' in '{domain}'")
+                print(f"[WebMonitor] GTOWIZARD DNS DETECTED: '{pattern}' in '{domain}'")
                 self._emit_rta_site("GTOWizard", "dns", coinpoker_active, other_poker_active)
                 return
 

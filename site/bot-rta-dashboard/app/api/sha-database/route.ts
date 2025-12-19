@@ -16,14 +16,37 @@ const SHA_DB_FILE = path.join(process.cwd(), "configs", "sha_database.json");
 interface SHAEntry {
   sha256: string;
   program_name: string;
+  points: 0 | 5 | 10 | 15;
+  comment?: string;
+  first_seen?: number;
+  last_seen?: number;
+  source?: "signal" | "admin";
 }
 
 interface SHADatabase {
-  programs: Record<string, string>; // sha256 -> program_name
+  programs: Record<
+    string,
+    | string
+    | {
+        program_name: string;
+        points?: number;
+        comment?: string;
+        first_seen?: number;
+        last_seen?: number;
+        source?: "signal" | "admin";
+      }
+  >; // sha256 -> entry (v1 was string, v2 is object)
   _meta: {
     version: string;
     last_updated: number;
+    total_entries?: number;
   };
+}
+
+function normalizePoints(value: unknown, fallback: 0 | 5 | 10 | 15 = 0): 0 | 5 | 10 | 15 {
+  const n = typeof value === "number" ? value : parseInt(String(value ?? ""), 10);
+  if (n === 0 || n === 5 || n === 10 || n === 15) return n;
+  return fallback;
 }
 
 // Helper function to calculate similarity between two strings (Levenshtein distance)
@@ -91,7 +114,52 @@ async function ensureDatabase(): Promise<SHADatabase> {
     if (!parsed.programs) {
       parsed.programs = {};
     }
-    
+
+    // Migrate v1 string values -> v2 objects (non-destructive)
+    let migratedAny = false;
+    const now = Date.now();
+    for (const [sha256, v] of Object.entries(parsed.programs as Record<string, any>)) {
+      if (typeof v === "string") {
+        parsed.programs[sha256] = {
+          program_name: v,
+          points: 0,
+          comment: "Auto-captured from scanner signals (unclassified)",
+          first_seen: now,
+          last_seen: now,
+          source: "signal",
+        };
+        migratedAny = true;
+      } else if (v && typeof v === "object") {
+        // Normalize shape
+        parsed.programs[sha256] = {
+          program_name: String(v.program_name || v.name || sha256),
+          points: normalizePoints(v.points, 0),
+          comment: v.comment ? String(v.comment) : "",
+          first_seen: typeof v.first_seen === "number" ? v.first_seen : undefined,
+          last_seen: typeof v.last_seen === "number" ? v.last_seen : undefined,
+          source: v.source === "admin" ? "admin" : "signal",
+        };
+      }
+    }
+
+    if (!parsed._meta) {
+      parsed._meta = { version: "2.0", last_updated: now };
+      migratedAny = true;
+    }
+    if (!parsed._meta.version) {
+      parsed._meta.version = "2.0";
+      migratedAny = true;
+    }
+    if (typeof parsed._meta.last_updated !== "number") {
+      parsed._meta.last_updated = now;
+      migratedAny = true;
+    }
+    parsed._meta.total_entries = Object.keys(parsed.programs).length;
+
+    if (migratedAny) {
+      await fs.writeFile(SHA_DB_FILE, JSON.stringify(parsed, null, 2));
+    }
+
     return parsed as SHADatabase;
   } catch (error: any) {
     if (error.code === "ENOENT") {
@@ -99,8 +167,9 @@ async function ensureDatabase(): Promise<SHADatabase> {
       const initial: SHADatabase = {
         programs: {},
         _meta: {
-          version: "1.0",
+          version: "2.0",
           last_updated: Date.now(),
+          total_entries: 0,
         },
       };
       await fs.mkdir(path.dirname(SHA_DB_FILE), { recursive: true });
@@ -131,10 +200,21 @@ export async function GET(req: NextRequest) {
     const similarityThreshold = parseFloat(searchParams.get("similarity") || "0.9"); // Default 90%
     
     // Convert to array format for easier frontend handling
-    let entries: SHAEntry[] = Object.entries(db.programs).map(([sha256, program_name]) => ({
-      sha256,
-      program_name,
-    }));
+    let entries: SHAEntry[] = Object.entries(db.programs).map(([sha256, raw]) => {
+      if (typeof raw === "string") {
+        return { sha256, program_name: raw, points: 0 };
+      }
+      const obj: any = raw || {};
+      return {
+        sha256,
+        program_name: String(obj.program_name || obj.name || sha256),
+        points: normalizePoints(obj.points, 0),
+        comment: obj.comment ? String(obj.comment) : "",
+        first_seen: typeof obj.first_seen === "number" ? obj.first_seen : undefined,
+        last_seen: typeof obj.last_seen === "number" ? obj.last_seen : undefined,
+        source: obj.source === "admin" ? "admin" : "signal",
+      };
+    });
     
     // Apply fuzzy matching if search term provided
     if (searchTerm) {
@@ -199,13 +279,17 @@ export async function GET(req: NextRequest) {
 // POST: Add or update SHA entry
 export async function POST(req: NextRequest) {
   try {
+    // Allow both scanner token and NextAuth session (admin UI)
     const tokenValidation = validateToken(req, process.env.SIGNAL_TOKEN);
     if (!tokenValidation.valid) {
-      return errorResponse("Unauthorized", 401);
+      const auth = await requireAuth();
+      if (!auth.authenticated) {
+        return auth.response;
+      }
     }
 
     const body = await req.json();
-    const { sha256, program_name } = body;
+    const { sha256, program_name, points, comment, source } = body;
 
     if (!sha256 || !program_name) {
       return errorResponse("sha256 and program_name are required", 400);
@@ -213,10 +297,60 @@ export async function POST(req: NextRequest) {
 
     const db = await ensureDatabase();
     const normalizedSha = sha256.toLowerCase();
+    const now = Date.now();
 
-    // Add or update entry
-    db.programs[normalizedSha] = program_name;
-    db._meta.last_updated = Date.now();
+    // Merge: do NOT overwrite admin classification unless explicitly provided.
+    const existingRaw = db.programs[normalizedSha];
+    const existing =
+      typeof existingRaw === "string"
+        ? { program_name: existingRaw, points: 0, comment: "" }
+        : (existingRaw as any) || { program_name, points: 0, comment: "" };
+
+    const nextPoints =
+      points === undefined || points === null ? normalizePoints(existing.points, 0) : normalizePoints(points, 0);
+    const nextComment =
+      comment === undefined || comment === null ? String(existing.comment || "") : String(comment || "");
+
+    const nextSource: "signal" | "admin" =
+      source === "admin" || existing.source === "admin" ? "admin" : "signal";
+
+    const firstSeen = typeof existing.first_seen === "number" ? existing.first_seen : now;
+
+    // Throttle noisy "signal" updates to avoid constant disk writes.
+    // If the entry is still unclassified (points=0) and we recently updated last_seen,
+    // skip writing again (admins can still classify anytime).
+    const lastSeenPrev = typeof existing.last_seen === "number" ? existing.last_seen : 0;
+    const isUnclassified = normalizePoints(existing.points, 0) === 0 && nextPoints === 0 && nextSource === "signal";
+    const minWriteIntervalMs = parseInt(process.env.SHA_DB_MIN_WRITE_MS || "600000", 10); // default 10 min
+    if (
+      isUnclassified &&
+      lastSeenPrev > 0 &&
+      Number.isFinite(minWriteIntervalMs) &&
+      minWriteIntervalMs > 0 &&
+      now - lastSeenPrev < minWriteIntervalMs
+    ) {
+      return successResponse({
+        success: true,
+        sha256: normalizedSha,
+        program_name: program_name,
+        points: nextPoints,
+        comment: nextComment,
+        source: nextSource,
+        skippedWrite: true,
+      });
+    }
+
+    db.programs[normalizedSha] = {
+      program_name: String(program_name),
+      points: nextPoints,
+      comment: nextComment,
+      first_seen: firstSeen,
+      last_seen: now,
+      source: nextSource,
+    };
+
+    db._meta.last_updated = now;
+    db._meta.total_entries = Object.keys(db.programs).length;
 
     // Save to file
     await fs.writeFile(SHA_DB_FILE, JSON.stringify(db, null, 2));
@@ -225,6 +359,9 @@ export async function POST(req: NextRequest) {
       success: true,
       sha256: normalizedSha,
       program_name: program_name,
+      points: nextPoints,
+      comment: nextComment,
+      source: nextSource,
     });
   } catch (error: any) {
     console.error("[/api/sha-database] POST error:", error);
@@ -258,6 +395,7 @@ export async function DELETE(req: NextRequest) {
     if (db.programs[normalizedSha]) {
       delete db.programs[normalizedSha];
       db._meta.last_updated = Date.now();
+      db._meta.total_entries = Object.keys(db.programs).length;
 
       await fs.writeFile(SHA_DB_FILE, JSON.stringify(db, null, 2));
 
